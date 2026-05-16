@@ -1,0 +1,72 @@
+{
+  "name": "@pinecall/core",
+  "version": "0.1.0",
+  "description": "Core SDK for Pinecall Voice — connect to agents, handle calls, stream speech in real-time.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pinecall/pinecall-js.git"
+  },
+  "homepage": "https://pinecall.io",
+  "bugs": {
+    "url": "https://github.com/pinecall/pinecall-js/issues"
+  },
+  "author": "Pinecall <hello@pinecall.io>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "voice",
+    "ai",
+    "websocket",
+    "stt",
+    "tts",
+    "realtime",
+    "pinecall",
+    "twilio",
+    "voice-agent",
+    "conversational-ai"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "@types/ws": "^8.18.1",
+    "mock-socket": "^9.3.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6",
+    "vitest-websocket-mock": "^0.5.0"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}
