@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://pinecall.io/logo.svg" width="56" alt="Pinecall" />
+  <img src="./logo.png" width="56" alt="Pinecall" />
 </p>
 
 <h1 align="center">@pinecall/core</h1>
