@@ -11,7 +11,8 @@
   <a href="#api-reference">API</a> ·
   <a href="#events">Events</a> ·
   <a href="#hot-reload-live-configuration">Hot-Reload</a> ·
-  <a href="#rest-api">REST API</a>
+  <a href="#rest-api">REST API</a> ·
+  <a href="#configuration-reference">Config Reference</a>
 </p>
 
 ---
