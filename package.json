@@ -1,6 +1,6 @@
 {
   "name": "@pinecall/core",
-  "version": "0.1.0",
+  "version": "0.0.1-beta.0",
   "description": "Core SDK for Pinecall Voice — connect to agents, handle calls, stream speech in real-time.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -31,11 +31,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pinecall/pinecall-js.git"
+    "url": "git+https://github.com/pinecall/core.git"
   },
-  "homepage": "https://pinecall.io",
+  "homepage": "https://github.com/pinecall/core#readme",
   "bugs": {
-    "url": "https://github.com/pinecall/pinecall-js/issues"
+    "url": "https://github.com/pinecall/core/issues"
   },
   "author": "Pinecall <hello@pinecall.io>",
   "publishConfig": {
