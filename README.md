@@ -219,10 +219,30 @@ const agent = pc.agent("my-agent", {
 // Update any config later (hot-reload, affects future calls)
 agent.configure({ voice: "cartesia:xyz", language: "fr" });
 
-// Channels
-agent.addChannel("phone", "+13186330963");
+// Channels — each can override agent defaults with per-channel config
+agent.addChannel("phone", "+18045551234");
 agent.addChannel("phone", "sip:bot@trunk.twilio.com");
 agent.addChannel("webrtc");
+
+// Per-channel config: different voice/language/STT per number
+agent.addChannel("phone", "+34911234567", {
+  voice: "elevenlabs:spanishVoiceId",
+  language: "es",
+  stt: "deepgram:nova-3:es",
+});
+
+agent.addChannel("phone", "+442012345678", {
+  voice: "cartesia:britishVoiceId",
+  language: "en-GB",
+  llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true,
+         instructions: "You are a UK support agent. Use British English." },
+});
+
+// Update a channel's config at runtime
+agent.configureChannel("+34911234567", { voice: "cartesia:newSpanishVoice" });
+
+// Remove a channel
+agent.removeChannel("+442012345678");
 
 // Outbound calls
 const call = await agent.dial({ to: "+15551234", from: "+13186330963" });
