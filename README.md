@@ -101,6 +101,13 @@ agent.addChannel("phone", "+18045551234");
 agent.addChannel("phone", "sip:receptionist@trunk.twilio.com");
 agent.addChannel("webrtc");
 
+// Per-channel overrides: different voice/language per number
+agent.addChannel("phone", "+34911234567", {
+  voice: "elevenlabs:spanishVoiceId",
+  language: "es",
+  stt: "deepgram:nova-3:es",
+});
+
 // Greet on call start
 agent.on("call.started", (call) => {
   if (call.direction === "inbound") {
