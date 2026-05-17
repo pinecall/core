@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./logo.png" width="56" alt="Pinecall" />
+  <img src="./logo.png" width="120" alt="Pinecall" />
 </p>
 
 <h1 align="center">@pinecall/core</h1>
@@ -46,7 +46,7 @@
   - [fetchWebRTCToken](#fetchwebrtctokenopts)
   - [fetchTwilioBalance](#fetchtwiliobalanceopts)
   - [fetchBalance](#fetchbalanceopts-1)
-- [What's NOT Included](#whats-not-included)
+
 
 ---
 
@@ -533,9 +533,18 @@ if (balance) console.log(`$${balance.balance} ${balance.currency}`);
 
 **Returns:** `{ balance: string, currency: string } | null`.
 
-### `fetchBalance(opts)` *(coming soon)*
+### `fetchBalance(opts)`
 
-Fetch the Pinecall account balance. Not yet implemented — use `fetchTwilioBalance()` for now.
+Fetch the Pinecall account balance.
+
+```typescript
+import { fetchBalance } from "@pinecall/core";
+
+const balance = await fetchBalance({ apiKey: "pk_..." });
+console.log(`$${balance.balance} ${balance.currency}`);
+```
+
+**Returns:** `{ balance: string, currency: string } | null`.
 
 ### Options
 
@@ -546,25 +555,7 @@ fetchVoices({ apiUrl: "http://localhost:1337" });
 fetchPhones({ apiKey: "pk_...", apiUrl: "http://localhost:1337" });
 ```
 
----
 
-## What's NOT Included
-
-This is the **core** package. For the full agent framework, use [`@pinecall/sdk`](https://github.com/pinecall/pinecall-js-sdk):
-
-| Feature | Package |
-|---------|---------|
-| `PinecallAgent` declarative class | `@pinecall/sdk` |
-| `@tool` decorator | `@pinecall/sdk/ai` |
-| `Phone`, `WebRTC`, `Chat` channel classes | `@pinecall/sdk/ai` |
-| `EventServer` (dashboard WebSocket) | `@pinecall/sdk/server` |
-| `pinecall` CLI (dev / start / deploy) | `@pinecall/sdk` |
-| Embedded React dashboard | `@pinecall/sdk` |
-| WebRTC browser client | `@pinecall/sdk/webrtc` |
-| `JsonFileHistory` (call transcript persistence) | `@pinecall/sdk` |
-| LangChain / OpenClaw plugins | `@pinecall/sdk/langchain` |
-
----
 
 ## License
 

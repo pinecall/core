@@ -1,6 +1,6 @@
 {
   "name": "@pinecall/core",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1-beta.2",
   "description": "Core SDK for Pinecall Voice — connect to agents, handle calls, stream speech in real-time.",
   "type": "module",
   "main": "./dist/index.cjs",
