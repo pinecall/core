@@ -42,6 +42,14 @@
   - [fetchWebRTCToken](#fetchwebrtctokenopts)
   - [fetchTwilioBalance](#fetchtwiliobalanceopts)
   - [fetchBalance](#fetchbalanceopts-1)
+- [Configuration Reference](#configuration-reference)
+  - [STT Providers](#stt-providers)
+  - [TTS Providers](#tts-providers)
+  - [LLM Providers](#llm-providers)
+  - [Turn Detection](#turn-detection)
+  - [VAD Config](#vad-config)
+  - [Interruption](#interruption)
+  - [Audio Metrics](#analysis--audio-metrics)
 
 
 ---
@@ -105,7 +113,7 @@ agent.addChannel("webrtc");
 agent.addChannel("phone", "+34911234567", {
   voice: "elevenlabs:spanishVoiceId",
   language: "es",
-  stt: "deepgram:nova-3:es",
+  stt: "deepgram-flux",
 });
 
 // Greet on call start
@@ -235,7 +243,7 @@ agent.addChannel("webrtc");
 agent.addChannel("phone", "+34911234567", {
   voice: "elevenlabs:spanishVoiceId",
   language: "es",
-  stt: "deepgram:nova-3:es",
+  stt: "deepgram-flux",
 });
 
 agent.addChannel("phone", "+442012345678", {
@@ -578,7 +586,266 @@ fetchVoices({ apiUrl: "http://localhost:1337" });
 fetchPhones({ apiKey: "pk_...", apiUrl: "http://localhost:1337" });
 ```
 
+---
 
+## Configuration Reference
+
+### STT Providers
+
+#### Deepgram Flux (recommended)
+
+Best for multilingual, handles turn detection natively. Use `turnDetection: "native"` with Flux.
+
+```typescript
+stt: {
+  provider: "deepgram-flux",
+  language: "multi",         // auto-detect language
+  eot_threshold: 0.5,        // end-of-turn sensitivity (0-1)
+  eager_eot_threshold: 0.7,  // eager turn threshold
+  eot_timeout_ms: 2000,
+  keyterms: ["pinecall"],
+  min_confidence: null,
+}
+
+// Shortcut: "deepgram-flux" or "flux"
+```
+
+> **Flux + Native:** Flux handles turn detection internally — always pair with `turnDetection: "native"`. Using `smart_turn` with Flux causes unstable `eager.turn` signals since Flux transcripts update continuously.
+
+#### Deepgram Nova
+
+Classic STT. Pair with `turnDetection: "smart_turn"` for best results — Nova's `is_final` fires `eager.turn`, then smart_turn confirms in ~300ms.
+
+```typescript
+stt: {
+  provider: "deepgram",
+  model: "nova-3",
+  language: "en",
+  interim_results: true,
+  smart_format: true,
+  punctuate: true,
+  profanity_filter: false,
+  endpointing_ms: 300,
+  utterance_end_ms: 1000,
+  keywords: ["pinecall"],
+}
+
+// Shortcut: "deepgram" or "deepgram:nova-3" or "deepgram:nova-3:es"
+```
+
+#### Gladia
+
+```typescript
+stt: {
+  provider: "gladia",
+  model: "accurate",
+  language: "en",
+  endpointing: 300,
+  speech_threshold: 0.8,
+  code_switching: false,
+  audio_enhancer: true,
+}
+
+// Shortcut: "gladia"
+```
+
+#### AWS Transcribe
+
+```typescript
+stt: { provider: "transcribe", language: "en-US" }
+
+// Shortcut: "transcribe"
+```
+
+---
+
+### TTS Providers
+
+#### ElevenLabs
+
+```typescript
+voice: {
+  provider: "elevenlabs",
+  voice_id: "JBFqnCBsd6RMkjVDRZzb",
+  model: "eleven_turbo_v2_5",
+  speed: 1.0,
+  stability: 0.5,
+  similarity_boost: 0.75,
+  style: 0,
+  use_speaker_boost: true,
+}
+
+// Shortcut: "elevenlabs:JBFqnCBsd6RMkjVDRZzb"
+```
+
+#### Cartesia
+
+```typescript
+voice: {
+  provider: "cartesia",
+  voice_id: "a0e99841-438c-4a64-b679-ae501e7d6091",
+  model: "sonic",
+  speed: 1.0,
+  volume: 1.0,
+  emotion: null,
+  language: "en",
+}
+
+// Shortcut: "cartesia:a0e99841-438c-4a64-b679-ae501e7d6091"
+```
+
+#### AWS Polly
+
+```typescript
+voice: {
+  provider: "polly",
+  voice_id: "Joanna",
+  engine: "neural",
+  language: "en-US",
+}
+
+// Shortcut: "polly:Joanna"
+```
+
+---
+
+### LLM Providers
+
+#### OpenAI
+
+```typescript
+llm: {
+  engine: "openai",
+  model: "gpt-4.1-mini",     // or "gpt-4.1", "gpt-4.1-nano"
+  enabled: true,
+  instructions: "System prompt here.",
+  temperature: 0.7,
+  max_tokens: 1024,
+}
+```
+
+#### Mistral
+
+```typescript
+llm: {
+  engine: "mistral",
+  model: "mistral-medium",
+  enabled: true,
+  instructions: "System prompt here.",
+}
+```
+
+> **LLM shortcut:** `llm: "openai:gpt-4.1-mini"` expands to `{ engine: "openai", model: "gpt-4.1-mini", enabled: true }`.
+
+---
+
+### Turn Detection
+
+| Mode | Best With | Description |
+|------|-----------|-------------|
+| `native` | **Flux** | Delegates to the STT provider's built-in endpointing. Required for Flux. |
+| `smart_turn` | **Nova**, Gladia | AI-powered turn detection. Uses `is_final` + confirmation window. |
+| `silence` | Any | Simple silence timer. Fastest but least accurate. |
+
+```typescript
+turnDetection: {
+  mode: "smart_turn",
+  smart_turn_threshold: 0.5,  // 0-1, lower = faster response
+  native_silence_ms: 500,     // for native mode
+  max_silence_seconds: 2,     // for silence mode
+}
+
+// Shortcuts: "smart_turn", "native", "silence"
+```
+
+**Recommended pairings:**
+```typescript
+// Flux: always native
+{ stt: "deepgram-flux", turnDetection: "native" }
+
+// Nova: smart_turn for best latency
+{ stt: "deepgram:nova-3", turnDetection: "smart_turn" }
+
+// AWS Transcribe: native (no smart_turn support)
+{ stt: "transcribe", turnDetection: "native" }
+```
+
+---
+
+### VAD Config
+
+Voice Activity Detection — controls when speech starts/stops being processed.
+
+```typescript
+config: {
+  vad: {
+    provider: "silero",        // or "native"
+    threshold: 0.5,
+    min_speech_ms: 250,
+    min_silence_ms: 200,
+    speech_end_delay_ms: 400,
+  }
+}
+```
+
+---
+
+### Interruption
+
+Controls whether users can interrupt the bot mid-speech.
+
+```typescript
+interruption: {
+  enabled: true,
+  energy_threshold_db: -40,   // min energy to trigger interrupt
+  min_duration_ms: 200,       // min speech duration to trigger
+}
+
+// Shortcut: false (disables interruption entirely)
+```
+
+---
+
+### Analysis & Audio Metrics
+
+Real-time audio metrics for waveform visualization and energy monitoring.
+
+```typescript
+config: {
+  analysis: {
+    send_audio_metrics: true,
+    audio_metrics_interval_ms: 100,
+    send_turn_audio: false,
+    send_bot_audio: false,
+  }
+}
+```
+
+#### `audio.metrics` Event
+
+Emitted per interval — one for **user** (mic) and one for **bot** (TTS):
+
+```typescript
+agent.on("audio.metrics", (evt, call) => {
+  // evt.source: "user" | "bot"
+  // evt.energy_db: -60 to 0 (higher = louder)
+  // evt.rms: 0 to 1 (normalized amplitude)
+  // evt.peak: 0 to 1
+  // evt.is_speech: boolean (VAD state)
+  // evt.vad_prob: 0 to 1
+});
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | `"user"` \| `"bot"` | Audio source |
+| `energy_db` | `number` | Energy in decibels (-60 to 0) |
+| `rms` | `number` | Root mean square amplitude (0–1) |
+| `peak` | `number` | Peak amplitude (0–1) |
+| `is_speech` | `boolean` | VAD speech detection state |
+| `vad_prob` | `number` | VAD probability (0–1) |
+
+---
 
 ## License
 
