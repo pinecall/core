@@ -101,7 +101,9 @@ const agent = pc.agent("receptionist", {
   ],
 });
 
+agent.addChannel("phone", "+18045551234");
 agent.addChannel("phone", "sip:receptionist@trunk.twilio.com");
+agent.addChannel("webrtc");
 
 // Greet on call start
 agent.on("call.started", (call) => {
@@ -131,8 +133,6 @@ agent.on("call.ended", (call, reason) => {
   console.log(`Call ended: ${reason} (${call.duration}s)`);
 });
 ```
-
-> **Note on greeting:** The `greeting` field in `pc.agent()` configures the server, but reliable greeting delivery uses `call.say()` inside `call.started`. This ensures the greeting fires after the audio path is ready.
 
 ### Client-side LLM (bring your own)
 
