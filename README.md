@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="./logo.png" width="120" alt="Pinecall" />
-</p>
-
 <h1 align="center">@pinecall/core</h1>
 
 <p align="center">
