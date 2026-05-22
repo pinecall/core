@@ -1,4 +1,4 @@
-<h1 align="center">@pinecall/core</h1>
+<h1 align="center">@pinecall/sdk</h1>
 
 <p align="center">
   <strong>Build real-time voice AI agents in TypeScript.</strong><br/>
@@ -58,7 +58,7 @@
 ## Install
 
 ```bash
-npm install @pinecall/core
+npm install @pinecall/sdk
 ```
 
 > **Node.js ≥ 18** required. Only runtime dependency: `ws`.
@@ -72,7 +72,7 @@ npm install @pinecall/core
 The Pinecall server runs the LLM and handles STT/TTS. You configure the agent and handle tool calls locally.
 
 ```typescript
-import { Pinecall } from "@pinecall/core";
+import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 await pc.connect();
@@ -151,7 +151,7 @@ agent.on("call.ended", (call, reason) => {
 You run the LLM yourself. The server handles STT → text and text → TTS.
 
 ```typescript
-import { Pinecall } from "@pinecall/core";
+import { Pinecall } from "@pinecall/sdk";
 import OpenAI from "openai";
 
 const pc = new Pinecall({ apiKey: "pk_..." });
@@ -504,7 +504,7 @@ Static helpers for the Pinecall management API. No WebSocket connection needed.
 List available TTS voices. Filter by provider and language.
 
 ```typescript
-import { fetchVoices } from "@pinecall/core";
+import { fetchVoices } from "@pinecall/sdk";
 
 // All ElevenLabs voices
 const voices = await fetchVoices();
@@ -523,7 +523,7 @@ voices.forEach(v => console.log(`${v.name} (${v.provider}:${v.id})`));
 List phone numbers on your Pinecall account.
 
 ```typescript
-import { fetchPhones } from "@pinecall/core";
+import { fetchPhones } from "@pinecall/sdk";
 
 const phones = await fetchPhones({ apiKey: "pk_..." });
 phones.forEach(p => console.log(`${p.name} → ${p.number}`));
@@ -537,7 +537,7 @@ phones.forEach(p => console.log(`${p.name} → ${p.number}`));
 Get a signed token for browser WebRTC connections. **Public endpoint** — no API key required. The agent must be online.
 
 ```typescript
-import { fetchWebRTCToken } from "@pinecall/core";
+import { fetchWebRTCToken } from "@pinecall/sdk";
 
 // Works from browser or server — no API key needed
 const { token, server } = await fetchWebRTCToken({ agentId: "my-agent" });
@@ -557,7 +557,7 @@ const res = await fetch(`${server}/webrtc/offer`, {
 Check your Twilio account balance.
 
 ```typescript
-import { fetchTwilioBalance } from "@pinecall/core";
+import { fetchTwilioBalance } from "@pinecall/sdk";
 
 const balance = await fetchTwilioBalance({ apiKey: "pk_..." });
 if (balance) console.log(`$${balance.balance} ${balance.currency}`);
@@ -570,7 +570,7 @@ if (balance) console.log(`$${balance.balance} ${balance.currency}`);
 Fetch the Pinecall account balance.
 
 ```typescript
-import { fetchBalance } from "@pinecall/core";
+import { fetchBalance } from "@pinecall/sdk";
 
 const balance = await fetchBalance({ apiKey: "pk_..." });
 console.log(`$${balance.balance} ${balance.currency}`);
