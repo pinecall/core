@@ -27,6 +27,7 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     if (opts.llm !== undefined) payload.llm = opts.llm;
     if ((opts as any).prompt !== undefined) payload.prompt = (opts as any).prompt;
     if ((opts as any).tools !== undefined) payload.tools = (opts as any).tools;
+    if ((opts as any).session_limits !== undefined) payload.session_limits = (opts as any).session_limits;
     if (opts.config !== undefined) payload.config = opts.config;
     if ("mode" in opts && (opts as Record<string, unknown>).mode !== undefined) {
         payload.mode = (opts as Record<string, unknown>).mode;

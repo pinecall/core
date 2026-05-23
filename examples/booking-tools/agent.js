@@ -139,11 +139,21 @@ VOICE: No markdown, no emojis, no bullets. Short responses (1-2 sentences).`,
     voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
     channels: ["webrtc"],
     tools,
+    session_limits: {
+      idle_timeout_seconds: 25,
+      idle_warning_seconds: 15,
+      idle_grace_seconds: 5,
+    },
   });
 
   agent.on("call.started", (call) => {
     console.log(`📞 Call started: ${call.id}`);
     call.say("Hi! Welcome to Glow Studio. Would you like to book an appointment?");
+  });
+
+  agent.on("session.idle_warning", (event, call) => {
+    console.log(`⏱️ Idle warning: ${event.remaining_seconds}s remaining`);
+    call.say("Are you still there?");
   });
 
   agent.on("call.ended", (call, reason) => {
