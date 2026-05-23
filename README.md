@@ -1025,9 +1025,13 @@ agent.on("session.timeout", (event, call) => {
 
 **Timeline:**
 ```
-[silence starts] ──── idle_warning fires ──── idle_timeout fires ──── grace expires ──── hangup
-     0s              (timeout - warning)s         timeout s        (timeout + grace)s
+[silence starts] ──── idle_warning fires ──── idle_timeout fires ──── hangup
+     0s              (timeout - warning)s         timeout s
 ```
+
+> **Note:** Bot speech (e.g. "Are you still there?") **pauses** the idle counter but does **not** reset it. Only real user speech resets the timer. This prevents infinite warning loops.
+
+**WebRTC widget integration:** The `@pinecall/voice-widget` automatically responds to `session.idle_warning` by switching the orb to a blinking amber state (`.idle-warning` CSS class, configurable via `colorWarning` theme prop). On `session.timeout`, the widget auto-disconnects.
 
 ---
 
