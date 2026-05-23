@@ -122,6 +122,7 @@ export interface AgentEvents {
     "audio.metrics": (event: AudioMetricsEvent, call: Call) => void;
 
     // Session limits
+    "session.idle_warning": (event: any, call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent, call: Call) => void;
 
     // Channel events
@@ -553,9 +554,9 @@ export class Agent extends TypedEmitter<AgentEvents> {
 
                     if (call) {
                         call._handleEvent(data);
-                        // Emit llm.* events on agent too — they aren't proxied
+                        // Emit llm.* and session.* events on agent too — they aren't proxied
                         // from Call (unlike user.message, bot.speaking, etc.)
-                        if (eventType.startsWith("llm.")) {
+                        if (eventType.startsWith("llm.") || eventType.startsWith("session.")) {
                             this.emit(eventType as any, call, data);
                         }
                     }

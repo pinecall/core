@@ -789,10 +789,11 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
             default: {
                 // llm.chat.* events use session_id (no agent_id) — route to
                 // the target agent, or fall back to the first registered one.
-                // history.* and conversations.* responses also lack agent_id — same fallback.
+                // history.*, conversations.*, and session.* responses also lack agent_id — same fallback.
                 const needsFallback = eventType.startsWith("llm.chat.") 
                     || eventType.startsWith("history.") 
-                    || eventType.startsWith("conversation");
+                    || eventType.startsWith("conversation")
+                    || eventType.startsWith("session.");
                 const targetAgent = agentId
                     ? this._agents.get(agentId)
                     : (needsFallback
