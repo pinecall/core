@@ -526,6 +526,17 @@ export class Agent extends TypedEmitter<AgentEvents> {
                     break;
                 }
 
+                // ── Session events: never auto-create calls ──
+                if (callId && eventType.startsWith("session.")) {
+                    const call = this._calls.get(callId);
+                    if (call) {
+                        call._handleEvent(data);
+                        this.emit(eventType as any, data, call);
+                    }
+                    // If call doesn't exist (already ended), silently ignore
+                    break;
+                }
+
                 // Route to call
                 if (callId) {
                     let call = this._calls.get(callId);
@@ -554,13 +565,10 @@ export class Agent extends TypedEmitter<AgentEvents> {
 
                     if (call) {
                         call._handleEvent(data);
-                        // Emit llm.* and session.* events on agent too — they aren't proxied
+                        // Emit llm.* events on agent too — they aren't proxied
                         // from Call (unlike user.message, bot.speaking, etc.)
                         if (eventType.startsWith("llm.")) {
                             this.emit(eventType as any, call, data);
-                        } else if (eventType.startsWith("session.")) {
-                            // session.* events use (event, call) signature
-                            this.emit(eventType as any, data, call);
                         }
                     }
                 }

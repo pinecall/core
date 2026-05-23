@@ -140,9 +140,8 @@ VOICE: No markdown, no emojis, no bullets. Short responses (1-2 sentences).`,
     channels: ["webrtc"],
     tools,
     session_limits: {
-      idle_timeout_seconds: 25,
-      idle_warning_seconds: 15,
-      idle_grace_seconds: 5,
+      idle_timeout_seconds: 20,
+      idle_warning_seconds: 10,
     },
   });
 
