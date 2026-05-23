@@ -27,6 +27,9 @@
 - [API Reference](#api-reference)
   - [Pinecall (client)](#pinecall-client)
   - [Agent](#agent)
+    - [Agent Methods](#agent-methods)
+    - [agent.configure()](#agentconfigure--hot-reload)
+    - [agent.dial()](#agentdial--outbound-calls)
   - [Call](#call)
   - [ReplyStream](#replystream)
 - [Events](#events)
@@ -43,10 +46,10 @@
   - [fetchPhones](#fetchphonesopts)
   - [fetchWebRTCToken](#fetchwebrtctokenopts)
   - [fetchTwilioBalance](#fetchtwiliobalanceopts)
-  - [fetchBalance](#fetchbalanceopts-1)
 - [SSE Streaming](#sse-streaming)
   - [Single Agent](#single-agent-stream)
   - [Multi-Agent](#multi-agent-stream)
+  - [Filtering (Multi-Tenant)](#filtering--multi-tenant-example)
   - [Events](#streamed-events)
 - [Configuration Reference](#configuration-reference)
   - [STT Providers](#stt-providers)
@@ -88,7 +91,7 @@ const agent = pc.agent("receptionist", {
     engine: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
-    instructions: "You are a helpful receptionist. Be concise.",
+    prompt: "You are a helpful receptionist. Be concise.",
   },
   tools: [
     {
@@ -217,7 +220,7 @@ mara.on("call.ended", (call, reason) => {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `prompt` | `string` | System prompt (alias: `instructions`) |
+| `prompt` | `string` | System prompt for the LLM |
 | `model` | `string` | LLM model (default: `gpt-4.1-mini`) |
 | `voice` | `string` | TTS voice shortcut (e.g. `elevenlabs:voiceId`) |
 | `language` | `string` | BCP-47 language code |
@@ -260,58 +263,113 @@ pc.on("error", (err) => {});
 
 ### Agent
 
-Created via `pc.agent(id, config?)`. Owns channels, routes call events, and stores defaults.
+Created via `pc.agent(id, config?)` or `pc.deploy(id, config)`. Owns channels, routes call events, and stores defaults.
+
+#### Creation
 
 ```typescript
 const agent = pc.agent("my-agent", {
-  // Audio
-  voice: "elevenlabs:abc",          // TTS voice (shortcut or full config)
-  language: "es",                    // BCP-47 language code
-  stt: "deepgram-flux",             // STT engine (turn detection auto-derived)
-
-  // Server-side LLM (optional)
+  voice: "elevenlabs:abc",
+  language: "es",
+  stt: "deepgram-flux",
   llm: {
     engine: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
-    instructions: "System prompt with {{template_vars}}.",
+    prompt: "System prompt with {{template_vars}}.",
   },
   tools: [/* OpenAI function-calling format */],
 });
+```
 
-// Update any config later (hot-reload, affects future calls)
-agent.configure({ voice: "cartesia:xyz", language: "fr" });
+#### Channels
 
-// Channels — each can override agent defaults with per-channel config
+```typescript
 agent.addChannel("phone", "+18045551234");
 agent.addChannel("phone", "sip:bot@trunk.twilio.com");
 agent.addChannel("webrtc");
 
-// Per-channel config: different voice/language/STT per number
+// Per-channel config overrides
 agent.addChannel("phone", "+34911234567", {
   voice: "elevenlabs:spanishVoiceId",
   language: "es",
-  stt: "deepgram-flux",
-});
-
-agent.addChannel("phone", "+442012345678", {
-  voice: "cartesia:britishVoiceId",
-  language: "en-GB",
-  llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true,
-         instructions: "You are a UK support agent. Use British English." },
 });
 
 // Update a channel's config at runtime
-agent.configureChannel("+34911234567", { voice: "cartesia:newSpanishVoice" });
+agent.configureChannel("+34911234567", { voice: "cartesia:newVoice" });
 
 // Remove a channel
-agent.removeChannel("+442012345678");
+agent.removeChannel("+34911234567");
+```
 
-// Outbound calls
-const call = await agent.dial({ to: "+15551234", from: "+13186330963" });
+#### Agent Methods
 
-// Low-level protocol access
-agent.send({ event: "llm.tool_result", call_id: "...", msg_id: "...", results: [] });
+| Method | Description |
+|--------|-------------|
+| `agent.addChannel(type, ref?, config?)` | Register a phone, webrtc, mic, or chat channel |
+| `agent.removeChannel(ref)` | Unregister a channel |
+| `agent.configure(opts)` | Hot-reload agent defaults (voice, language, STT, LLM) — affects all future calls |
+| `agent.configureChannel(ref, config)` | Update a specific channel's config |
+| `agent.configureSession(callId, opts)` | Update config for a live call (equivalent to `call.configure`) |
+| `agent.dial(opts)` | Make an outbound call — returns `Promise<Call>` |
+| `agent.call(callId)` | Get a `Call` object by ID (`undefined` if not found) |
+| `agent.getConfig()` | Returns the current `AgentConfig` |
+| `agent.stream()` | SSE stream of this agent's events (see [SSE](#sse-streaming)) |
+| `agent.send(data)` | Send a raw protocol message (low-level) |
+
+#### `agent.configure()` — Hot-Reload
+
+Update the agent's defaults at runtime. Changes take effect on **all future calls** — existing calls are not affected. Sends an `agent.configure` command over the WebSocket.
+
+```typescript
+// Switch to French voice
+agent.configure({ voice: "elevenlabs:frenchVoiceId", language: "fr" });
+
+// Update LLM model
+agent.configure({
+  llm: { engine: "openai", model: "gpt-4.1", enabled: true,
+         prompt: "Updated prompt." },
+});
+
+// Swap STT provider
+agent.configure({ stt: "gladia" });
+```
+
+> **No REST call needed.** `agent.configure()` uses the existing WebSocket — changes propagate instantly to the server.
+
+#### `agent.dial()` — Outbound Calls
+
+```typescript
+const call = await agent.dial({
+  to: "+14155551234",
+  from: "+13186330963",
+  greeting: "Hi! This is a follow-up call.",  // server speaks via TTS
+  metadata: { appointmentId: "appt_001" },
+  config: { voice: "cartesia:uuid", language: "ar" }, // per-call override
+});
+
+call.on("call.ended", (_, reason) => console.log(`Done: ${reason}`));
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `to` | `string` | ✅ | Destination number (E.164) |
+| `from` | `string` | ✅ | Caller ID (must be a registered number) |
+| `greeting` | `string` | — | Text the server speaks when callee picks up |
+| `metadata` | `object` | — | Custom data attached to the call |
+| `config` | `object` | — | Per-call config override (voice, STT, language) |
+
+### Pinecall (client) — Additional Methods
+
+```typescript
+// Agent management
+const agent = pc.getAgent("mara");       // get by ID (undefined if not found)
+const removed = pc.removeAgent("mara");  // unregister agent (returns boolean)
+
+// REST helpers (no WebSocket needed)
+const voices = await pc.fetchVoices({ provider: "elevenlabs" });
+const phones = await pc.fetchPhones();
+const token = await pc.getWebRTCToken("mara");
 ```
 
 ### Call
@@ -486,7 +544,7 @@ Everything is hot-reloadable. Voice, language, STT, prompt, tools — all can ch
 | **Session (mid-call)** | `call.configure(opts)` | This call only |
 | **Prompt (mid-call)** | `call.setPrompt(text)` | This call's system prompt |
 | **Template vars** | `call.setPromptVars(vars)` | This call's `{{var}}` values |
-| **Context** | `call.addContext(text)` | Appended after instructions |
+| **Context** | `call.addContext(text)` | Appended after prompt |
 
 ### Prompt Template Variables
 
@@ -498,7 +556,7 @@ const agent = pc.agent("support", {
     engine: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
-    instructions: `You are {{agent_name}}, support agent at {{company}}.
+    prompt: `You are {{agent_name}}, support agent at {{company}}.
 Today is {{date}}, {{time}}.
 Customer: {{customer_name}} ({{tier}} tier).`,
   },
@@ -630,19 +688,6 @@ if (balance) console.log(`$${balance.balance} ${balance.currency}`);
 
 **Returns:** `{ balance: string, currency: string } | null`.
 
-### `fetchBalance(opts)`
-
-Fetch the Pinecall account balance.
-
-```typescript
-import { fetchBalance } from "@pinecall/sdk";
-
-const balance = await fetchBalance({ apiKey: "pk_..." });
-console.log(`$${balance.balance} ${balance.currency}`);
-```
-
-**Returns:** `{ balance: string, currency: string } | null`.
-
 ### Options
 
 All REST helpers accept an `apiUrl` option to point to a custom server:
@@ -657,6 +702,8 @@ fetchPhones({ apiKey: "pk_...", apiUrl: "http://localhost:1337" });
 ## SSE Streaming
 
 Stream real-time agent events over HTTP using [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). Works with any framework — returns a Web API `Response` or writes to a Node.js `ServerResponse`.
+
+> **WebRTC vs SSE:** If your frontend uses `@pinecall/voice-widget` or `@pinecall/voice-core`, events already arrive through the **WebRTC DataChannel** — you don't need SSE. SSE is for **server-side dashboards, monitoring UIs, or backends** that need to observe calls without being in the WebRTC session.
 
 ### Single Agent Stream
 
@@ -684,13 +731,44 @@ app.get("/events", (req, res) => pc.stream(res));
 app.get("/events", (req, res) => pc.stream(res, { agents: ["mara"] }));
 ```
 
+### Filtering — Multi-Tenant Example
+
+The `agents` filter lets you build **per-user dashboards** where each user only sees their own agents:
+
+```typescript
+// Each user owns specific agents
+const userAgents = {
+  "user_1": ["mara", "julia"],
+  "user_2": ["nova", "receptionist"],
+};
+
+// User-scoped SSE endpoint
+app.get("/api/events", (req, res) => {
+  const userId = req.auth.userId;              // from your auth middleware
+  const allowed = userAgents[userId] || [];
+
+  // Only streams events from agents this user owns
+  pc.stream(res, { agents: allowed });
+});
+```
+
+The filter works by subscribing only to the specified agents' event emitters — events from other agents never reach the stream. This is purely **server-side filtering**, so there's no data leakage.
+
+```
+Browser A (user_1)                Browser B (user_2)
+    │                                  │
+    └── EventSource("/api/events") ──► SSE: mara, julia events only
+                                       │
+                                       └── EventSource("/api/events") ──► SSE: nova, receptionist only
+```
+
 ### Streamed Events
 
 Each SSE message has an `event:` field and a JSON `data:` body with `agent` ID:
 
 | Event | Data Fields | When |
 |-------|------------|------|
-| `connected` | `agent` | Stream established |
+| `connected` | `agent` or `agents` | Stream established |
 | `call.started` | `callId`, `from`, `to`, `direction`, `transport` | Call begins |
 | `call.ended` | `callId`, `reason`, `duration` | Call ends |
 | `user.speaking` | `callId`, `text` | Interim STT transcript |
@@ -718,16 +796,21 @@ A `:ping` comment is sent every 30s as keepalive.
 ### Client Example
 
 ```javascript
-const source = new EventSource("/events");
+const source = new EventSource("/api/events");
+
+source.addEventListener("call.started", (e) => {
+  const { agent, from, transport } = JSON.parse(e.data);
+  console.log(`📞 [${agent}] Call from ${from} via ${transport}`);
+});
 
 source.addEventListener("user.message", (e) => {
-  const data = JSON.parse(e.data);
-  console.log(`[${data.agent}] User: ${data.text}`);
+  const { agent, text } = JSON.parse(e.data);
+  console.log(`[${agent}] User: ${text}`);
 });
 
 source.addEventListener("bot.speaking", (e) => {
-  const data = JSON.parse(e.data);
-  console.log(`[${data.agent}] Bot: ${data.text}`);
+  const { agent, text } = JSON.parse(e.data);
+  console.log(`[${agent}] Bot: ${text}`);
 });
 ```
 
@@ -861,7 +944,7 @@ llm: {
   engine: "openai",
   model: "gpt-4.1-mini",     // or "gpt-4.1", "gpt-4.1-nano"
   enabled: true,
-  instructions: "System prompt here.",
+  prompt: "System prompt here.",
   temperature: 0.7,
   max_tokens: 1024,
 }
@@ -874,13 +957,11 @@ llm: {
   engine: "mistral",
   model: "mistral-medium",
   enabled: true,
-  instructions: "System prompt here.",
+  prompt: "System prompt here.",
 }
 ```
 
 > **LLM shortcut:** `llm: "openai:gpt-4.1-mini"` expands to `{ engine: "openai", model: "gpt-4.1-mini", enabled: true }`.
-
----
 
 ---
 

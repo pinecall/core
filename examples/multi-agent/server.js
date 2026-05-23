@@ -52,7 +52,7 @@ function registerAgent(record) {
       engine: "openai",
       model: record.model || "gpt-4.1-mini",
       enabled: true,
-      instructions: record.prompt,
+      prompt: record.prompt,
     },
   });
 
@@ -133,7 +133,7 @@ app.patch("/api/agents/:id", (req, res) => {
   const agent = pc.getAgent(req.params.id);
   if (agent && req.body.prompt) {
     agent.configure({
-      llm: { model: record.model || "gpt-4.1-mini", instructions: record.prompt, enabled: true },
+      llm: { model: record.model || "gpt-4.1-mini", prompt: record.prompt, enabled: true },
     });
   }
 

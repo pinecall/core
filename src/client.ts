@@ -69,9 +69,7 @@ export type {
 export interface DeployConfig extends AgentConfig {
     /** LLM model (e.g. \"gpt-4.1-nano\"). Enables server-side LLM. */
     model?: string;
-    /** System prompt for the LLM. Alias: `prompt`. */
-    instructions?: string;
-    /** System prompt for the LLM. Alias for `instructions`. */
+    /** System prompt for the LLM. */
     prompt?: string;
     /** Phone numbers to register as channels. */
     phones?: string[];
@@ -336,7 +334,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
     /**
      * Deploy an agent from a plain config — no class file needed.
      *
-     * Creates the agent, configures model/voice/instructions, and registers
+     * Creates the agent, configures model/voice/prompt, and registers
      * phone channels. Agent config is stored client-side and auto-restored
      * on reconnect.
      *
@@ -344,7 +342,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
      * const agent = pc.deploy("support", {
      *   model: "gpt-4.1-nano",
      *   voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
-     *   instructions: "Be helpful and concise.",
+     *   prompt: "Be helpful and concise.",
      *   phones: ["+13186330963"],
      * });
      *
@@ -352,10 +350,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
      */
     deploy(name: string, config: DeployConfig): Agent {
         // Extract deploy-specific fields from agent config
-        const { phones, channels, model, instructions, prompt, tools, ...agentConfig } = config;
-
-        // Resolve prompt (alias for instructions)
-        const resolvedInstructions = instructions ?? prompt;
+        const { phones, channels, model, prompt, tools, ...agentConfig } = config;
 
         // Build LLM config from model field
         if (model) {
@@ -364,15 +359,15 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
                 engine: engine || "openai",
                 model: rest.join(":") || model,
                 enabled: true,
-                ...(resolvedInstructions ? { instructions: resolvedInstructions } : {}),
+                ...(prompt ? { prompt } : {}),
             };
-        } else if (resolvedInstructions) {
+        } else if (prompt) {
             // No model specified but prompt given — use default model
             agentConfig.llm = {
                 engine: "openai",
                 model: "gpt-4.1-mini",
                 enabled: true,
-                instructions: resolvedInstructions,
+                prompt,
             };
         }
 

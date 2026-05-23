@@ -378,7 +378,7 @@ export class Call extends TypedEmitter<CallEvents> {
     }
 
     /**
-     * Append extra context to the system prompt. Added after the main instructions
+     * Append extra context to the system prompt. Added after the main prompt
      * before each LLM request. Useful for per-call context like customer info.
      *
      * @example
@@ -392,13 +392,8 @@ export class Call extends TypedEmitter<CallEvents> {
 
     /** @internal Send resolved prompt to server. */
     private async _sendPrompt(text: string): Promise<number> {
-        const res = await this._request("history.set_instructions", "history.updated", { instructions: text });
+        const res = await this._request("history.set_instructions", "history.updated", { prompt: text });
         return res.count ?? 0;
-    }
-
-    /** @deprecated Use setPrompt() instead. */
-    async setInstructions(instructions: string): Promise<number> {
-        return this.setPrompt(instructions);
     }
 
     // ── Internal: called by Pinecall client to route events ──────────────
