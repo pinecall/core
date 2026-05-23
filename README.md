@@ -497,6 +497,7 @@ Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` 
 | **Protocol** | | |
 | `message.confirmed` | `(event, call)` | Server acknowledged bot message |
 | `llm.tool_call` | `(call, data)` | Server-side LLM requests a tool call |
+| `session.idle_warning` | `(event, call)` | Idle warning — user hasn't spoken, call will timeout soon |
 | `session.timeout` | `(event, call)` | Session timeout warning (max duration / idle) |
 
 ### Real-Time Transcript Flow
@@ -974,6 +975,7 @@ Calls have built-in safety limits to prevent runaway sessions. The server enforc
 |---------|---------|-------------|
 | `max_duration_seconds` | `600` (10 min) | Hard cap on total call length. Call is terminated after this time regardless of activity. |
 | `idle_timeout_seconds` | `60` | Auto-hangup after this many seconds of no user speech. |
+| `idle_warning_seconds` | `15` | Emit `session.idle_warning` event this many seconds **before** idle timeout. Use it to prompt the user or change the UI. `0` = no warning. |
 | `idle_grace_seconds` | `10` | After idle timeout fires, the agent gets this many seconds to prompt the user before force-hangup. |
 
 **Override per-agent:**
@@ -986,6 +988,7 @@ const agent = pc.agent("receptionist", {
   session_limits: {
     max_duration_seconds: 1800,  // 30 minutes
     idle_timeout_seconds: 120,   // 2 minutes of silence
+    idle_warning_seconds: 30,    // warn 30s before timeout
     idle_grace_seconds: 15,
   },
 });
@@ -1008,10 +1011,22 @@ session_limits: {
 4. The `session.timeout` event fires before the actual hangup, giving you a chance to warn the user:
 
 ```typescript
-agent.on("session.timeout", (event, call) => {
-  // event.reason: "max_duration" | "idle"
-  call.say("Are you still there? The call will end soon if there's no response.");
+agent.on("session.idle_warning", (event, call) => {
+  // event.remaining_seconds: seconds until timeout
+  // event.idle_timeout_seconds: the configured idle timeout
+  call.say("Are you still there?");
 });
+
+agent.on("session.timeout", (event, call) => {
+  // event.reason: "max_duration" | "idle_timeout"
+  call.say("Goodbye! The call is ending due to inactivity.");
+});
+```
+
+**Timeline:**
+```
+[silence starts] ──── idle_warning fires ──── idle_timeout fires ──── grace expires ──── hangup
+     0s              (timeout - warning)s         timeout s        (timeout + grace)s
 ```
 
 ---
