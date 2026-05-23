@@ -556,8 +556,11 @@ export class Agent extends TypedEmitter<AgentEvents> {
                         call._handleEvent(data);
                         // Emit llm.* and session.* events on agent too — they aren't proxied
                         // from Call (unlike user.message, bot.speaking, etc.)
-                        if (eventType.startsWith("llm.") || eventType.startsWith("session.")) {
+                        if (eventType.startsWith("llm.")) {
                             this.emit(eventType as any, call, data);
+                        } else if (eventType.startsWith("session.")) {
+                            // session.* events use (event, call) signature
+                            this.emit(eventType as any, data, call);
                         }
                     }
                 }
