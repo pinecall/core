@@ -7,11 +7,62 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
-    /* Keep the orb above the tool modal backdrop (z:199) and panel (z:200) */
+
+    /* Keep the orb above the tool modal backdrop */
     .vw-wrap { z-index: 300 !important; }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translate(-50%, -48%) scale(.97); }
-      to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+    /* ── Backdrop ────────────────────────────────────────── */
+    .tool-backdrop {
+      position: fixed; inset: 0; z-index: 199;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      animation: backdropIn .3s cubic-bezier(.16,1,.3,1) forwards;
+    }
+    .tool-backdrop--exit {
+      animation: backdropOut .25s cubic-bezier(.4,0,.2,1) forwards;
+    }
+
+    /* ── Panel container ────────────────────────────────── */
+    .tool-panel {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 200; width: 380px; max-width: 90vw;
+      background: rgba(16, 14, 22, .97);
+      border: 1px solid rgba(124, 58, 237, .2);
+      border-radius: 16px; padding: 20px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow:
+        0 24px 80px -12px rgba(0,0,0,.7),
+        0 0 40px rgba(124,58,237,.08),
+        inset 0 1px 0 rgba(255,255,255,.04);
+      will-change: transform, opacity, filter;
+    }
+    .tool-panel--enter {
+      animation: panelEnter .35s cubic-bezier(.16,1,.3,1) forwards;
+    }
+    .tool-panel--exit {
+      animation: panelExit .2s cubic-bezier(.4,0,.2,1) forwards;
+    }
+
+    /* ── Keyframes ───────────────────────────────────────── */
+    @keyframes backdropIn {
+      from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+      to   { opacity: 1; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    }
+    @keyframes backdropOut {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+    @keyframes panelEnter {
+      0%   { opacity: 0; transform: translate(-50%, -46%) scale(.92); filter: blur(8px); }
+      60%  { opacity: 1; filter: blur(0); }
+      100% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+    }
+    @keyframes panelExit {
+      0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+      100% { opacity: 0; transform: translate(-50%, -54%) scale(.95); filter: blur(6px); }
     }
   </style>
 </head>

@@ -220,8 +220,39 @@ function ConfirmCard({ tool }: { tool: ToolUI }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   TOOL PANEL — Renders all active tools as a centered modal
+   ANIMATED TOOL PANEL — Smooth crossfade between modal steps.
+   Uses a transition state machine: idle → exit → enter → idle.
    ═══════════════════════════════════════════════════════════════════ */
+
+type TransitionPhase = "idle" | "exit" | "enter";
+
+function useAnimatedPanel(panelKey: string) {
+  const [phase, setPhase] = useState<TransitionPhase>("enter");
+  const [displayKey, setDisplayKey] = useState(panelKey);
+  const prevKeyRef = React.useRef(panelKey);
+
+  useEffect(() => {
+    if (panelKey === prevKeyRef.current) return;
+    // New content incoming — start exit animation
+    setPhase("exit");
+    const exitTimer = setTimeout(() => {
+      setDisplayKey(panelKey);
+      prevKeyRef.current = panelKey;
+      setPhase("enter");
+    }, 200); // match exit animation duration
+    return () => clearTimeout(exitTimer);
+  }, [panelKey]);
+
+  // Reset to idle after enter animation completes
+  useEffect(() => {
+    if (phase === "enter") {
+      const t = setTimeout(() => setPhase("idle"), 300);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
+
+  return { phase, displayKey };
+}
 
 function ToolPanel() {
   const { toolCalls } = useVoice();
@@ -230,25 +261,61 @@ function ToolPanel() {
   const confirm = toolCalls.find((tc) => tc.name === "confirmBooking" && tc.result !== undefined);
 
   // Determine which panel to show (priority: confirm > contact > slots)
-  let content: React.ReactNode = null;
   let panelKey = "";
-  if (confirm) {
-    content = <ConfirmCard tool={confirm} />;
-    panelKey = "confirm";
-  } else if (contact) {
-    content = <ContactForm tool={contact} />;
-    panelKey = "contact";
-  } else if (slots) {
-    content = <SlotPicker tool={slots} />;
-    panelKey = "slots";
-  }
+  if (confirm) panelKey = "confirm";
+  else if (contact) panelKey = "contact";
+  else if (slots) panelKey = "slots";
 
+  const { phase, displayKey } = useAnimatedPanel(panelKey);
+
+  // Show/hide state
+  const [visible, setVisible] = useState(false);
+  const [backdropOut, setBackdropOut] = useState(false);
+  const prevVisible = React.useRef(false);
+
+  useEffect(() => {
+    if (panelKey && !prevVisible.current) {
+      setVisible(true);
+      setBackdropOut(false);
+    } else if (!panelKey && prevVisible.current) {
+      setBackdropOut(true);
+      const t = setTimeout(() => { setVisible(false); setBackdropOut(false); }, 250);
+      prevVisible.current = false;
+      return () => clearTimeout(t);
+    }
+    prevVisible.current = !!panelKey;
+  }, [panelKey]);
+
+  if (!visible) return null;
+
+  // Resolve content by displayKey (use displayKey to show the right thing during exit)
+  let content: React.ReactNode = null;
+  if (displayKey === "confirm" && confirm) content = <ConfirmCard tool={confirm} />;
+  else if (displayKey === "contact" && contact) content = <ContactForm tool={contact} />;
+  else if (displayKey === "slots" && slots) content = <SlotPicker tool={slots} />;
+  // Fallback during transitions — show by panelKey
+  if (!content) {
+    if (panelKey === "confirm" && confirm) content = <ConfirmCard tool={confirm} />;
+    else if (panelKey === "contact" && contact) content = <ContactForm tool={contact} />;
+    else if (panelKey === "slots" && slots) content = <SlotPicker tool={slots} />;
+  }
   if (!content) return null;
+
+  // Animation classes
+  const panelClass = phase === "exit"
+    ? "tool-panel tool-panel--exit"
+    : phase === "enter"
+      ? "tool-panel tool-panel--enter"
+      : "tool-panel";
+
+  const backdropClass = backdropOut
+    ? "tool-backdrop tool-backdrop--exit"
+    : "tool-backdrop";
 
   return (
     <>
-      <div style={backdrop} />
-      <div key={panelKey} style={panelStyle}>
+      <div className={backdropClass} />
+      <div className={panelClass}>
         {content}
       </div>
     </>
@@ -301,25 +368,6 @@ const submitBtn: React.CSSProperties = {
   background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
   color: "#fff", fontSize: 14, fontWeight: 600,
   transition: "opacity .15s",
-};
-const backdrop: React.CSSProperties = {
-  position: "fixed", inset: 0, zIndex: 199,
-  background: "rgba(0,0,0,.5)",
-  backdropFilter: "blur(4px)",
-  WebkitBackdropFilter: "blur(4px)",
-  animation: "fadeIn .2s ease-out",
-};
-const panelStyle: React.CSSProperties = {
-  position: "fixed", top: "50%", left: "50%",
-  transform: "translate(-50%, -50%)",
-  zIndex: 200, width: 380, maxWidth: "90vw",
-  background: "rgba(16, 14, 22, .97)",
-  border: "1px solid rgba(124, 58, 237, .2)",
-  borderRadius: 16, padding: 20,
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
-  boxShadow: "0 24px 80px -12px rgba(0,0,0,.7), 0 0 40px rgba(124,58,237,.08)",
-  animation: "fadeIn .25s ease-out",
 };
 
 /* ═══════════════════════════════════════════════════════════════════

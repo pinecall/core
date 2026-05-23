@@ -56,6 +56,7 @@
   - [TTS Providers](#tts-providers)
   - [LLM Providers](#llm-providers)
   - [Interruption](#interruption)
+  - [Session Limits](#session-limits)
   - [Audio Metrics](#analysis--audio-metrics)
 
 
@@ -962,6 +963,56 @@ llm: {
 ```
 
 > **LLM shortcut:** `llm: "openai:gpt-4.1-mini"` expands to `{ engine: "openai", model: "gpt-4.1-mini", enabled: true }`.
+
+---
+
+### Session Limits
+
+Calls have built-in safety limits to prevent runaway sessions. The server enforces these defaults:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `max_duration_seconds` | `600` (10 min) | Hard cap on total call length. Call is terminated after this time regardless of activity. |
+| `idle_timeout_seconds` | `60` | Auto-hangup after this many seconds of no user speech. |
+| `idle_grace_seconds` | `10` | After idle timeout fires, the agent gets this many seconds to prompt the user before force-hangup. |
+
+**Override per-agent:**
+
+```typescript
+const agent = pc.agent("receptionist", {
+  voice: "elevenlabs:abc",
+  stt: "deepgram-flux",
+  llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  session_limits: {
+    max_duration_seconds: 1800,  // 30 minutes
+    idle_timeout_seconds: 120,   // 2 minutes of silence
+    idle_grace_seconds: 15,
+  },
+});
+```
+
+**Disable limits (not recommended):**
+
+```typescript
+session_limits: {
+  max_duration_seconds: 0,  // 0 = unlimited
+  idle_timeout_seconds: 0,  // 0 = disabled
+}
+```
+
+**How it works:**
+
+1. The server starts two watchdog tasks when a call begins.
+2. `_watchdog_max_duration` fires after `max_duration_seconds` — emits `session.timeout` then hangs up.
+3. `_watchdog_idle` tracks `_last_user_activity`. When the user hasn't spoken for `idle_timeout_seconds`, it emits `session.timeout` with a grace period.
+4. The `session.timeout` event fires before the actual hangup, giving you a chance to warn the user:
+
+```typescript
+agent.on("session.timeout", (event, call) => {
+  // event.reason: "max_duration" | "idle"
+  call.say("Are you still there? The call will end soon if there's no response.");
+});
+```
 
 ---
 
