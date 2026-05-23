@@ -92,26 +92,7 @@ export type TTSConfig =
     | CartesiaTTSConfig
     | PollyTTSConfig;
 
-// ─── VAD ─────────────────────────────────────────────────────────────────
-
-export interface VADConfig {
-    provider?: "silero" | "native";
-    threshold?: number;
-    min_speech_ms?: number;
-    min_silence_ms?: number;
-    speech_end_delay_ms?: number;
-}
-
-// ─── Turn Detection ──────────────────────────────────────────────────────
-
-export interface TurnDetectionConfig {
-    mode?: "smart_turn" | "native" | "silence";
-    smart_turn_threshold?: number;
-    native_silence_ms?: number;
-    max_silence_seconds?: number;
-}
-
-// ─── Interruption ────────────────────────────────────────────────────────
+// ── Interruption ────────────────────────────────────────────────────────
 
 export interface InterruptionConfig {
     enabled?: boolean;
@@ -141,8 +122,6 @@ export interface AnalysisConfig {
 export interface SessionConfig {
     stt?: STTConfig;
     tts?: TTSConfig;
-    vad?: VADConfig;
-    turn_detection?: TurnDetectionConfig;
     interruption?: InterruptionConfig;
     speaker_filter?: SpeakerFilterConfig;
     analysis?: AnalysisConfig;

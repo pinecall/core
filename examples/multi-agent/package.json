@@ -1,0 +1,14 @@
+{
+  "name": "pinecall-multi-agent-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@pinecall/sdk": "file:../..",
+    "express": "^5.1.0",
+    "link": "^2.1.2",
+    "npm": "^11.15.0"
+  }
+}

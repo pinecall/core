@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pinecall — Multi-Agent Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #09090b;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: #0f0f14;
+      border-right: 1px solid rgba(255,255,255,0.06);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(135deg, #fff, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .sidebar .tagline {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.3);
+      margin-bottom: 1.5rem;
+    }
+
+    .agent-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+    }
+
+    .agent-card {
+      padding: 0.75rem;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .agent-card:hover { background: rgba(255,255,255,0.06); }
+    .agent-card.active {
+      background: rgba(139,92,246,0.1);
+      border-color: rgba(139,92,246,0.3);
+    }
+    .agent-card.in-call {
+      border-color: rgba(34,197,94,0.5);
+      box-shadow: 0 0 12px rgba(34,197,94,0.15), inset 0 0 0 1px rgba(34,197,94,0.1);
+    }
+    .agent-card.in-call .call-indicator {
+      display: inline-flex;
+    }
+
+    .agent-card .name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .agent-card .id {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.3);
+      font-family: 'SF Mono', monospace;
+    }
+
+    .agent-card .greeting {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.25);
+      margin-top: 0.3rem;
+      font-style: italic;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .call-indicator {
+      display: none;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.65rem;
+      color: #22c55e;
+      font-weight: 600;
+      margin-top: 0.3rem;
+    }
+
+    .call-indicator .call-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 1.5s infinite;
+    }
+
+    .agent-card .channels {
+      display: flex;
+      gap: 0.3rem;
+      margin-top: 0.4rem;
+    }
+
+    .channel-badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(59,130,246,0.1);
+      color: #60a5fa;
+    }
+
+    /* ── Create button ── */
+    .create-btn {
+      margin-top: 1rem;
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: 1px dashed rgba(255,255,255,0.15);
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .create-btn:hover {
+      border-color: #a78bfa;
+      color: #a78bfa;
+      background: rgba(139,92,246,0.05);
+    }
+
+    /* ── Main area ── */
+    .main {
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .tab {
+      padding: 0.5rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .tab:hover { color: rgba(255,255,255,0.7); }
+    .tab.active { color: #a78bfa; border-color: #a78bfa; }
+
+    /* ── Events panel ── */
+    .events-panel {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .event-row {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      animation: fadeIn 0.2s;
+      margin-bottom: 0.25rem;
+    }
+
+    .event-row:hover { background: rgba(255,255,255,0.02); }
+
+    .event-time {
+      color: rgba(255,255,255,0.2);
+      font-family: 'SF Mono', monospace;
+      font-size: 0.7rem;
+      min-width: 60px;
+    }
+
+    .event-agent {
+      min-width: 70px;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+
+    .event-type {
+      min-width: 110px;
+      font-family: 'SF Mono', monospace;
+      font-size: 0.75rem;
+    }
+
+    .event-type.call-started { color: #22c55e; }
+    .event-type.call-ended { color: #ef4444; }
+    .event-type.user-message { color: #3b82f6; }
+    .event-type.bot-finished { color: #a855f7; }
+
+    .event-data {
+      color: rgba(255,255,255,0.4);
+      font-size: 0.75rem;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 300px;
+      color: rgba(255,255,255,0.2);
+      font-size: 0.9rem;
+    }
+
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+
+    /* ── Create modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: #18181b;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 480px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal h3 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 0.3rem;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-family: inherit;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: #a78bfa;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      margin-top: 1rem;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: #7c3aed;
+      color: white;
+    }
+    .btn-primary:hover { background: #6d28d9; }
+
+    .btn-ghost {
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.05); }
+
+    .btn-danger {
+      background: rgba(239,68,68,0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239,68,68,0.2);
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+    .connected-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.7rem;
+      color: #22c55e;
+      margin-bottom: 1rem;
+    }
+
+    .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <h1>Pinecall</h1>
+      <p class="tagline">Multi-Agent Dashboard</p>
+      <div id="status" class="connected-status"></div>
+
+      <div id="agent-list" class="agent-list"></div>
+      <button class="create-btn" onclick="openModal()">+ Create Agent</button>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="tabs">
+        <div class="tab active" data-tab="events">Live Events</div>
+        <div class="tab" data-tab="conversations">Conversations</div>
+      </div>
+
+      <div id="events-panel" class="events-panel">
+        <div class="empty-state">
+          <div class="icon">📡</div>
+          Waiting for events...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Agent Modal -->
+  <div id="modal" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3 id="modal-title">Create Agent</h3>
+      <div class="form-group">
+        <label>ID (slug)</label>
+        <input id="f-id" placeholder="e.g. receptionist" />
+      </div>
+      <div class="form-group">
+        <label>Name</label>
+        <input id="f-name" placeholder="e.g. Reception Bot" />
+      </div>
+      <div class="form-group">
+        <label>Prompt</label>
+        <textarea id="f-prompt" placeholder="You are a helpful assistant..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Voice</label>
+        <input id="f-voice" value="elevenlabs:EXAVITQu4vr4xnSDxMaL" />
+      </div>
+      <div class="form-group">
+        <label>Greeting</label>
+        <input id="f-greeting" placeholder="Hey! How can I help?" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAgent()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let agents = [];
+    let selectedAgent = null;
+    let eventCount = 0;
+    let activeCalls = {}; // { agentId: callCount }
+
+    // ── Load agents ──
+    async function loadAgents() {
+      const res = await fetch("/api/agents");
+      agents = await res.json();
+      renderAgents();
+    }
+
+    function renderAgents() {
+      const list = document.getElementById("agent-list");
+      list.innerHTML = agents.map(a => `
+        <div class="agent-card ${selectedAgent === a.id ? 'active' : ''} ${activeCalls[a.id] ? 'in-call' : ''}"
+             onclick="selectAgent('${a.id}')">
+          <div class="name">${a.name || a.id}</div>
+          <div class="id">${a.id}</div>
+          ${a.greeting ? `<div class="greeting">"${a.greeting}"</div>` : ''}
+          <div class="call-indicator"><span class="call-dot"></span> In call</div>
+          <div class="channels">
+            ${(a.channels || []).map(ch =>
+              `<span class="channel-badge">${ch}</span>`
+            ).join("")}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function selectAgent(id) {
+      selectedAgent = selectedAgent === id ? null : id;
+      renderAgents();
+      // Reconnect SSE with filter
+      connectSSE();
+    }
+
+    // ── SSE ──
+    let eventSource = null;
+
+    function connectSSE() {
+      if (eventSource) eventSource.close();
+      const url = selectedAgent ? `/api/events?agent=${selectedAgent}` : "/api/events";
+      eventSource = new EventSource(url);
+
+      eventSource.addEventListener("connected", (e) => {
+        const data = JSON.parse(e.data);
+        const label = data.agent ? data.agent : `${data.agents?.length || 0} agents`;
+        document.getElementById("status").innerHTML =
+          `<span class="dot"></span> Streaming: ${label}`;
+      });
+
+      for (const evt of [
+        "call.started", "call.ended",
+        "user.message", "bot.finished",
+        "user.speaking", "bot.speaking", "bot.word",
+        "turn.end",
+      ]) {
+        eventSource.addEventListener(evt, (e) => {
+          addEvent(evt, JSON.parse(e.data));
+        });
+      }
+    }
+
+    function addEvent(type, data) {
+      const panel = document.getElementById("events-panel");
+      if (eventCount === 0) panel.innerHTML = "";
+      eventCount++;
+
+      const time = new Date().toLocaleTimeString("en", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const cls = type.replace(".", "-");
+      let display = data.text || "";
+      if (!display && data.from) display = `${data.from} via ${data.transport}`;
+      if (!display && data.duration != null) display = `${data.duration}s — ${data.reason}`;
+
+      const row = document.createElement("div");
+      row.className = "event-row";
+      row.innerHTML = `
+        <span class="event-time">${time}</span>
+        <span class="event-agent">${data.agent || "?"}</span>
+        <span class="event-type ${cls}">${type}</span>
+        <span class="event-data">${display}</span>
+      `;
+      panel.prepend(row);
+
+      // Track active calls for in-call indicator
+      if (type === 'call.started' && data.agent) {
+        activeCalls[data.agent] = (activeCalls[data.agent] || 0) + 1;
+        renderAgents();
+      } else if (type === 'call.ended' && data.agent) {
+        activeCalls[data.agent] = Math.max(0, (activeCalls[data.agent] || 1) - 1);
+        if (!activeCalls[data.agent]) delete activeCalls[data.agent];
+        renderAgents();
+      }
+
+      while (panel.children.length > 100) panel.lastChild.remove();
+    }
+
+    // ── Modal ──
+    function openModal() {
+      document.getElementById("modal").classList.add("open");
+      document.getElementById("f-id").focus();
+    }
+
+    function closeModal() {
+      document.getElementById("modal").classList.remove("open");
+      document.getElementById("f-id").value = "";
+      document.getElementById("f-name").value = "";
+      document.getElementById("f-prompt").value = "";
+      document.getElementById("f-greeting").value = "";
+    }
+
+    async function submitAgent() {
+      const body = {
+        id: document.getElementById("f-id").value.trim(),
+        name: document.getElementById("f-name").value.trim(),
+        prompt: document.getElementById("f-prompt").value.trim(),
+        voice: document.getElementById("f-voice").value.trim(),
+        greeting: document.getElementById("f-greeting").value.trim(),
+        channels: ["webrtc"],
+      };
+
+      if (!body.id || !body.prompt) return alert("ID and Prompt are required");
+
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        closeModal();
+        await loadAgents();
+        connectSSE();
+      } else {
+        const err = await res.json();
+        alert(err.error);
+      }
+    }
+
+    // ── Init ──
+    loadAgents();
+    connectSSE();
+  </script>
+</body>
+</html>

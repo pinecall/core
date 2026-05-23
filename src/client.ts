@@ -19,7 +19,9 @@ import { Call, type Turn } from "./call.js";
 import { Agent } from "./agent.js";
 import { buildShortcutPayload } from "./utils/protocol.js";
 import { forwardAgentEvents } from "./utils/proxy.js";
+import { createMultiAgentStream, type StreamOptions } from "./sse.js";
 import { appendFileSync } from "fs";
+import type { ServerResponse } from "node:http";
 import type { AgentConfig, ChannelConfig, AgentEvents } from "./agent.js";
 import {
     fetchVoices as _fetchVoices,
@@ -56,7 +58,6 @@ import type {
 export type {
     VoiceShortcut,
     STTShortcut,
-    TurnDetectionShortcut,
     InterruptionShortcut,
     AgentConfig,
     ChannelConfig,
@@ -68,10 +69,19 @@ export type {
 export interface DeployConfig extends AgentConfig {
     /** LLM model (e.g. \"gpt-4.1-nano\"). Enables server-side LLM. */
     model?: string;
-    /** System prompt for the LLM. */
+    /** System prompt for the LLM. Alias: `prompt`. */
     instructions?: string;
+    /** System prompt for the LLM. Alias for `instructions`. */
+    prompt?: string;
     /** Phone numbers to register as channels. */
     phones?: string[];
+    /**
+     * Channels to register (sugar for addChannel).
+     * Strings: "webrtc", "mic", "chat", or a phone number.
+     *
+     * @example ["webrtc", "+14155551234"]
+     */
+    channels?: Array<string | { type: string; ref?: string; config?: ChannelConfig }>;
 }
 
 // ─── Event map ───────────────────────────────────────────────────────────
@@ -342,7 +352,10 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
      */
     deploy(name: string, config: DeployConfig): Agent {
         // Extract deploy-specific fields from agent config
-        const { phones, model, instructions, tools, greeting, ...agentConfig } = config;
+        const { phones, channels, model, instructions, prompt, tools, ...agentConfig } = config;
+
+        // Resolve prompt (alias for instructions)
+        const resolvedInstructions = instructions ?? prompt;
 
         // Build LLM config from model field
         if (model) {
@@ -351,21 +364,120 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
                 engine: engine || "openai",
                 model: rest.join(":") || model,
                 enabled: true,
-                ...(instructions ? { instructions } : {}),
+                ...(resolvedInstructions ? { instructions: resolvedInstructions } : {}),
+            };
+        } else if (resolvedInstructions) {
+            // No model specified but prompt given — use default model
+            agentConfig.llm = {
+                engine: "openai",
+                model: "gpt-4.1-mini",
+                enabled: true,
+                instructions: resolvedInstructions,
             };
         }
+
+        // Pass through tools
+        if (tools) (agentConfig as any).tools = tools;
 
         // Create the core agent with agentConfig
         const agent = this.agent(name, agentConfig);
 
-        // Register phone channels
+        // Register phone channels (legacy)
         if (phones) {
             for (const phone of phones) {
                 agent.addChannel("phone", phone);
             }
         }
 
+        // Register channels (new sugar)
+        if (channels) {
+            for (const ch of channels) {
+                if (typeof ch === "string") {
+                    if (ch === "webrtc" || ch === "mic" || ch === "chat") {
+                        agent.addChannel(ch);
+                    } else {
+                        // Assume phone number
+                        agent.addChannel("phone", ch);
+                    }
+                } else {
+                    agent.addChannel(
+                        ch.type as "phone" | "webrtc" | "mic" | "chat",
+                        ch.ref,
+                        ch.config,
+                    );
+                }
+            }
+        }
+
         return agent;
+    }
+
+    /**
+     * Remove an agent — unregisters from the voice server and deletes locally.
+     *
+     * Useful for dynamic agent management (DB-driven scenarios).
+     *
+     * @example
+     * pc.removeAgent("old-bot");
+     */
+    removeAgent(id: string): boolean {
+        const agent = this._agents.get(id);
+        if (!agent) return false;
+
+        // End all active calls on this agent
+        agent._endAllCalls("agent_removed");
+
+        // Notify voice server
+        if (this._connected) {
+            this._send({
+                event: "agent.remove",
+                agent_id: this._wireId(id),
+            });
+        }
+
+        this._agents.delete(id);
+        return true;
+    }
+
+    /**
+     * Get a registered agent by ID.
+     *
+     * @example
+     * const agent = pc.getAgent("mara");
+     */
+    getAgent(id: string): Agent | undefined {
+        return this._agents.get(id);
+    }
+
+    // ── Event Streaming ───────────────────────────────────────────────────
+
+    /**
+     * Stream events from all (or filtered) agents as SSE.
+     *
+     * @example
+     * // All agents — Remix/Next.js
+     * export async function GET() {
+     *   return pc.stream();
+     * }
+     *
+     * // Filtered — only specific agents
+     * export async function GET() {
+     *   return pc.stream({ agents: ["mara", "julia"] });
+     * }
+     *
+     * // Express
+     * app.get("/events", (req, res) => pc.stream(res));
+     * app.get("/events", (req, res) => pc.stream(res, { agents: ["mara"] }));
+     */
+    stream(): Response;
+    stream(opts: StreamOptions): Response;
+    stream(res: ServerResponse): void;
+    stream(res: ServerResponse, opts: StreamOptions): void;
+    stream(resOrOpts?: ServerResponse | StreamOptions, opts?: StreamOptions): Response | void {
+        if (resOrOpts && typeof (resOrOpts as any).writeHead === "function") {
+            return createMultiAgentStream(this._agents, resOrOpts as ServerResponse, opts);
+        }
+        return createMultiAgentStream(this._agents, resOrOpts as StreamOptions | undefined);
     }
 
     // ── Internal: WebSocket lifecycle ────────────────────────────────────

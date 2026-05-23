@@ -24,6 +24,8 @@ import { TypedEmitter } from "./utils/emitter.js";
 import { Call, type Turn } from "./call.js";
 import { forwardCallEvents } from "./utils/proxy.js";
 import { buildShortcutPayload } from "./utils/protocol.js";
+import { createAgentStream } from "./sse.js";
+import type { ServerResponse } from "node:http";
 import type { SessionConfig } from "./types/config.js";
 import type {
     CallStartedEvent,
@@ -54,9 +56,6 @@ export type VoiceShortcut = string | Record<string, unknown>;
 /** STT shortcut: "deepgram" or full config object. */
 export type STTShortcut = string | Record<string, unknown>;
 
-/** Turn detection shortcut: "smart_turn" or full config object. */
-export type TurnDetectionShortcut = string | Record<string, unknown>;
-
 /** Interruption shortcut: false (disable) or config object. */
 export type InterruptionShortcut = boolean | Record<string, unknown>;
 
@@ -66,14 +65,11 @@ export interface AgentConfig {
     voice?: VoiceShortcut;
     language?: string;
     stt?: STTShortcut;
-    turnDetection?: TurnDetectionShortcut;
     interruption?: InterruptionShortcut;
     /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
     llm?: string | Record<string, unknown>;
     /** OpenAI-format tool definitions for server-side LLM. */
     tools?: Array<Record<string, unknown>>;
-    /** Greeting message — spoken automatically when a call starts. */
-    greeting?: string;
     config?: SessionConfig;
     /** Persist conversations to MongoDB on the voice server. */
     historySave?: boolean;
@@ -83,7 +79,6 @@ export interface ChannelConfig {
     voice?: VoiceShortcut;
     language?: string;
     stt?: STTShortcut;
-    turnDetection?: TurnDetectionShortcut;
     interruption?: InterruptionShortcut;
     /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
     llm?: string | Record<string, unknown>;
@@ -297,6 +292,31 @@ export class Agent extends TypedEmitter<AgentEvents> {
             session_id: sessionId,
             ...buildShortcutPayload(opts),
         });
+    }
+
+    // ── Event Streaming ──────────────────────────────────────────────────
+
+    /**
+     * Stream this agent's events as Server-Sent Events (SSE).
+     *
+     * Works with any framework:
+     *   - Web API: `return agent.stream()` → Response (Remix, Next, Hono, Bun)
+     *   - Node.js: `agent.stream(res)` → writes to ServerResponse (Express, Fastify)
+     *
+     * @example
+     * // Remix / Next.js / Hono / SvelteKit
+     * export async function GET() {
+     *   return mara.stream();
+     * }
+     *
+     * // Express
+     * app.get("/events", (req, res) => mara.stream(res));
+     */
+    stream(): Response;
+    stream(res: ServerResponse): void;
+    stream(res?: ServerResponse): Response | void {
+        if (res) return createAgentStream(this, res);
+        return createAgentStream(this);
     }
 
     // ── Dial ──────────────────────────────────────────────────────────────

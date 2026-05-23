@@ -252,7 +252,6 @@ export class Call extends TypedEmitter<CallEvents> {
      * @example
      * call.configure({ voice: "cartesia:abc123" });
      * call.configure({ stt: "deepgram:nova-3:fr", language: "fr" });
-     * call.configure({ turnDetection: { mode: "smart_turn", silenceMs: 600 } });
      */
     configure(opts: Record<string, unknown>): void {
         this._send({

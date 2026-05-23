@@ -156,7 +156,6 @@ export interface AgentConfigureCommand {
     voice?: string | Record<string, unknown>;
     language?: string;
     stt?: string | Record<string, unknown>;
-    turn_detection?: string | Record<string, unknown>;
     interruption?: boolean | Record<string, unknown>;
     config?: Record<string, unknown>;
 }
@@ -195,7 +194,6 @@ export interface SessionConfigureCommand {
     voice?: string | Record<string, unknown>;
     language?: string;
     stt?: string | Record<string, unknown>;
-    turn_detection?: string | Record<string, unknown>;
 }
 
 // ─── Union ───────────────────────────────────────────────────────────────

@@ -2,7 +2,10 @@
  * Protocol utility tests — pure serialization logic, no WebSocket.
  *
  * Tests buildShortcutPayload (camelCase → snake_case), STT expansion,
- * turn detection expansion, and passthrough of tools/greeting/llm.
+ * and passthrough of tools/greeting/llm.
+ *
+ * NOTE: turnDetection is NOT sent over the wire — the server auto-derives
+ * it from the STT provider (deepgram-flux → native, others → smart_turn).
  */
 
 import { describe, it, expect } from 'vitest'
@@ -60,22 +63,19 @@ describe('buildShortcutPayload', () => {
     expect(result.stt).toEqual(stt)
   })
 
-  // ── Turn detection ────────────────────────────────────
+  // ── Turn detection (auto-derived, NOT sent) ─────────────
 
-  it('passes through turnDetection string as turn_detection', () => {
+  it('does NOT send turnDetection — auto-derived by server', () => {
     const result = buildShortcutPayload({ turnDetection: 'native' })
-    expect(result.turn_detection).toBe('native')
-    expect(result.turnDetection).toBeUndefined() // camelCase key removed
+    expect(result.turn_detection).toBeUndefined()
+    expect(result.turnDetection).toBeUndefined()
   })
 
-  it('converts turnDetection silenceMs to snake_case', () => {
+  it('ignores turnDetection config object', () => {
     const result = buildShortcutPayload({
       turnDetection: { mode: 'smart_turn', silenceMs: 400 },
     })
-    expect(result.turn_detection).toEqual({
-      mode: 'smart_turn',
-      silence_ms: 400,
-    })
+    expect(result.turn_detection).toBeUndefined()
   })
 
   // ── LLM ───────────────────────────────────────────────
@@ -94,12 +94,6 @@ describe('buildShortcutPayload', () => {
     expect(result.tools).toEqual(tools)
   })
 
-  // ── Greeting ──────────────────────────────────────────
-
-  it('passes through greeting', () => {
-    const result = buildShortcutPayload({ greeting: 'Hello!' } as any)
-    expect(result.greeting).toBe('Hello!')
-  })
 
   // ── Interruption ──────────────────────────────────────
 
@@ -118,15 +112,13 @@ describe('buildShortcutPayload', () => {
       turnDetection: 'native',
       llm: { engine: 'openai', model: 'gpt-4.1', enabled: true },
       tools: [{ type: 'function', function: { name: 'lookup' } }],
-      greeting: 'Hola!',
     } as any)
 
     expect(result.voice).toBe('elevenlabs:abc')
     expect(result.language).toBe('es')
     expect(result.stt).toEqual({ provider: 'deepgram', model: 'nova-3', language: 'es' })
-    expect(result.turn_detection).toBe('native')
+    expect(result.turn_detection).toBeUndefined() // auto-derived by server
     expect(result.llm).toEqual({ engine: 'openai', model: 'gpt-4.1', enabled: true })
     expect(result.tools).toHaveLength(1)
-    expect(result.greeting).toBe('Hola!')
   })
 })

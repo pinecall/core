@@ -22,6 +22,7 @@
 - [Install](#install)
 - [Quick Start](#quick-start)
   - [Server-side LLM](#server-side-llm-recommended)
+  - [Deploy (one-liner)](#deploy-one-liner)
   - [Client-side LLM](#client-side-llm-bring-your-own)
 - [API Reference](#api-reference)
   - [Pinecall (client)](#pinecall-client)
@@ -43,12 +44,14 @@
   - [fetchWebRTCToken](#fetchwebrtctokenopts)
   - [fetchTwilioBalance](#fetchtwiliobalanceopts)
   - [fetchBalance](#fetchbalanceopts-1)
+- [SSE Streaming](#sse-streaming)
+  - [Single Agent](#single-agent-stream)
+  - [Multi-Agent](#multi-agent-stream)
+  - [Events](#streamed-events)
 - [Configuration Reference](#configuration-reference)
   - [STT Providers](#stt-providers)
   - [TTS Providers](#tts-providers)
   - [LLM Providers](#llm-providers)
-  - [Turn Detection](#turn-detection)
-  - [VAD Config](#vad-config)
   - [Interruption](#interruption)
   - [Audio Metrics](#analysis--audio-metrics)
 
@@ -81,7 +84,6 @@ const agent = pc.agent("receptionist", {
   voice: "elevenlabs:h2cd3gvcqTp3m65Dysk7",
   language: "es",
   stt: "deepgram-flux",
-  turnDetection: "native",
   llm: {
     engine: "openai",
     model: "gpt-4.1-mini",
@@ -184,6 +186,53 @@ agent.on("turn.end", async (turn, call) => {
 });
 ```
 
+### Deploy (one-liner)
+
+The fastest way to get an agent running. `pc.deploy()` combines agent creation, LLM config, and channel registration in a single call:
+
+```typescript
+import { Pinecall } from "@pinecall/sdk";
+
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
+await pc.connect();
+
+const mara = pc.deploy("mara", {
+  prompt: "You are Mara, a friendly voice assistant. Be concise.",
+  model: "gpt-4.1-mini",
+  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  language: "es",
+  channels: ["webrtc", "+13186330963"],
+});
+
+mara.on("call.started", (call) => {
+  console.log(`📞 Call from ${call.from}`);
+});
+
+mara.on("call.ended", (call, reason) => {
+  console.log(`Call ended: ${reason} (${call.duration}s)`);
+});
+```
+
+**DeployConfig fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prompt` | `string` | System prompt (alias: `instructions`) |
+| `model` | `string` | LLM model (default: `gpt-4.1-mini`) |
+| `voice` | `string` | TTS voice shortcut (e.g. `elevenlabs:voiceId`) |
+| `language` | `string` | BCP-47 language code |
+| `stt` | `string` | STT provider (default: `deepgram-flux`) |
+| `tools` | `array` | OpenAI function-calling tool definitions |
+| `channels` | `array` | `"webrtc"`, `"mic"`, `"chat"`, or phone numbers |
+| `phones` | `string[]` | Phone numbers (legacy, prefer `channels`) |
+
+`deploy()` returns an `Agent` — you can attach event handlers, add more channels, or hot-reload config.
+
+> **Greeting:** Use `call.say()` in `call.started` to speak a greeting:
+> ```typescript
+> mara.on("call.started", (call) => call.say("¡Hola! ¿En qué puedo ayudarte?"));
+> ```
+
 ---
 
 ## API Reference
@@ -218,8 +267,7 @@ const agent = pc.agent("my-agent", {
   // Audio
   voice: "elevenlabs:abc",          // TTS voice (shortcut or full config)
   language: "es",                    // BCP-47 language code
-  stt: "deepgram-flux",             // STT engine
-  turnDetection: "native",          // turn detection mode
+  stt: "deepgram-flux",             // STT engine (turn detection auto-derived)
 
   // Server-side LLM (optional)
   llm: {
@@ -229,7 +277,6 @@ const agent = pc.agent("my-agent", {
     instructions: "System prompt with {{template_vars}}.",
   },
   tools: [/* OpenAI function-calling format */],
-  greeting: "Hello!",               // server-side greeting config
 });
 
 // Update any config later (hot-reload, affects future calls)
@@ -275,11 +322,29 @@ Per-session handle. Created automatically on `call.started`.
 
 | Method | Description |
 |--------|-------------|
-| `call.say(text)` | Speak text immediately (greeting — no `in_reply_to`) |
+| `call.say(text)` | Speak text immediately (standalone, no `in_reply_to`) |
 | `call.reply(text)` | Reply to the latest user message (auto-tracks `in_reply_to`) |
 | `call.replyStream(turn?)` | Open a token stream → returns [`ReplyStream`](#replystream) |
 | `call.cancel(msgId?)` | Cancel a specific or the current message |
 | `call.clear()` | Flush all queued TTS audio |
+
+**Greeting pattern:** Use `call.say()` on `call.started` for inbound greetings. For outbound calls, pass `greeting` in `agent.dial()` — the server speaks it via TTS automatically.
+
+```typescript
+// Inbound — SDK speaks the greeting
+agent.on("call.started", (call) => {
+  if (call.direction === "inbound") {
+    call.say("Hello! How can I help you today?");
+  }
+});
+
+// Outbound — server speaks the greeting
+const call = await agent.dial({
+  to: "+14155551234",
+  from: "+13186330963",
+  greeting: "Hi! This is a follow-up call.",
+});
+```
 
 #### Call Control
 
@@ -297,7 +362,7 @@ Per-session handle. Created automatically on `call.started`.
 
 | Method | Description |
 |--------|-------------|
-| `call.configure(opts)` | Change voice, STT, language, turn detection — takes effect immediately |
+| `call.configure(opts)` | Change voice, STT, language — takes effect immediately |
 | `call.setPrompt(text)` | Replace the system prompt for this call |
 | `call.setPromptVars(vars)` | Set `{{variable}}` values in the prompt template |
 | `call.addContext(text)` | Append extra context after the system prompt |
@@ -476,22 +541,22 @@ call.reply("¡Claro! Ahora hablo en español.");
 
 ## Configuration Shortcuts
 
-Voice, STT, and turn detection accept string shortcuts or full config objects:
+Voice and STT accept string shortcuts or full config objects:
 
 ```typescript
 // Shortcuts
 { voice: "elevenlabs:voiceId" }
 { stt: "deepgram-flux" }
 { stt: "deepgram:nova-3:fr" }         // provider:model:language
-{ turnDetection: "native" }
 
 // Full config objects
 {
   voice: { engine: "cartesia", voiceId: "abc", speed: 1.1 },
   stt: { engine: "deepgram", model: "nova-3", language: "fr" },
-  turnDetection: { mode: "smart_turn", silenceMs: 600 },
 }
 ```
+
+> **Note:** Turn detection and VAD are auto-derived from the STT provider. `deepgram-flux` → native turn detection + native VAD. All others → smart_turn + silero VAD.
 
 ---
 
@@ -589,33 +654,110 @@ fetchPhones({ apiKey: "pk_...", apiUrl: "http://localhost:1337" });
 
 ---
 
+## SSE Streaming
+
+Stream real-time agent events over HTTP using [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). Works with any framework — returns a Web API `Response` or writes to a Node.js `ServerResponse`.
+
+### Single Agent Stream
+
+```typescript
+// Web API (Remix, Next.js, Hono, Bun)
+app.get("/events", () => agent.stream());
+
+// Express / Node.js
+app.get("/events", (req, res) => agent.stream(res));
+```
+
+### Multi-Agent Stream
+
+Stream events from all agents via `pc.stream()`, or filter to specific ones:
+
+```typescript
+// All agents
+app.get("/events", () => pc.stream());
+
+// Filtered to specific agents
+app.get("/events", () => pc.stream({ agents: ["mara", "julia"] }));
+
+// Express
+app.get("/events", (req, res) => pc.stream(res));
+app.get("/events", (req, res) => pc.stream(res, { agents: ["mara"] }));
+```
+
+### Streamed Events
+
+Each SSE message has an `event:` field and a JSON `data:` body with `agent` ID:
+
+| Event | Data Fields | When |
+|-------|------------|------|
+| `connected` | `agent` | Stream established |
+| `call.started` | `callId`, `from`, `to`, `direction`, `transport` | Call begins |
+| `call.ended` | `callId`, `reason`, `duration` | Call ends |
+| `user.speaking` | `callId`, `text` | Interim STT transcript |
+| `user.message` | `callId`, `text`, `messageId` | Final user text |
+| `turn.end` | `callId`, `text`, `probability` | User turn ended |
+| `turn.pause` | `callId`, `probability` | Turn pause detected |
+| `speech.started` | `callId` | User began speaking |
+| `speech.ended` | `callId` | User stopped speaking |
+| `bot.speaking` | `callId`, `messageId`, `text` | Bot started speaking |
+| `bot.word` | `callId`, `messageId`, `word` | Word-by-word playback |
+| `bot.finished` | `callId`, `messageId` | Bot done speaking |
+| `bot.interrupted` | `callId`, `messageId` | Bot cut off by user |
+
+**Wire format:**
+```
+event: user.message
+data: {"callId":"CA123","text":"Hello","messageId":"msg_abc","agent":"mara"}
+
+event: bot.speaking
+data: {"callId":"CA123","messageId":"msg_def","text":"Hi!","agent":"mara"}
+```
+
+A `:ping` comment is sent every 30s as keepalive.
+
+### Client Example
+
+```javascript
+const source = new EventSource("/events");
+
+source.addEventListener("user.message", (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`[${data.agent}] User: ${data.text}`);
+});
+
+source.addEventListener("bot.speaking", (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`[${data.agent}] Bot: ${data.text}`);
+});
+```
+
+---
+
 ## Configuration Reference
 
 ### STT Providers
 
 #### Deepgram Flux (recommended)
 
-Best for multilingual, handles turn detection natively. Use `turnDetection: "native"` with Flux.
+Best for real-time voice agents. Turn detection and VAD are **auto-derived** — no configuration needed.
 
 ```typescript
 stt: {
   provider: "deepgram-flux",
-  language: "multi",         // auto-detect language
-  eot_threshold: 0.5,        // end-of-turn sensitivity (0-1)
-  eager_eot_threshold: 0.7,  // eager turn threshold
+  keyterms: ["pinecall"],      // boost recognition for specific terms
+  eot_threshold: 0.5,          // end-of-turn sensitivity (0-1)
+  eager_eot_threshold: 0.7,    // eager turn threshold
   eot_timeout_ms: 2000,
-  keyterms: ["pinecall"],
-  min_confidence: null,
 }
 
-// Shortcut: "deepgram-flux" or "flux"
+// Shortcut: "deepgram-flux"
 ```
 
-> **Flux + Native:** Flux handles turn detection internally — always pair with `turnDetection: "native"`. Using `smart_turn` with Flux causes unstable `eager.turn` signals since Flux transcripts update continuously.
+> **Auto-derived:** Flux → native turn detection + native VAD. No need to specify `turnDetection`.
 
 #### Deepgram Nova
 
-Classic STT. Pair with `turnDetection: "smart_turn"` for best results — Nova's `is_final` fires `eager.turn`, then smart_turn confirms in ~300ms.
+Classic STT — turn detection and VAD auto-derived (smart_turn + silero).
 
 ```typescript
 stt: {
@@ -739,55 +881,6 @@ llm: {
 > **LLM shortcut:** `llm: "openai:gpt-4.1-mini"` expands to `{ engine: "openai", model: "gpt-4.1-mini", enabled: true }`.
 
 ---
-
-### Turn Detection
-
-| Mode | Best With | Description |
-|------|-----------|-------------|
-| `native` | **Flux** | Delegates to the STT provider's built-in endpointing. Required for Flux. |
-| `smart_turn` | **Nova**, Gladia | AI-powered turn detection. Uses `is_final` + confirmation window. |
-| `silence` | Any | Simple silence timer. Fastest but least accurate. |
-
-```typescript
-turnDetection: {
-  mode: "smart_turn",
-  smart_turn_threshold: 0.5,  // 0-1, lower = faster response
-  native_silence_ms: 500,     // for native mode
-  max_silence_seconds: 2,     // for silence mode
-}
-
-// Shortcuts: "smart_turn", "native", "silence"
-```
-
-**Recommended pairings:**
-```typescript
-// Flux: always native
-{ stt: "deepgram-flux", turnDetection: "native" }
-
-// Nova: smart_turn for best latency
-{ stt: "deepgram:nova-3", turnDetection: "smart_turn" }
-
-// AWS Transcribe: native (no smart_turn support)
-{ stt: "transcribe", turnDetection: "native" }
-```
-
----
-
-### VAD Config
-
-Voice Activity Detection — controls when speech starts/stops being processed.
-
-```typescript
-config: {
-  vad: {
-    provider: "silero",        // or "native"
-    threshold: 0.5,
-    min_speech_ms: 250,
-    min_silence_ms: 200,
-    speech_end_delay_ms: 400,
-  }
-}
-```
 
 ---
 

@@ -31,6 +31,7 @@
 // Core classes
 export { Pinecall, PinecallError } from "./client.js";
 export type { PinecallOptions, PinecallEvents, DeployConfig } from "./client.js";
+export type { StreamOptions } from "./sse.js";
 
 export { Agent } from "./agent.js";
 export type {
@@ -39,7 +40,6 @@ export type {
     ChannelConfig,
     VoiceShortcut,
     STTShortcut,
-    TurnDetectionShortcut,
     InterruptionShortcut,
 } from "./agent.js";
 
@@ -61,8 +61,6 @@ export type {
     ElevenLabsTTSConfig,
     CartesiaTTSConfig,
     PollyTTSConfig,
-    VADConfig,
-    TurnDetectionConfig,
     InterruptionConfig,
     SpeakerFilterConfig,
     AnalysisConfig,
