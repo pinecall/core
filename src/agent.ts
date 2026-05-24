@@ -73,6 +73,26 @@ export interface AgentConfig {
     config?: SessionConfig;
     /** Persist conversations to MongoDB on the voice server. */
     historySave?: boolean;
+    /**
+     * Allowed origins for public browser token access (WebRTC, Chat).
+     *
+     * When set, the token endpoint accepts browser requests from these
+     * origins without an API key. Supports wildcards:
+     * - `"https://mysite.com"` — exact match
+     * - `"https://*.mysite.com"` — subdomain wildcard
+     * - `"http://localhost:*"` — any port (dev)
+     *
+     * When NOT set (default), token requests require API key authentication
+     * via `pc.createToken()` or `agent.createToken()`.
+     *
+     * @example
+     * ```ts
+     * const agent = pc.agent("demo", {
+     *   allowedOrigins: ["https://mysite.com", "http://localhost:*"],
+     * });
+     * ```
+     */
+    allowedOrigins?: string[];
 }
 
 export interface ChannelConfig {
@@ -83,6 +103,18 @@ export interface ChannelConfig {
     /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
     llm?: string | Record<string, unknown>;
     config?: Partial<SessionConfig>;
+}
+
+/** WhatsApp channel config — credentials for Meta Cloud API. */
+export interface WhatsAppChannelConfig extends ChannelConfig {
+    /** Meta Phone Number ID (numeric string from API Setup). */
+    phoneNumberId: string;
+    /** Meta Graph API access token (permanent, not temporary). */
+    accessToken: string;
+    /** Webhook verification token (you choose this, must match Meta config). */
+    verifyToken?: string;
+    /** Meta App Secret for HMAC signature verification (recommended). */
+    appSecret?: string;
 }
 
 // ─── Agent events ────────────────────────────────────────────────────────
@@ -129,6 +161,12 @@ export interface AgentEvents {
     "channel.added": (type: string, ref: string) => void;
     "channel.configured": (ref: string) => void;
     "channel.removed": (ref: string) => void;
+
+    // WhatsApp events
+    "whatsapp.message": (event: Record<string, unknown>) => void;
+    "whatsapp.response": (event: Record<string, unknown>) => void;
+    "whatsapp.status": (event: Record<string, unknown>) => void;
+    "whatsapp.session_started": (event: Record<string, unknown>) => void;
 }
 
 // ─── Agent class ─────────────────────────────────────────────────────────
@@ -144,18 +182,25 @@ export class Agent extends TypedEmitter<AgentEvents> {
     private _pendingQueue: Record<string, unknown>[] = [];
     /** Tracks registered channels for re-registration on reconnect. */
     private _channels = new Map<string, { type: string; ref?: string; config?: ChannelConfig }>();
+    /** @internal Reference to parent Pinecall client (for createToken). */
+    private _client: { createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<import("./api.js").TokenResponse> } | null = null;
+    /** @internal Wire ID used for server communication. */
+    private _wireId: string;
+
 
     /** @internal — created by Pinecall.agent() */
     constructor(
         id: string,
         config: AgentConfig,
         send: (data: Record<string, unknown>) => void,
+        wireId?: string,
     ) {
         super();
         this.id = id;
         this.name = id;
         this._config = config;
         this._sendRaw = send;
+        this._wireId = wireId || id;
     }
 
     /**
@@ -199,18 +244,24 @@ export class Agent extends TypedEmitter<AgentEvents> {
     /**
      * Add a channel to this agent.
      *
-     * @param type - "phone", "webrtc", or "mic"
-     * @param ref - Phone number for phone, or optional ref for webrtc/mic
+     * @param type - "phone", "webrtc", "mic", "chat", or "whatsapp"
+     * @param ref - Phone number for phone, optional ref for webrtc/mic,
+     *              or a WhatsAppChannelConfig object for whatsapp
      * @param config - Optional config override for this channel
      *
      * @example
      * agent.addChannel("phone", "+19035551234");
      * agent.addChannel("phone", "+19035555678", { voice: "cartesia:uuid" });
      * agent.addChannel("webrtc");
+     * agent.addChannel("whatsapp", {
+     *   phoneNumberId: "123456789012345",
+     *   accessToken: "EAABx...",
+     *   verifyToken: "my-secret",
+     * });
      */
-    addChannel(type: "phone" | "webrtc" | "mic" | "chat", ref?: string, config?: ChannelConfig): void {
+    addChannel(type: "phone" | "webrtc" | "mic" | "chat" | "whatsapp", ref?: string | WhatsAppChannelConfig, config?: ChannelConfig): void {
         // Validate phone numbers early (SIP URIs pass through)
-        if (type === "phone" && ref && !ref.startsWith("sip:")) {
+        if (type === "phone" && typeof ref === "string" && ref && !ref.startsWith("sip:")) {
             const cleaned = ref.replace(/[\s\-()]/g, "");
             const normalized = cleaned.startsWith("+") ? cleaned : "+" + cleaned;
             const digits = normalized.slice(1);
@@ -220,14 +271,31 @@ export class Agent extends TypedEmitter<AgentEvents> {
         }
 
         // Track for re-registration on reconnect
-        const key = ref ?? type;
-        this._channels.set(key, { type, ref, config });
+        const key = (typeof ref === "string" ? ref : undefined) ?? type;
+        this._channels.set(key, { type, ref: typeof ref === "string" ? ref : undefined, config: typeof ref === "object" ? ref : config });
+
+        // WhatsApp: ref is a WhatsAppChannelConfig object
+        if (type === "whatsapp" && typeof ref === "object" && ref !== null) {
+            const waConfig = ref as WhatsAppChannelConfig;
+            const msg = {
+                event: "channel.add",
+                agent_id: this.id,
+                type: "whatsapp",
+                ref: waConfig.phoneNumberId,
+                accessToken: waConfig.accessToken,
+                ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
+                ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
+                ...buildShortcutPayload(waConfig),
+            };
+            this._send(msg);
+            return;
+        }
 
         const msg = {
             event: "channel.add",
             agent_id: this.id,
             type,
-            ...(ref ? { ref } : {}),
+            ...(typeof ref === "string" && ref ? { ref } : {}),
             ...buildShortcutPayload(config),
         };
 
@@ -318,6 +386,42 @@ export class Agent extends TypedEmitter<AgentEvents> {
     stream(res?: ServerResponse): Response | void {
         if (res) return createAgentStream(this, res);
         return createAgentStream(this);
+    }
+
+    // ── Token generation ─────────────────────────────────────────────────
+
+    /**
+     * Create a short-lived signed token for browser connections.
+     *
+     * Uses the parent Pinecall client's API key to authenticate with the
+     * voice server. The returned token can be passed to the browser for
+     * WebRTC or Chat connections.
+     *
+     * @param channel - "webrtc" for voice, "chat" for text
+     * @returns Token response with token, server URL, and TTL
+     *
+     * @example
+     * ```ts
+     * // In your Express route:
+     * app.get("/api/token", async (req, res) => {
+     *   const token = await agent.createToken("webrtc");
+     *   res.json(token);
+     * });
+     * ```
+     */
+    async createToken(channel: "webrtc" | "chat"): Promise<import("./api.js").TokenResponse> {
+        if (!this._client) {
+            throw new Error(
+                "Cannot create token: agent is not connected to a Pinecall client. " +
+                "Use pc.createToken(channel, agentId) instead.",
+            );
+        }
+        return this._client.createToken(channel, this._wireId);
+    }
+
+    /** @internal Set the parent Pinecall client reference. */
+    _setClient(client: { createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<import("./api.js").TokenResponse> }): void {
+        this._client = client;
     }
 
     // ── Dial ──────────────────────────────────────────────────────────────
@@ -457,6 +561,12 @@ export class Agent extends TypedEmitter<AgentEvents> {
                 break;
 
             default: {
+                // ── WhatsApp events (agent-scoped, no call) ──
+                if (eventType.startsWith("whatsapp.")) {
+                    this.emit(eventType as any, data);
+                    break;
+                }
+
                 // ── LLM Chat events (session_id, no call) ──
                 // llm.chat.* events use session_id instead of call_id.
                 if (eventType.startsWith("llm.chat.")) {

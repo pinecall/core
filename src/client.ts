@@ -21,18 +21,22 @@ import { buildShortcutPayload } from "./utils/protocol.js";
 import { forwardAgentEvents } from "./utils/proxy.js";
 import { createMultiAgentStream, type StreamOptions } from "./sse.js";
 import { appendFileSync } from "fs";
+import { userInfo } from "os";
 import type { ServerResponse } from "node:http";
 import type { AgentConfig, ChannelConfig, AgentEvents } from "./agent.js";
 import {
     fetchVoices as _fetchVoices,
     fetchPhones as _fetchPhones,
     fetchWebRTCToken as _fetchWebRTCToken,
+    createToken as _createToken,
     type Voice,
     type Phone,
     type WebRTCToken,
+    type TokenResponse,
     type FetchVoicesOptions,
     type FetchPhonesOptions,
     type FetchWebRTCTokenOptions,
+    type CreateTokenOptions,
 } from "./api.js";
 import type {
     CallStartedEvent,
@@ -160,8 +164,16 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
     private _protocolVersion = "";
     private _connected = false;
 
-    // Dev mode: prefix agent IDs with "dev-" to avoid colliding with production
-    private _devMode = process.env.PINECALL_MODE === "dev";
+    // Environment mode: prefix agent IDs to avoid colliding with production.
+    // "dev" → "dev-berna-mara", "staging" → "staging-mara", "" → "mara" (production)
+    private _mode = process.env.PINECALL_MODE || "";
+
+    // Developer identity for multi-dev isolation.
+    // In dev mode: "dev-{devId}-{agent}" so each developer gets a unique slug.
+    // Falls back to OS username if PINECALL_DEV_ID is not set.
+    private _devId = process.env.PINECALL_DEV_ID || (() => {
+        try { return userInfo().username; } catch { return ""; }
+    })();
 
     // Agent registry
     private _agents = new Map<string, Agent>();
@@ -207,12 +219,44 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
 
     /** Whether running in dev mode (agent IDs prefixed with dev-). */
     get devMode(): boolean {
-        return this._devMode;
+        return this._mode === "dev";
     }
 
-    /** Map local agent ID to wire ID (prefixed in dev mode). */
+    /**
+     * Current environment mode: "dev", "staging", or "" (production).
+     *
+     * Set via `PINECALL_MODE` env var. In non-production modes, agent IDs
+     * are prefixed so they coexist with production agents on the same server.
+     *
+     * In dev mode, the developer ID is also included for multi-dev isolation:
+     *   `dev-berna-florencia` (not just `dev-florencia`).
+     */
+    get mode(): string {
+        return this._mode;
+    }
+
+    /**
+     * Developer identity used for agent slug isolation.
+     * Set via `PINECALL_DEV_ID` env var, defaults to OS username.
+     * Only relevant in dev/staging modes.
+     */
+    get devId(): string {
+        return this._devId;
+    }
+
+    /**
+     * Map local agent ID to wire ID (prefixed in non-production modes).
+     *
+     * Production:  "florencia"
+     * Dev:         "dev-berna-florencia"  (includes devId for multi-dev)
+     * Staging:     "staging-florencia"    (no devId — staging is shared)
+     */
     private _wireId(id: string): string {
-        return this._devMode ? `dev-${id}` : id;
+        if (!this._mode) return id;
+        if (this._mode === "dev" && this._devId) {
+            return `dev-${this._devId}-${id}`;
+        }
+        return `${this._mode}-${id}`;
     }
 
     // ── Static API helpers ────────────────────────────────────────────────
@@ -241,15 +285,40 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
      * Fetch a WebRTC token for browser connections.
      *
      * Uses your API key (server-side) to get a signed token from
-     * the SDK server. Pass the token to the browser:
+     * the voice server. Pass the token to the browser.
      *
-     * ```typescript
-     * const { token } = await pc.getWebRTCToken("my-agent");
-     * // Send token to browser via your API
-     * ```
+     * @deprecated Use `createToken("webrtc", agentId)` instead.
      */
     getWebRTCToken(agentId: string): Promise<WebRTCToken> {
-        return _fetchWebRTCToken({ agentId });
+        return _fetchWebRTCToken({ agentId, apiKey: this._opts.apiKey });
+    }
+
+    /**
+     * Create a signed token for browser connections (WebRTC or Chat).
+     *
+     * Authenticates with the voice server using your API key.
+     * The returned token is short-lived and can be safely passed to
+     * the browser for direct connections.
+     *
+     * @param channel - "webrtc" for voice, "chat" for text
+     * @param agentId - Agent slug (uses wire ID with env prefix)
+     *
+     * @example
+     * ```ts
+     * // In your Express route:
+     * app.get("/api/token", authMiddleware, async (req, res) => {
+     *   const token = await pc.createToken("webrtc", "florencia");
+     *   res.json(token);
+     * });
+     * ```
+     */
+    async createToken(channel: "webrtc" | "chat", agentId: string): Promise<TokenResponse> {
+        const wireId = this._wireId(agentId);
+        return _createToken({
+            channel,
+            agentId: wireId,
+            apiKey: this._opts.apiKey,
+        });
     }
 
     // ── Connect / Disconnect ─────────────────────────────────────────────
@@ -312,8 +381,11 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
             // needs the dev-prefixed ID (e.g. "dev-anais") for routing.
             if (data.agent_id === id) data.agent_id = wireId;
             this._send(data);
-        });
+        }, wireId);
         this._agents.set(id, agent);
+
+        // Wire agent to parent client for createToken()
+        agent._setClient(this);
 
         // Proxy agent events to connection level for convenience
         forwardAgentEvents(agent, this);
@@ -325,6 +397,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
                 agent_id: this._wireId(id),
                 ...buildShortcutPayload(config),
                 ...(config?.historySave ? { history_save: true } : {}),
+                ...(config?.allowedOrigins?.length ? { allowed_origins: config.allowedOrigins } : {}),
             });
         }
 
@@ -388,7 +461,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
         if (channels) {
             for (const ch of channels) {
                 if (typeof ch === "string") {
-                    if (ch === "webrtc" || ch === "mic" || ch === "chat") {
+                    if (ch === "webrtc" || ch === "mic" || ch === "chat" || ch === "whatsapp") {
                         agent.addChannel(ch);
                     } else {
                         // Assume phone number
@@ -396,7 +469,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
                     }
                 } else {
                     agent.addChannel(
-                        ch.type as "phone" | "webrtc" | "mic" | "chat",
+                        ch.type as "phone" | "webrtc" | "mic" | "chat" | "whatsapp",
                         ch.ref,
                         ch.config,
                     );
@@ -627,15 +700,21 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
             if (this._agents.has(slug)) {
                 agentId = slug;
             }
-            // Dev mode: server uses "dev-X" but SDK stores "X"
-            else if (slug.startsWith("dev-") && this._agents.has(slug.slice(4))) {
-                agentId = slug.slice(4);
-            }
-            // Case-insensitive fallback: server may send "Julia" but SDK stores "julia"
+            // Non-production mode: server uses wire ID (e.g. "dev-berna-mara") but SDK stores "mara"
+            // Compute the wire prefix and strip it to find the local agent name.
             else {
-                const lower = slug.toLowerCase();
-                if (this._agents.has(lower)) {
-                    agentId = lower;
+                const wirePrefix = this._mode === "dev" && this._devId
+                    ? `dev-${this._devId}-`
+                    : this._mode ? `${this._mode}-` : "";
+                if (wirePrefix && slug.startsWith(wirePrefix) && this._agents.has(slug.slice(wirePrefix.length))) {
+                    agentId = slug.slice(wirePrefix.length);
+                }
+                // Case-insensitive fallback: server may send "Julia" but SDK stores "julia"
+                else {
+                    const lower = slug.toLowerCase();
+                    if (this._agents.has(lower)) {
+                        agentId = lower;
+                    }
                 }
             }
         }
@@ -657,6 +736,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
                         agent_id: this._wireId(id),
                         ...buildShortcutPayload(cfg),
                         ...(cfg?.historySave ? { history_save: true } : {}),
+                        ...(cfg?.allowedOrigins?.length ? { allowed_origins: cfg.allowedOrigins } : {}),
                     });
                 }
 
@@ -793,7 +873,8 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
                 const needsFallback = eventType.startsWith("llm.chat.") 
                     || eventType.startsWith("history.") 
                     || eventType.startsWith("conversation")
-                    || eventType.startsWith("session.");
+                    || eventType.startsWith("session.")
+                    || eventType.startsWith("whatsapp.");
                 const targetAgent = agentId
                     ? this._agents.get(agentId)
                     : (needsFallback

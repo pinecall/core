@@ -70,6 +70,12 @@ export interface FetchWebRTCTokenOptions {
     agentId: string;
     /** Voice server base URL. Default: `"https://voice.pinecall.io"`. */
     apiUrl?: string;
+    /**
+     * API key for authenticated requests (server-side).
+     * When provided, the token endpoint validates the key instead of
+     * relying on Origin headers. Recommended for production.
+     */
+    apiKey?: string;
 }
 
 /** WebRTC token response from the Pinecall API. */
@@ -78,6 +84,27 @@ export interface WebRTCToken {
     token: string;
     /** Voice server URL for the WebRTC connection. */
     server?: string;
+}
+
+/** Token response for browser connections (WebRTC or Chat). */
+export interface TokenResponse {
+    /** Signed token (wrt_... for WebRTC, cht_... for Chat). */
+    token: string;
+    /** Voice server URL. */
+    server: string;
+    /** Token TTL in seconds. */
+    expires_in: number;
+}
+
+export interface CreateTokenOptions {
+    /** Channel type to create a token for. */
+    channel: "webrtc" | "chat";
+    /** Agent ID (slug). */
+    agentId: string;
+    /** Your Pinecall API key. Required for authenticated token generation. */
+    apiKey: string;
+    /** Voice server base URL. Default: `"https://voice.pinecall.io"`. */
+    apiUrl?: string;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────
@@ -167,22 +194,29 @@ export async function fetchPhones(opts: FetchPhonesOptions): Promise<Phone[]> {
 /**
  * Fetch a WebRTC token for browser connections.
  *
- * This is a **public** endpoint — no API key required.
- * The agent must be online (registered via WebSocket).
+ * When `apiKey` is provided, sends an authenticated request (recommended
+ * for server-side usage). Otherwise falls back to public access (requires
+ * the agent to have `allowedOrigins` configured).
  *
  * @example
  * ```ts
+ * // Server-side (authenticated — recommended)
+ * const { token, server } = await fetchWebRTCToken({ agentId: "my-agent", apiKey: "pk_..." });
+ *
+ * // Browser-side (requires allowedOrigins on the agent)
  * const { token, server } = await fetchWebRTCToken({ agentId: "my-agent" });
- * // Use token in the /webrtc/offer POST body
  * ```
  */
 export async function fetchWebRTCToken(opts: FetchWebRTCTokenOptions): Promise<WebRTCToken> {
     const apiUrl = opts.apiUrl ?? DEFAULT_API_URL;
+    const headers: Record<string, string> = {};
+    if (opts.apiKey) headers["Authorization"] = `Bearer ${opts.apiKey}`;
 
     let res: Response;
     try {
         res = await fetch(
             `${apiUrl}/webrtc/token?agent_id=${encodeURIComponent(opts.agentId)}`,
+            { headers },
         );
     } catch (err) {
         throw new Error(`Network error fetching WebRTC token: ${err}`);
@@ -201,6 +235,58 @@ export async function fetchWebRTCToken(opts: FetchWebRTCTokenOptions): Promise<W
     return {
         token: data.token,
         server: (data.server as string) || undefined,
+    };
+}
+
+/**
+ * Create a signed token for browser connections (WebRTC or Chat).
+ *
+ * This is the **recommended** way to generate tokens for production.
+ * The API key authenticates the request — no Origin header validation needed.
+ *
+ * @example
+ * ```ts
+ * // In your Express/Next.js route handler:
+ * app.get("/api/token", authMiddleware, async (req, res) => {
+ *   const token = await createToken({
+ *     channel: "webrtc",
+ *     agentId: "florencia",
+ *     apiKey: process.env.PINECALL_API_KEY!,
+ *   });
+ *   res.json(token);
+ * });
+ * ```
+ */
+export async function createToken(opts: CreateTokenOptions): Promise<TokenResponse> {
+    const apiUrl = opts.apiUrl ?? DEFAULT_API_URL;
+    const endpoint = opts.channel === "chat" ? "/chat/token" : "/webrtc/token";
+    const url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(opts.agentId)}`;
+
+    let res: Response;
+    try {
+        res = await fetch(url, {
+            headers: { Authorization: `Bearer ${opts.apiKey}` },
+        });
+    } catch (err) {
+        throw new Error(`Network error creating ${opts.channel} token: ${err}`);
+    }
+
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(
+            `Failed to create ${opts.channel} token: ${(data as any).detail || `HTTP ${res.status}`}`,
+        );
+    }
+
+    const data = await res.json() as Record<string, unknown>;
+    if (typeof data.token !== "string") {
+        throw new Error(`Token response missing 'token' field`);
+    }
+
+    return {
+        token: data.token as string,
+        server: (data.server as string) || apiUrl,
+        expires_in: (data.expires_in as number) || 60,
     };
 }
 

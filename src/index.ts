@@ -38,6 +38,7 @@ export type {
     AgentEvents,
     AgentConfig,
     ChannelConfig,
+    WhatsAppChannelConfig,
     VoiceShortcut,
     STTShortcut,
     InterruptionShortcut,
@@ -135,17 +136,19 @@ export { Reconnector } from "./utils/reconnect.js";
 export type { ReconnectOptions } from "./utils/reconnect.js";
 
 // REST API helpers
-export { fetchVoices, fetchPhones, fetchWebRTCToken, fetchTwilioBalance, fetchBalance } from "./api.js";
+export { fetchVoices, fetchPhones, fetchWebRTCToken, fetchTwilioBalance, fetchBalance, createToken } from "./api.js";
 export type {
     Voice,
     VoiceLanguage,
     Phone as PhoneInfo,
     WebRTCToken,
+    TokenResponse,
     TwilioBalance,
     Balance,
     FetchVoicesOptions,
     FetchPhonesOptions,
     FetchWebRTCTokenOptions,
+    CreateTokenOptions,
     FetchTwilioBalanceOptions,
     FetchBalanceOptions,
 } from "./api.js";
