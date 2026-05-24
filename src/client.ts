@@ -321,6 +321,18 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
         });
     }
 
+    /**
+     * @internal Create a token with an already-resolved wireId (no dev prefix added).
+     * Used by Agent.createToken() to avoid double-prefixing.
+     */
+    async _createTokenRaw(channel: "webrtc" | "chat", wireId: string): Promise<TokenResponse> {
+        return _createToken({
+            channel,
+            agentId: wireId,
+            apiKey: this._opts.apiKey,
+        });
+    }
+
     // ── Connect / Disconnect ─────────────────────────────────────────────
 
     /** Connect to the Pinecall server. Resolves when authenticated. */

@@ -204,4 +204,5 @@ VOICE: No markdown, no emojis, no bullets. Short responses (1-2 sentences).`,
   });
 
   console.log("  🎙  Agent 'booking-demo' ready (WebRTC)");
+  return { agent };
 }

@@ -409,10 +409,14 @@ function App() {
 
       <VoiceWidget
         agent="booking-demo"
-        server="https://voice.pinecall.io"
         name="Glow Studio"
         label="Book an appointment"
         preset="dark"
+        tokenProvider={async () => {
+          const res = await fetch("/api/token");
+          if (!res.ok) throw new Error(`Token failed: ${res.status}`);
+          return res.json();
+        }}
         trackedTools={["getAvailableSlots", "confirmBooking", "showContactForm", "fillField", "submitForm"]}
       >
         <ToolPanel />

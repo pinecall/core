@@ -183,7 +183,10 @@ export class Agent extends TypedEmitter<AgentEvents> {
     /** Tracks registered channels for re-registration on reconnect. */
     private _channels = new Map<string, { type: string; ref?: string; config?: ChannelConfig }>();
     /** @internal Reference to parent Pinecall client (for createToken). */
-    private _client: { createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<import("./api.js").TokenResponse> } | null = null;
+    private _client: {
+        createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<import("./api.js").TokenResponse>;
+        _createTokenRaw: (channel: "webrtc" | "chat", wireId: string) => Promise<import("./api.js").TokenResponse>;
+    } | null = null;
     /** @internal Wire ID used for server communication. */
     private _wireId: string;
 
@@ -416,11 +419,16 @@ export class Agent extends TypedEmitter<AgentEvents> {
                 "Use pc.createToken(channel, agentId) instead.",
             );
         }
-        return this._client.createToken(channel, this._wireId);
+        // Call _createToken directly with the already-prefixed wireId.
+        // Do NOT go through client.createToken() — it adds the dev prefix again.
+        return this._client._createTokenRaw(channel, this._wireId);
     }
 
     /** @internal Set the parent Pinecall client reference. */
-    _setClient(client: { createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<import("./api.js").TokenResponse> }): void {
+    _setClient(client: {
+        createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<import("./api.js").TokenResponse>;
+        _createTokenRaw: (channel: "webrtc" | "chat", wireId: string) => Promise<import("./api.js").TokenResponse>;
+    }): void {
         this._client = client;
     }
 
@@ -709,15 +717,31 @@ export class Agent extends TypedEmitter<AgentEvents> {
 
         // Re-register all tracked channels (critical for reconnection)
         for (const [key, ch] of this._channels) {
-            const msg = {
-                event: "channel.add",
-                agent_id: this.id,
-                type: ch.type,
-                ...(ch.ref ? { ref: ch.ref } : {}),
-                ...buildShortcutPayload(ch.config),
-            };
-
-            this._sendRaw(msg);
+            // WhatsApp channels need special handling — config contains
+            // phoneNumberId, accessToken, etc. that must be sent as top-level fields
+            if (ch.type === "whatsapp" && ch.config) {
+                const waConfig = ch.config as any;
+                const msg = {
+                    event: "channel.add",
+                    agent_id: this.id,
+                    type: "whatsapp",
+                    ref: waConfig.phoneNumberId,
+                    accessToken: waConfig.accessToken,
+                    ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
+                    ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
+                    ...buildShortcutPayload(waConfig),
+                };
+                this._sendRaw(msg);
+            } else {
+                const msg = {
+                    event: "channel.add",
+                    agent_id: this.id,
+                    type: ch.type,
+                    ...(ch.ref ? { ref: ch.ref } : {}),
+                    ...buildShortcutPayload(ch.config),
+                };
+                this._sendRaw(msg);
+            }
         }
 
         // Flush any other pending messages (skip channel.add — already handled above)
