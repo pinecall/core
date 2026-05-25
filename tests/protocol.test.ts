@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { buildShortcutPayload } from '../src/utils/protocol.js'
+import { buildShortcutPayload } from '../src/protocol/shortcuts.js'
 
 describe('buildShortcutPayload', () => {
   it('returns empty object for undefined input', () => {

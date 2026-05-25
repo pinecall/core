@@ -1,56 +1,20 @@
 /**
- * SSE (Server-Sent Events) stream utility.
+ * SSE stream — creates SSE responses from agent events.
  *
- * Creates a ReadableStream that subscribes to agent events and
- * serializes them as SSE format. Works with any framework that
- * accepts a standard Response or Node.js ServerResponse.
- *
- * Usage:
- *   return agent.stream();           // → Response (Remix, Next, Hono, Bun)
- *   agent.stream(res);              // → writes to ServerResponse (Express)
- *   return pc.stream();             // → all agents
- *   return pc.stream({ agents: ["mara"] }); // → filtered
+ * Port of src.bkp/sse.ts — identical behavior.
  */
 
-import type { Agent } from "./agent.js";
-import type { Call } from "./call.js";
+import type { Agent } from "../domain/agent.js";
+import type { Call } from "../domain/call.js";
 import type { ServerResponse } from "node:http";
-
-// Events to stream (all meaningful agent events)
-const STREAM_EVENTS = [
-    "call.started", "call.ended",
-    "user.speaking", "user.message",
-    "bot.speaking", "bot.word", "bot.finished", "bot.interrupted",
-    "turn.end", "turn.pause",
-    "speech.started", "speech.ended",
-] as const;
-
-/** Format a single SSE message. */
-function formatSSE(event: string, data: Record<string, unknown>): string {
-    return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
-/** SSE headers for HTTP responses. */
-const SSE_HEADERS: Record<string, string> = {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no", // nginx
-};
-
-// ─── Agent stream ────────────────────────────────────────────────────────
+import { formatSSE, SSE_HEADERS, STREAM_EVENTS } from "./format.js";
 
 export interface StreamOptions {
-    /** Filter to specific agent IDs. */
     agents?: string[];
 }
 
-/**
- * Create an SSE stream from a single agent's events.
- *
- * @overload stream() → Response (Web API)
- * @overload stream(res) → writes to ServerResponse (Node.js)
- */
+// ─── Agent stream ────────────────────────────────────────────────────────
+
 export function createAgentStream(agent: Agent): Response;
 export function createAgentStream(agent: Agent, res: ServerResponse): void;
 export function createAgentStream(agent: Agent, res?: ServerResponse): Response | void {
@@ -63,16 +27,6 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
         handlers.length = 0;
     };
 
-    const writeFn = (event: string, data: Record<string, unknown>) => {
-        const payload = { ...data, agent: agent.id };
-        const msg = formatSSE(event, payload);
-
-        if (res) {
-            try { res.write(msg); } catch { cleanup(); }
-        }
-        return msg;
-    };
-
     // ── Node.js ServerResponse mode ──
     if (res) {
         res.writeHead(200, SSE_HEADERS);
@@ -81,13 +35,13 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
         for (const evt of STREAM_EVENTS) {
             const handler = (...args: any[]) => {
                 const data = buildEventData(evt, args);
-                writeFn(evt, data);
+                const payload = { ...data, agent: agent.id };
+                try { res.write(formatSSE(evt, payload)); } catch { cleanup(); }
             };
             handlers.push({ event: evt, handler });
             agent.on(evt, handler);
         }
 
-        // Keepalive
         const ping = setInterval(() => {
             try { res.write(":ping\n\n"); } catch { clearInterval(ping); cleanup(); }
         }, 30_000);
@@ -116,13 +70,10 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
                 agent.on(evt, handler);
             }
 
-            // Keepalive
             const ping = setInterval(() => {
                 try { controller.enqueue(encoder.encode(":ping\n\n")); }
                 catch { clearInterval(ping); cleanup(); }
             }, 30_000);
-
-            // Store ping for cancel cleanup
             (controller as any)._pingTimer = ping;
         },
         cancel() {
@@ -137,9 +88,6 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
 
 // ─── Multi-agent stream ──────────────────────────────────────────────────
 
-/**
- * Create an SSE stream from multiple agents.
- */
 export function createMultiAgentStream(
     agents: Map<string, Agent>,
     filter?: StreamOptions,
@@ -247,7 +195,6 @@ function getFilteredAgents(agents: Map<string, Agent>, opts?: StreamOptions): Ag
     return all.filter(a => opts.agents!.includes(a.id));
 }
 
-/** Extract serializable data from event handler args. */
 function buildEventData(event: string, args: any[]): Record<string, unknown> {
     const data: Record<string, unknown> = {};
 
@@ -267,7 +214,7 @@ function buildEventData(event: string, args: any[]): Record<string, unknown> {
             continue;
         }
 
-        // Event data object — copy safe fields (already camelCase from SDK transform)
+        // Event data — copy safe fields
         for (const [k, v] of Object.entries(arg)) {
             if (typeof v === "function" || k.startsWith("_")) continue;
             data[k] = v;

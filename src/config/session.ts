@@ -1,5 +1,8 @@
 /**
  * Session configuration types — mirrors PROTOCOL.md §5.
+ *
+ * Provider-specific fields keep snake_case to mirror their underlying APIs.
+ * This is the documented hybrid naming convention.
  */
 
 // ─── STT ─────────────────────────────────────────────────────────────────

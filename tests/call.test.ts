@@ -3,10 +3,13 @@
  *
  * Verifies: say(), reply(), replyStream(), hold/mute, configure,
  * event routing, lastMessageId tracking, and call ending.
+ *
+ * Ported to the new _apply* API (replaces old _handleEvent/_end).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Call } from '../src/call.js'
+import { Call } from '../src/domain/call.js'
+import { decodeEvent } from '../src/protocol/codec.js'
 
 function createCall(overrides: Partial<Parameters<typeof Call.prototype.constructor>[0]> = {}) {
   const send = vi.fn()
@@ -69,8 +72,14 @@ describe('Call', () => {
   it('reply() uses lastMessageId as in_reply_to', () => {
     const { call, send } = createCall()
 
-    // Simulate user.message to set lastMessageId
-    call._handleEvent({ event: 'user.message', message_id: 'msg_user_1', text: 'Hi', turn_id: 1, confidence: 0.99 })
+    // Simulate user.message via new _apply method
+    call._applyUserMessage(decodeEvent({
+      event: 'user.message',
+      message_id: 'msg_user_1',
+      text: 'Hi',
+      turn_id: 1,
+      confidence: 0.99,
+    }))
 
     call.reply('Hello there!')
     expect(send).toHaveBeenCalledWith(
@@ -167,13 +176,13 @@ describe('Call', () => {
     })
   })
 
-  // ── Event routing ─────────────────────────────────────
+  // ── Event routing (via new _apply* methods) ───────────
 
   it('emits user.speaking events', () => {
     const { call } = createCall()
     const handler = vi.fn()
     call.on('user.speaking', handler)
-    call._handleEvent({ event: 'user.speaking', text: 'Hello', is_final: false })
+    call._emitWire('user.speaking', decodeEvent({ event: 'user.speaking', text: 'Hello', is_final: false }))
     expect(handler).toHaveBeenCalledOnce()
     expect(handler.mock.calls[0][0].text).toBe('Hello')
   })
@@ -182,7 +191,7 @@ describe('Call', () => {
     const { call } = createCall()
     const handler = vi.fn()
     call.on('bot.word', handler)
-    call._handleEvent({ event: 'bot.word', word: 'Hello', word_index: 0, message_id: 'msg_1' })
+    call._emitWire('bot.word', decodeEvent({ event: 'bot.word', word: 'Hello', word_index: 0, message_id: 'msg_1' }))
     expect(handler).toHaveBeenCalledOnce()
     expect(handler.mock.calls[0][0].word).toBe('Hello')
   })
@@ -191,13 +200,13 @@ describe('Call', () => {
     const { call } = createCall()
     const handler = vi.fn()
     call.on('eager.turn', handler)
-    call._handleEvent({
-      event: 'eager.turn',
-      turn_id: 1,
-      message_id: 'msg_1',
+    call._applyEagerTurn({
+      id: 1,
+      messageId: 'msg_1',
       text: 'Hey',
+      confidence: 0,
       probability: 0.9,
-      latency_ms: 150,
+      latencyMs: 150,
     })
     expect(handler).toHaveBeenCalledOnce()
     const turn = handler.mock.calls[0][0]
@@ -209,13 +218,13 @@ describe('Call', () => {
   it('tracks lastMessageId from user.message', () => {
     const { call } = createCall()
     expect(call.lastMessageId).toBeNull()
-    call._handleEvent({ event: 'user.message', message_id: 'msg_u1', text: 'test', turn_id: 1, confidence: 1 })
+    call._applyUserMessage(decodeEvent({ event: 'user.message', message_id: 'msg_u1', text: 'test', turn_id: 1, confidence: 1 }))
     expect(call.lastMessageId).toBe('msg_u1')
   })
 
   it('tracks lastMessageId from eager.turn', () => {
     const { call } = createCall()
-    call._handleEvent({ event: 'eager.turn', message_id: 'msg_eager1', text: 'test', turn_id: 1, probability: 0.8, latency_ms: 100 })
+    call._applyEagerTurn({ id: 1, messageId: 'msg_eager1', text: 'test', confidence: 0, probability: 0.8, latencyMs: 100 })
     expect(call.lastMessageId).toBe('msg_eager1')
   })
 
@@ -227,18 +236,18 @@ describe('Call', () => {
     stream.write('token') // start the stream
     expect(stream.aborted).toBe(false)
 
-    call._handleEvent({ event: 'turn.continued', turn_id: 1 })
+    call._applyTurnContinued(decodeEvent({ event: 'turn.continued', turn_id: 1 }))
     expect(stream.aborted).toBe(true)
   })
 
-  // ── _end() ────────────────────────────────────────────
+  // ── _applyEnd() ────────────────────────────────────────
 
-  it('_end() populates call metadata and emits ended', () => {
+  it('_applyEnd() populates call metadata and emits ended', () => {
     const { call } = createCall()
     const handler = vi.fn()
     call.on('ended', handler)
 
-    call._end('hangup', {
+    call._applyEnd('hangup', {
       messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hello' }],
       duration_seconds: 45,
       started_at: 1700000000,
@@ -252,11 +261,11 @@ describe('Call', () => {
     expect(handler).toHaveBeenCalledWith('hangup')
   })
 
-  it('_end() aborts active streams', () => {
+  it('_applyEnd() aborts active streams', () => {
     const { call } = createCall()
     const stream = call.replyStream()
     stream.write('data')
-    call._end('timeout')
+    call._applyEnd('timeout')
     expect(stream.aborted).toBe(true)
   })
 
@@ -264,7 +273,7 @@ describe('Call', () => {
 
   it('transcript filters to user + assistant only', () => {
     const { call } = createCall()
-    call._end('hangup', {
+    call._applyEnd('hangup', {
       messages: [
         { role: 'system', content: 'You are...' },
         { role: 'user', content: 'Hi' },

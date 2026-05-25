@@ -11,7 +11,12 @@
  *   stream.end();
  */
 
-import { generateId } from "./utils/id.js";
+import { generateId } from "../kernel/id.js";
+
+/** Outbox interface — decouples ReplyStream from raw WebSocket send. */
+export interface Outbox {
+    send(data: Record<string, unknown>): void;
+}
 
 export interface ReplyStreamOptions {
     callId: string;
@@ -26,38 +31,38 @@ export class ReplyStream {
     readonly messageId: string;
     readonly callId: string;
 
-    private _aborted = false;
-    private _ended = false;
-    private _started = false;
-    private _send: (data: Record<string, unknown>) => void;
-    private _inReplyTo: string;
+    #aborted = false;
+    #ended = false;
+    #started = false;
+    #send: (data: Record<string, unknown>) => void;
+    #inReplyTo: string;
 
     // AbortController for external cancellation
-    private _ac = new AbortController();
+    #ac = new AbortController();
 
-    private _onComplete?: () => void;
+    #onComplete?: () => void;
 
     constructor(opts: ReplyStreamOptions) {
         this.messageId = opts.messageId ?? generateId("msg");
         this.callId = opts.callId;
-        this._inReplyTo = opts.inReplyTo;
-        this._send = opts.send;
-        this._onComplete = opts.onComplete;
+        this.#inReplyTo = opts.inReplyTo;
+        this.#send = opts.send;
+        this.#onComplete = opts.onComplete;
     }
 
     /** True if the stream was aborted (e.g. turn.continued). */
     get aborted(): boolean {
-        return this._aborted;
+        return this.#aborted;
     }
 
     /** True if end() was called. */
     get ended(): boolean {
-        return this._ended;
+        return this.#ended;
     }
 
     /** AbortSignal that fires on abort — use with fetch, LLM clients, etc. */
     get signal(): AbortSignal {
-        return this._ac.signal;
+        return this.#ac.signal;
     }
 
     /**
@@ -65,20 +70,20 @@ export class ReplyStream {
      * Automatically sends `start` on the first write.
      */
     write(token: string): void {
-        if (this._aborted || this._ended) return;
+        if (this.#aborted || this.#ended) return;
 
-        if (!this._started) {
-            this._started = true;
-            this._send({
+        if (!this.#started) {
+            this.#started = true;
+            this.#send({
                 event: "bot.reply.stream",
                 call_id: this.callId,
                 message_id: this.messageId,
                 action: "start",
-                in_reply_to: this._inReplyTo,
+                in_reply_to: this.#inReplyTo,
             });
         }
 
-        this._send({
+        this.#send({
             event: "bot.reply.stream",
             call_id: this.callId,
             message_id: this.messageId,
@@ -89,23 +94,23 @@ export class ReplyStream {
 
     /** End the stream normally — flushes remaining buffer on server. */
     end(): void {
-        if (this._aborted || this._ended) return;
-        this._ended = true;
-        this._fireComplete();
+        if (this.#aborted || this.#ended) return;
+        this.#ended = true;
+        this.#fireComplete();
 
         // If we never wrote anything, send start+end so server knows
-        if (!this._started) {
-            this._started = true;
-            this._send({
+        if (!this.#started) {
+            this.#started = true;
+            this.#send({
                 event: "bot.reply.stream",
                 call_id: this.callId,
                 message_id: this.messageId,
                 action: "start",
-                in_reply_to: this._inReplyTo,
+                in_reply_to: this.#inReplyTo,
             });
         }
 
-        this._send({
+        this.#send({
             event: "bot.reply.stream",
             call_id: this.callId,
             message_id: this.messageId,
@@ -115,14 +120,14 @@ export class ReplyStream {
 
     /** Abort the stream immediately (e.g. on turn.continued). */
     abort(): void {
-        if (this._aborted) return;
-        this._aborted = true;
-        this._ended = true;
+        if (this.#aborted) return;
+        this.#aborted = true;
+        this.#ended = true;
 
         // Tell the server this stream is done so it cleans up
         // (_is_streaming, TTS flush, etc.)
-        if (this._started) {
-            this._send({
+        if (this.#started) {
+            this.#send({
                 event: "bot.reply.stream",
                 call_id: this.callId,
                 message_id: this.messageId,
@@ -130,14 +135,14 @@ export class ReplyStream {
             });
         }
 
-        this._fireComplete();
-        this._ac.abort();
+        this.#fireComplete();
+        this.#ac.abort();
     }
 
-    private _fireComplete(): void {
-        if (this._onComplete) {
-            const cb = this._onComplete;
-            this._onComplete = undefined;
+    #fireComplete(): void {
+        if (this.#onComplete) {
+            const cb = this.#onComplete;
+            this.#onComplete = undefined;
             cb();
         }
     }

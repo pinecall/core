@@ -1,16 +1,15 @@
 /**
- * Event proxy utility — consolidates the three duplicated proxy methods
- * from client.ts and agent.ts into one reusable function.
+ * Event proxy — forward call/agent events up the chain.
  *
- * Replaces:
- *   - Agent._proxyCallEvents (agent.ts)
- *   - Pinecall._proxyCallEvents (client.ts)
- *   - Pinecall._proxyAgentEvents (client.ts)
+ * Call → Agent: event args + call appended
+ * Agent → Pinecall: passthrough
+ *
+ * Port of src.bkp/utils/proxy.ts.
  */
 
-import type { TypedEmitter } from "./emitter.js";
+import type { TypedEventBus, EventMap } from "../kernel/event-bus.js";
 
-/** Events that are proxied from Call → Agent (call-scoped → agent-scoped). */
+/** Events that are proxied from Call → Agent (and Agent → Pinecall). */
 export const CALL_PROXY_EVENTS = [
     "speech.started",
     "speech.ended",
@@ -41,14 +40,10 @@ export const CALL_PROXY_EVENTS = [
  *
  * Call emits: `(event, ...callArgs)`
  * Agent emits: `(event, ...callArgs, call)`
- *
- * @param source - The call emitter
- * @param target - The agent or pinecall emitter
- * @param context - Extra argument appended to each emission (typically the Call instance)
  */
 export function forwardCallEvents(
-    source: TypedEmitter<any>,
-    target: TypedEmitter<any>,
+    source: TypedEventBus<any>,
+    target: TypedEventBus<any>,
     context: unknown,
 ): void {
     for (const event of CALL_PROXY_EVENTS) {
@@ -65,8 +60,8 @@ export function forwardCallEvents(
  * Pinecall emits: `(event, ...agentArgs)` — passthrough, same signature.
  */
 export function forwardAgentEvents(
-    source: TypedEmitter<any>,
-    target: TypedEmitter<any>,
+    source: TypedEventBus<any>,
+    target: TypedEventBus<any>,
 ): void {
     for (const event of CALL_PROXY_EVENTS) {
         source.on(event, (...args: unknown[]) => {

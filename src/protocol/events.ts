@@ -2,7 +2,7 @@
  * Server → Client event types — every event from PROTOCOL.md §7.
  *
  * Convention: camelCase for all TypeScript fields. Wire protocol uses
- * snake_case — the SDK transforms at the boundary (see call.ts).
+ * snake_case — the SDK transforms at the boundary (see protocol/codec.ts).
  */
 
 // ─── Session Lifecycle ───────────────────────────────────────────────────

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { ReplyStream } from '../src/stream.js'
+import { ReplyStream } from '../src/domain/reply-stream.js'
 
 function createStream(overrides: Partial<ConstructorParameters<typeof ReplyStream>[0]> = {}) {
   const send = vi.fn()

@@ -1,11 +1,11 @@
 /**
  * Protocol utilities — serialization helpers for the Pinecall WebSocket protocol.
  *
- * Moved from agent.ts to eliminate the circular dependency smell
- * where client.ts imported a utility from agent.ts.
+ * Pure functions: buildShortcutPayload, expandSTT.
+ * Ported from src.bkp/utils/protocol.ts unchanged.
  */
 
-import type { AgentConfig, ChannelConfig } from "../agent.js";
+import type { AgentConfig, ChannelConfig } from "../config/agent.js";
 
 type ShortcutInput = AgentConfig | ChannelConfig | undefined;
 
@@ -44,7 +44,7 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
  *   "deepgram:nova-3"     → { provider, model }
  *   "deepgram:nova-3:es"  → { provider, model, language }
  */
-function expandSTT(stt: string | Record<string, unknown>): string | Record<string, unknown> {
+export function expandSTT(stt: string | Record<string, unknown>): string | Record<string, unknown> {
     if (typeof stt !== "string") return stt;
     const parts = stt.split(":");
     if (parts.length === 1) return stt;
@@ -53,4 +53,3 @@ function expandSTT(stt: string | Record<string, unknown>): string | Record<strin
     if (parts[2]) obj.language = parts[2];
     return obj;
 }
-

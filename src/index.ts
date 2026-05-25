@@ -1,12 +1,11 @@
 /**
- * pinecall — Core SDK for Pinecall Voice.
+ * @pinecall/sdk — Core SDK for Pinecall Voice.
  *
  * Minimal, zero-opinion client for building voice AI integrations.
- * For the full agent framework (PinecallAgent, CLI, dashboard), use @pinecall/sdk.
  *
  * @example
  * ```ts
- * import { Pinecall } from "pinecall";
+ * import { Pinecall } from "@pinecall/sdk";
  *
  * const pc = new Pinecall({ apiKey: "pk_..." });
  * await pc.connect();
@@ -30,25 +29,32 @@
 
 // Core classes
 export { Pinecall, PinecallError } from "./client.js";
-export type { PinecallOptions, PinecallEvents, DeployConfig } from "./client.js";
-export type { StreamOptions } from "./sse.js";
+export type { PinecallOptions, PinecallEvents } from "./client.js";
+export type { DeployConfig } from "./config/agent.js";
+export type { StreamOptions } from "./sse/stream.js";
 
-export { Agent } from "./agent.js";
+export { Agent } from "./domain/agent.js";
 export type {
     AgentEvents,
+} from "./domain/agent.js";
+
+export type {
     AgentConfig,
     ChannelConfig,
     WhatsAppChannelConfig,
     VoiceShortcut,
     STTShortcut,
     InterruptionShortcut,
-} from "./agent.js";
+} from "./config/agent.js";
 
-export { Call } from "./call.js";
-export type { Turn, CallEvents, ReplyOptions, ForwardOptions } from "./call.js";
+export { Call } from "./domain/call.js";
+export type { CallEvents, ReplyOptions, ForwardOptions } from "./domain/call.js";
 
-export { ReplyStream } from "./stream.js";
-export type { ReplyStreamOptions } from "./stream.js";
+// Re-export Turn from domain
+export type { Turn } from "./domain/turn.js";
+
+export { ReplyStream } from "./domain/reply-stream.js";
+export type { ReplyStreamOptions } from "./domain/reply-stream.js";
 
 // Config types
 export type {
@@ -65,7 +71,7 @@ export type {
     InterruptionConfig,
     SpeakerFilterConfig,
     AnalysisConfig,
-} from "./types/config.js";
+} from "./config/session.js";
 
 // Event types
 export type {
@@ -99,7 +105,7 @@ export type {
     SessionTimeoutEvent,
     ToolCallEvent,
     ToolCallItem,
-} from "./types/events.js";
+} from "./protocol/events.js";
 
 // Command types
 export type {
@@ -130,30 +136,32 @@ export type {
     ChannelConfigureCommand,
     ChannelRemoveCommand,
     SessionConfigureCommand,
-} from "./types/commands.js";
+} from "./protocol/commands.js";
 
 // Utilities
-export { generateId } from "./utils/id.js";
-export { Reconnector } from "./utils/reconnect.js";
-export type { ReconnectOptions } from "./utils/reconnect.js";
+export { generateId } from "./kernel/id.js";
+export { Reconnector } from "./transport/reconnect.js";
+export type { ReconnectOptions } from "./transport/reconnect.js";
 
 // REST API helpers
-export { fetchVoices, fetchPhones, fetchWebRTCToken, fetchTwilioBalance, fetchBalance, createToken } from "./api.js";
+export { fetchVoices } from "./api/voices.js";
+export type { Voice, VoiceLanguage, FetchVoicesOptions } from "./api/voices.js";
+
+export { fetchPhones } from "./api/phones.js";
+export type { Phone as PhoneInfo, FetchPhonesOptions } from "./api/phones.js";
+
+export { fetchWebRTCToken, createToken } from "./api/tokens.js";
 export type {
-    Voice,
-    VoiceLanguage,
-    Phone as PhoneInfo,
     WebRTCToken,
     TokenResponse,
-    TwilioBalance,
-    Balance,
-    FetchVoicesOptions,
-    FetchPhonesOptions,
     FetchWebRTCTokenOptions,
     CreateTokenOptions,
+} from "./api/tokens.js";
+
+export { fetchTwilioBalance, fetchBalance } from "./api/balance.js";
+export type {
+    TwilioBalance,
+    Balance,
     FetchTwilioBalanceOptions,
     FetchBalanceOptions,
-} from "./api.js";
-
-// History types (interface only — implementations live in @pinecall/sdk)
-// Consumers can implement HistoryStore for their own persistence.
+} from "./api/balance.js";

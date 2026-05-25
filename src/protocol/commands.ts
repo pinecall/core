@@ -2,7 +2,7 @@
  * Client → Server command types — PROTOCOL.md §8, §9, §12–§14.
  */
 
-import type { SessionConfig } from "./config.js";
+import type { SessionConfig } from "../config/session.js";
 
 // ─── Registration ────────────────────────────────────────────────────────
 
@@ -226,4 +226,3 @@ export type ClientCommand =
     | ChannelConfigureCommand
     | ChannelRemoveCommand
     | SessionConfigureCommand;
-
