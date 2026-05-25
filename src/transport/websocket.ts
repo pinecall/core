@@ -7,6 +7,22 @@
 
 import type { Transport } from "./transport.js";
 
+// Node.js < 22 lacks global WebSocket. Polyfill from 'ws' package.
+let WS: typeof WebSocket | undefined = globalThis.WebSocket;
+
+async function getWS(): Promise<typeof WebSocket> {
+    if (WS) return WS;
+    try {
+        const ws = await import("ws");
+        WS = ws.default as unknown as typeof WebSocket;
+        return WS;
+    } catch {
+        throw new Error(
+            "WebSocket is not available. Install the 'ws' package for Node.js: npm i ws",
+        );
+    }
+}
+
 export interface WebSocketTransportOptions {
     url: string;
     /** Connect timeout in ms. Default: 10000. */
@@ -28,13 +44,14 @@ export class WebSocketTransport implements Transport {
     }
 
     get isOpen(): boolean {
-        return this.#ws?.readyState === WebSocket.OPEN;
+        return this.#ws?.readyState === 1; /* WebSocket.OPEN */
     }
 
     async open(): Promise<void> {
+        const WSConstructor = await getWS();
         return new Promise<void>((resolve, reject) => {
             try {
-                this.#ws = new WebSocket(this.#url);
+                this.#ws = new WSConstructor(this.#url) as WebSocket;
             } catch (err) {
                 reject(new Error(`Failed to create WebSocket: ${err}`));
                 return;
@@ -85,7 +102,7 @@ export class WebSocketTransport implements Transport {
     }
 
     send(data: Record<string, unknown>): void {
-        if (this.#ws && this.#ws.readyState === WebSocket.OPEN) {
+        if (this.#ws && this.#ws.readyState === 1 /* WebSocket.OPEN */) {
             this.#ws.send(JSON.stringify(data));
         }
     }
