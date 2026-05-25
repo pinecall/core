@@ -25,6 +25,7 @@
       {
         "group": "Concepts",
         "pages": [
+          "docs/concepts/philosophy",
           "docs/concepts/agents-and-channels",
           "docs/concepts/server-vs-client-llm",
           "docs/concepts/hot-reload",
@@ -40,6 +41,7 @@
           "docs/guides/webrtc-browser",
           "docs/guides/tools-and-functions",
           "docs/guides/multi-tenant",
+          "docs/guides/sse-streaming",
           "docs/guides/dev-mode"
         ]
       },
@@ -48,6 +50,7 @@
         "pages": [
           "docs/examples/headless-agent",
           "docs/examples/multi-channel-bot",
+          "docs/examples/chat-bot",
           "docs/examples/browser-widget"
         ]
       },

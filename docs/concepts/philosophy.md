@@ -1,0 +1,103 @@
+---
+title: "Philosophy"
+description: "Why Pinecall is code-first and what that means for your architecture."
+---
+
+# Philosophy
+
+Pinecall SDK is designed around one idea: **any existing app can add a voice agent without changing its architecture.**
+
+## Code-first, not platform-first
+
+Traditional voice AI platforms ask you to adapt your app to them — configure agents in a dashboard, expose webhooks, maintain JSON tool schemas separately from your code, send data to their servers.
+
+Pinecall flips this. The agent runs **inside your process**:
+
+```typescript
+import { Pinecall } from "@pinecall/sdk";
+import { db } from "./db.js";
+
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
+await pc.connect();
+
+const agent = pc.deploy("support", {
+  prompt: "You are a support agent for Acme Corp.",
+  model: "gpt-4.1-mini",
+  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  channels: ["+15551234567"],
+});
+
+agent.on("llm.tool_call", async (data, call) => {
+  // This runs in YOUR process — full access to your DB, APIs, secrets
+  const order = await db.orders.findOne({ phone: call.from });
+  call.toolResult(data.msgId, [{ toolCallId: data.toolCalls[0].id, result: order }]);
+});
+```
+
+No webhooks. No separate tool server. No "upload your tools as JSON". Your tools are just functions.
+
+## Voice as a library, not a platform
+
+The SDK is a **dependency** — `npm install @pinecall/sdk`. It lives in your `package.json` alongside Express, Prisma, and everything else you already use.
+
+You don't migrate to Pinecall. You add it to your existing app. Your existing Express routes, your existing database connection, your existing auth — they all stay exactly where they are.
+
+## The server does the hard parts
+
+Your code handles business logic. The Pinecall voice server handles the things that are genuinely hard:
+
+| Your code | Voice server |
+|---|---|
+| Prompts and personality | Audio transport (WebRTC, Twilio, SIP) |
+| Tool functions | Speech-to-text (Deepgram, Gladia, AWS) |
+| Business logic | Text-to-speech (ElevenLabs, Cartesia) |
+| Database queries | Voice Activity Detection (VAD) |
+| Conversation history | Turn detection |
+| When to start/stop calls | Audio mixing and streaming |
+
+The split is clean: you own the **what** (what the agent says, what tools it has, what data it accesses), the server owns the **how** (how audio is captured, transcribed, synthesized, and played back).
+
+## One connection, many agents
+
+A single WebSocket connection multiplexes everything:
+
+```
+Pinecall (one connection)
+   ├── Agent "support"  ──┬── Phone: +1-555-...
+   │                      ├── WebRTC: browser widget
+   │                      └── WhatsApp: +1-555-...
+   ├── Agent "sales"    ──── Phone: +1-555-...
+   └── Agent "intake"   ──── SIP: sip:lobby@...
+```
+
+No separate infrastructure per agent. No load balancer per channel. One `pc.connect()`, as many agents as you need.
+
+## Config is code
+
+There is no dashboard to configure. Agent config lives in your source code, version-controlled, reviewable:
+
+```typescript
+const agent = pc.deploy("mara", {
+  prompt: fs.readFileSync("./prompts/mara.md", "utf-8"),
+  model: "gpt-4.1-mini",
+  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  language: "es",
+  stt: { provider: "deepgram-flux", keyterms: ["Cointel", "portero"] },
+  channels: ["webrtc", "+13186330963"],
+  session_limits: { idle_timeout_seconds: 30, idle_warning_seconds: 10 },
+});
+```
+
+Change anything — prompt, voice, model, channels — and the server picks it up on the next connection. No redeployment of a separate config layer. See [Hot Reload](/docs/concepts/hot-reload).
+
+## Your data never leaves your process
+
+When the LLM calls a tool, Pinecall routes that call to your SDK handler. Your handler runs in your process — it can query your database, call your internal APIs, read files from disk. The tool result goes back to the LLM through the same WebSocket.
+
+No data is stored on Pinecall servers. No conversation history is persisted unless you persist it. No tool results are logged unless you log them.
+
+## What's next
+
+- [Quickstart](/docs/quickstart) — see the philosophy in action
+- [Agents and Channels](/docs/concepts/agents-and-channels) — the core abstraction
+- [Deployment Topologies](/docs/concepts/deployment-topologies) — how to run in production

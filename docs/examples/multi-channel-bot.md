@@ -104,45 +104,35 @@ support.on("call.started", (call) => {
 });
 
 // ---- Tool handling (shared across all channels) ----
-support.on("llm.tool_call", async (data, call) => {
-  const results = [];
+const handlers = {
+  lookupOrder: async ({ orderId }) => orders[orderId] ?? { error: "not_found" },
 
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    let result;
-
-    switch (tc.name) {
-      case "lookupOrder":
-        result = orders[args.orderId] ?? { error: "not_found" };
-        break;
-
-      case "transferToHuman":
-        if (call.transport === "phone" || call.transport === "webrtc") {
-          call.say("Sure, let me get a human on the line.");
-          call.forward("+15558675309");
-          result = { transferred: true };
-        } else {
-          // No transfer on WhatsApp — escalate via different path
-          result = {
-            transferred: false,
-            note: "Tell the customer a human will respond within an hour. Log the conversation for escalation.",
-          };
-        }
-        break;
-
-      case "endConversation":
-        if (call.transport === "phone" || call.transport === "webrtc") {
-          call.say("Thanks for calling. Have a great day!");
-          call.once("bot.finished", () => call.hangup());
-        }
-        // On WhatsApp, just let the LLM say goodbye — no explicit hangup
-        result = { ended: true };
-        break;
+  transferToHuman: async (_, call) => {
+    if (call.transport === "phone" || call.transport === "webrtc") {
+      call.say("Sure, let me get a human on the line.");
+      call.forward("+15558675309");
+      return { transferred: true };
     }
+    return { transferred: false, note: "A human will respond within an hour." };
+  },
 
-    results.push({ toolCallId: tc.id, result });
-  }
+  endConversation: async (_, call) => {
+    if (call.transport === "phone" || call.transport === "webrtc") {
+      call.say("Thanks for calling. Have a great day!");
+      call.once("bot.finished", () => call.hangup());
+    }
+    return { ended: true };
+  },
+};
 
+support.on("llm.tool_call", async (data, call) => {
+  const results = await Promise.all(
+    data.toolCalls.map(async (tc) => ({
+      toolCallId: tc.id,
+      result: await handlers[tc.name]?.(JSON.parse(tc.arguments), call)
+        ?? { error: `unknown: ${tc.name}` },
+    }))
+  );
   call.toolResult(data.msgId, results);
 });
 

@@ -105,32 +105,21 @@ julia.on("call.started", (call) => {
 });
 
 // ---- Tool handling ----
+const handlers = {
+  lookupResident: async ({ unit }) =>
+    residents[unit] ? { found: true, name: residents[unit].name } : { found: false },
+  callResident: async ({ unit }) => callResident(unit),
+  openDoor: async () => openDoor(),
+};
+
 julia.on("llm.tool_call", async (data, call) => {
-  const results = [];
-
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    let result;
-
-    switch (tc.name) {
-      case "lookupResident":
-        result = residents[args.unit]
-          ? { found: true, name: residents[args.unit].name }
-          : { found: false };
-        break;
-      case "callResident":
-        result = await callResident(args.unit);
-        break;
-      case "openDoor":
-        result = await openDoor();
-        break;
-      default:
-        result = { error: `unknown_tool: ${tc.name}` };
-    }
-
-    results.push({ toolCallId: tc.id, result });
-  }
-
+  const results = await Promise.all(
+    data.toolCalls.map(async (tc) => ({
+      toolCallId: tc.id,
+      result: await handlers[tc.name]?.(JSON.parse(tc.arguments))
+        ?? { error: `unknown: ${tc.name}` },
+    }))
+  );
   call.toolResult(data.msgId, results);
 });
 
@@ -186,5 +175,6 @@ Now Julia answers both phone calls **and** WhatsApp messages from residents. Sam
 ## What's next
 
 - [Multi-channel bot example](/docs/examples/multi-channel-bot)
+- [Chat bot example](/docs/examples/chat-bot)
 - [Browser widget example](/docs/examples/browser-widget)
 - [Deployment topologies](/docs/concepts/deployment-topologies)
