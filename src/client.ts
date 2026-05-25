@@ -71,12 +71,10 @@ export type {
 
 /** Config for `pc.deploy()` — all fields are optional. */
 export interface DeployConfig extends AgentConfig {
-    /** LLM model (e.g. \"gpt-4.1-nano\"). Enables server-side LLM. */
+    /** LLM model (e.g. "gpt-4.1-nano"). Enables server-side LLM. */
     model?: string;
     /** System prompt for the LLM. */
     prompt?: string;
-    /** Phone numbers to register as channels. */
-    phones?: string[];
     /**
      * Channels to register (sugar for addChannel).
      * Strings: "webrtc", "mic", "chat", or a phone number.
@@ -215,11 +213,6 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
     /** All agents on this connection. */
     get agents(): ReadonlyMap<string, Agent> {
         return this._agents;
-    }
-
-    /** Whether running in dev mode (agent IDs prefixed with dev-). */
-    get devMode(): boolean {
-        return this._mode === "dev";
     }
 
     /**
@@ -428,20 +421,20 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
      *   model: "gpt-4.1-nano",
      *   voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
      *   prompt: "Be helpful and concise.",
-     *   phones: ["+13186330963"],
+     *   channels: ["+13186330963", "webrtc"],
      * });
      *
      * agent.on("call.started", (call) => { ... });
      */
     deploy(name: string, config: DeployConfig): Agent {
         // Extract deploy-specific fields from agent config
-        const { phones, channels, model, prompt, tools, ...agentConfig } = config;
+        const { channels, model, prompt, tools, ...agentConfig } = config;
 
         // Build LLM config from model field
         if (model) {
-            const [engine, ...rest] = model.split(":");
+            const [provider, ...rest] = model.split(":");
             agentConfig.llm = {
-                engine: engine || "openai",
+                provider: provider || "openai",
                 model: rest.join(":") || model,
                 enabled: true,
                 ...(prompt ? { prompt } : {}),
@@ -449,7 +442,7 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
         } else if (prompt) {
             // No model specified but prompt given — use default model
             agentConfig.llm = {
-                engine: "openai",
+                provider: "openai",
                 model: "gpt-4.1-mini",
                 enabled: true,
                 prompt,
@@ -462,12 +455,6 @@ export class Pinecall extends TypedEmitter<PinecallEvents> {
         // Create the core agent with agentConfig
         const agent = this.agent(name, agentConfig);
 
-        // Register phone channels (legacy)
-        if (phones) {
-            for (const phone of phones) {
-                agent.addChannel("phone", phone);
-            }
-        }
 
         // Register channels (new sugar)
         if (channels) {

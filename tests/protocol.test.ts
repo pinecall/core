@@ -81,7 +81,7 @@ describe('buildShortcutPayload', () => {
   // ── LLM ───────────────────────────────────────────────
 
   it('passes through LLM config object', () => {
-    const llm = { engine: 'openai', model: 'gpt-4.1-mini', enabled: true }
+    const llm = { provider: 'openai', model: 'gpt-4.1-mini', enabled: true }
     const result = buildShortcutPayload({ llm })
     expect(result.llm).toEqual(llm)
   })
@@ -110,7 +110,7 @@ describe('buildShortcutPayload', () => {
       language: 'es',
       stt: 'deepgram:nova-3:es',
       turnDetection: 'native',
-      llm: { engine: 'openai', model: 'gpt-4.1', enabled: true },
+      llm: { provider: 'openai', model: 'gpt-4.1', enabled: true },
       tools: [{ type: 'function', function: { name: 'lookup' } }],
     } as any)
 
@@ -118,7 +118,7 @@ describe('buildShortcutPayload', () => {
     expect(result.language).toBe('es')
     expect(result.stt).toEqual({ provider: 'deepgram', model: 'nova-3', language: 'es' })
     expect(result.turn_detection).toBeUndefined() // auto-derived by server
-    expect(result.llm).toEqual({ engine: 'openai', model: 'gpt-4.1', enabled: true })
+    expect(result.llm).toEqual({ provider: 'openai', model: 'gpt-4.1', enabled: true })
     expect(result.tools).toHaveLength(1)
   })
 })

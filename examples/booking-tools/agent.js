@@ -159,12 +159,10 @@ VOICE: No markdown, no emojis, no bullets. Short responses (1-2 sentences).`,
     console.log(`📴 Call ended: ${call.id} — ${reason}`);
   });
 
-  agent.on("llm.tool_call", async (call, data) => {
-    const toolCalls = data?.tool_calls;
-    if (!toolCalls) return;
+  agent.on("llm.tool_call", async (data, call) => {
     const results = [];
 
-    for (const tc of toolCalls) {
+    for (const tc of data.toolCalls) {
       let result;
       try {
         const args = JSON.parse(tc.arguments || "{}");
@@ -197,10 +195,10 @@ VOICE: No markdown, no emojis, no bullets. Short responses (1-2 sentences).`,
       } catch (err) {
         result = { error: err.message };
       }
-      results.push({ tool_call_id: tc.id, result });
+      results.push({ toolCallId: tc.id, result });
     }
 
-    agent.send({ event: "llm.tool_result", call_id: call.id, msg_id: data.msg_id, results });
+    call.toolResult(data.msgId, results);
   });
 
   console.log("  🎙  Agent 'booking-demo' ready (WebRTC)");

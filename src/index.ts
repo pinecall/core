@@ -97,6 +97,8 @@ export type {
     CallMutedEvent,
     CallUnmutedEvent,
     SessionTimeoutEvent,
+    ToolCallEvent,
+    ToolCallItem,
 } from "./types/events.js";
 
 // Command types

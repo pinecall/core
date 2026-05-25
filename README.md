@@ -120,7 +120,7 @@ const agent = pc.agent("receptionist", {
   language: "es",
   stt: "deepgram-flux",
   llm: {
-    engine: "openai",
+    provider: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
     prompt: "You are a helpful receptionist. Be concise.",
@@ -162,20 +162,14 @@ agent.on("call.started", (call) => {
 });
 
 // Handle tool calls from the server-side LLM
-agent.on("llm.tool_call", async (call, data) => {
-  if (!data.tool_calls) return; // skip re-emissions
+agent.on("llm.tool_call", async (data, call) => {
   const results = [];
-  for (const tc of data.tool_calls) {
+  for (const tc of data.toolCalls) {
     const args = JSON.parse(tc.arguments);
     const result = await myToolHandler(tc.name, args);
-    results.push({ tool_call_id: tc.id, result });
+    results.push({ toolCallId: tc.id, result });
   }
-  agent.send({
-    event: "llm.tool_result",
-    call_id: call.id,
-    msg_id: data.msg_id,
-    results,
-  });
+  call.toolResult(data.msgId, results);
 });
 
 agent.on("call.ended", (call, reason) => {
@@ -258,8 +252,7 @@ mara.on("call.ended", (call, reason) => {
 | `language` | `string` | BCP-47 language code |
 | `stt` | `string` | STT provider (default: `deepgram-flux`) |
 | `tools` | `array` | OpenAI function-calling tool definitions |
-| `channels` | `array` | `"webrtc"`, `"mic"`, `"chat"`, `"whatsapp"`, or phone numbers |
-| `phones` | `string[]` | Phone numbers (legacy, prefer `channels`) |
+| `channels` | `string[]` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
 
 `deploy()` returns an `Agent` — you can attach event handlers, add more channels, or hot-reload config.
 
@@ -305,7 +298,7 @@ const agent = pc.agent("my-agent", {
   language: "es",
   stt: "deepgram-flux",
   llm: {
-    engine: "openai",
+    provider: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
     prompt: "System prompt with {{template_vars}}.",
@@ -355,7 +348,8 @@ agent.removeChannel("+34911234567");
 | `agent.call(callId)` | Get a `Call` object by ID (`undefined` if not found) |
 | `agent.getConfig()` | Returns the current `AgentConfig` |
 | `agent.stream()` | SSE stream of this agent's events (see [SSE](#sse-streaming)) |
-| `agent.send(data)` | Send a raw protocol message (low-level) |
+| `agent.setDevCallers(numbers)` | Set dev caller whitelist for multi-env routing |
+| `agent.send(data)` | Escape hatch — send a raw protocol message |
 
 #### `agent.configure()` — Hot-Reload
 
@@ -367,7 +361,7 @@ agent.configure({ voice: "elevenlabs:frenchVoiceId", language: "fr" });
 
 // Update LLM model
 agent.configure({
-  llm: { engine: "openai", model: "gpt-4.1", enabled: true,
+  llm: { provider: "openai", model: "gpt-4.1", enabled: true,
          prompt: "Updated prompt." },
 });
 
@@ -426,6 +420,7 @@ Per-session handle. Created automatically on `call.started`.
 | `call.say(text)` | Speak text immediately (standalone, no `in_reply_to`) |
 | `call.reply(text)` | Reply to the latest user message (auto-tracks `in_reply_to`) |
 | `call.replyStream(turn?)` | Open a token stream → returns [`ReplyStream`](#replystream) |
+| `call.toolResult(msgId, results)` | Respond to a server-side LLM tool call |
 | `call.cancel(msgId?)` | Cancel a specific or the current message |
 | `call.clear()` | Flush all queued TTS audio |
 
@@ -538,7 +533,7 @@ Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` 
 | `bot.interrupted` | `(event, call)` | Bot was cut off by user |
 | **Protocol** | | |
 | `message.confirmed` | `(event, call)` | Server acknowledged bot message |
-| `llm.tool_call` | `(call, data)` | Server-side LLM requests a tool call |
+| `llm.tool_call` | `(data, call)` | Server-side LLM requests a tool call |
 | `session.idle_warning` | `(event, call)` | Idle warning — user hasn't spoken, call will timeout soon |
 | `session.timeout` | `(event, call)` | Session timeout warning (max duration / idle) |
 | **WhatsApp** | | |
@@ -602,7 +597,7 @@ Define a prompt with `{{placeholders}}`. The server resolves them before each LL
 ```typescript
 const agent = pc.agent("support", {
   llm: {
-    engine: "openai",
+    provider: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
     prompt: `You are {{agent_name}}, support agent at {{company}}.
@@ -658,8 +653,8 @@ Voice and STT accept string shortcuts or full config objects:
 
 // Full config objects
 {
-  voice: { engine: "cartesia", voiceId: "abc", speed: 1.1 },
-  stt: { engine: "deepgram", model: "nova-3", language: "fr" },
+  voice: { provider: "cartesia", voice_id: "abc", speed: 1.1 },
+  stt: { provider: "deepgram", model: "nova-3", language: "fr" },
 }
 ```
 
@@ -688,7 +683,7 @@ voices.forEach(v => console.log(`${v.name} (${v.provider}:${v.id})`));
 // → "Rachel (elevenlabs:21m00Tcm4TlvDq8ikWAM)"
 ```
 
-**Returns:** `Voice[]` — each voice has `id`, `name`, `provider`, `gender`, `style`, `languages[]`, `preview_url`.
+**Returns:** `Voice[]` — each voice has `id`, `name`, `provider`, `gender`, `style`, `languages[]`, `previewUrl`.
 
 ### `fetchPhones(opts)`
 
@@ -723,7 +718,7 @@ const token = await pc.createToken("webrtc", "florencia");
 const token = await agent.createToken("webrtc");
 ```
 
-**Returns:** `{ token: string, server: string, expires_in: number }`.
+**Returns:** `{ token: string, server: string, expiresIn: number }`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -924,7 +919,7 @@ await pc.connect();
 const agent = pc.agent("support", {
   language: "en",
   llm: {
-    engine: "openai",
+    provider: "openai",
     model: "gpt-4.1-mini",
     enabled: true,
     prompt: "You are a helpful support agent on WhatsApp. Be concise.",
@@ -962,7 +957,7 @@ agent.on("call.started", (call) => call.say("Hello!"));
 
 // WhatsApp events
 agent.on("whatsapp.session_started", (event) => {
-  console.log(`💬 New WhatsApp chat: ${event.contact_name} (${event.contact_phone})`);
+  console.log(`💬 New WhatsApp chat: ${event.contactName} (${event.contactPhone})`);
 });
 
 agent.on("whatsapp.message", (event) => {
@@ -974,14 +969,14 @@ agent.on("whatsapp.status", (event) => {
 });
 
 // Handle tool calls (works for both voice AND WhatsApp)
-agent.on("llm.tool_call", async (call, data) => {
+agent.on("llm.tool_call", async (data, call) => {
   const results = [];
-  for (const tc of data.tool_calls) {
+  for (const tc of data.toolCalls) {
     const args = JSON.parse(tc.arguments);
     const result = await myToolHandler(tc.name, args);
-    results.push({ tool_call_id: tc.id, result });
+    results.push({ toolCallId: tc.id, result });
   }
-  agent.send({ event: "llm.tool_result", call_id: call.id, msg_id: data.msg_id, results });
+  call.toolResult(data.msgId, results);
 });
 ```
 
@@ -991,10 +986,10 @@ agent.on("llm.tool_call", async (call, data) => {
 
 | Event | Data Fields | When |
 |-------|------------|------|
-| `whatsapp.session_started` | `session_id`, `contact_phone`, `contact_name` | First message from a new contact |
-| `whatsapp.message` | `session_id`, `from`, `name`, `type`, `text`, `message_id` | Incoming message received |
-| `whatsapp.response` | `session_id`, `to`, `text` | Agent sent a response |
-| `whatsapp.status` | `status`, `recipient`, `message_id` | Delivery status update |
+| `whatsapp.session_started` | `sessionId`, `contactPhone`, `contactName` | First message from a new contact |
+| `whatsapp.message` | `sessionId`, `from`, `name`, `type`, `text`, `messageId` | Incoming message received |
+| `whatsapp.response` | `sessionId`, `to`, `text` | Agent sent a response |
+| `whatsapp.status` | `status`, `recipient`, `messageId` | Delivery status update |
 
 **Status values:** `sent` → `delivered` → `read`
 
@@ -1045,6 +1040,10 @@ Set these on the voice server (`sdk-server`):
 ---
 
 ## Configuration Reference
+
+> **Naming convention:** Top-level SDK fields use **camelCase** (`sessionLimits`, `toolCalls`, `msgId`).
+> Configuration objects that pass through to providers or to the server pipeline keep **snake_case** to mirror what the receiving side expects — `idle_timeout_seconds`, `similarity_boost`, `max_tokens`, `energy_threshold_db`, etc.
+> This avoids an unnecessary translation layer and lets you copy-paste values from provider docs or server config directly.
 
 ### STT Providers
 
@@ -1169,7 +1168,7 @@ voice: {
 
 ```typescript
 llm: {
-  engine: "openai",
+  provider: "openai",
   model: "gpt-4.1-mini",     // or "gpt-4.1", "gpt-4.1-nano"
   enabled: true,
   prompt: "System prompt here.",
@@ -1182,14 +1181,14 @@ llm: {
 
 ```typescript
 llm: {
-  engine: "mistral",
+  provider: "mistral",
   model: "mistral-medium",
   enabled: true,
   prompt: "System prompt here.",
 }
 ```
 
-> **LLM shortcut:** `llm: "openai:gpt-4.1-mini"` expands to `{ engine: "openai", model: "gpt-4.1-mini", enabled: true }`.
+> **LLM shortcut:** `llm: "openai:gpt-4.1-mini"` expands to `{ provider: "openai", model: "gpt-4.1-mini", enabled: true }`.
 
 ---
 
@@ -1210,8 +1209,8 @@ Calls have built-in safety limits to prevent runaway sessions. The server enforc
 const agent = pc.agent("receptionist", {
   voice: "elevenlabs:abc",
   stt: "deepgram-flux",
-  llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
-  session_limits: {
+  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  sessionLimits: {
     max_duration_seconds: 1800,  // 30 minutes
     idle_timeout_seconds: 120,   // 2 minutes of silence
     idle_warning_seconds: 30,    // warn 30s before timeout
@@ -1223,7 +1222,7 @@ const agent = pc.agent("receptionist", {
 **Disable limits (not recommended):**
 
 ```typescript
-session_limits: {
+sessionLimits: {
   max_duration_seconds: 0,  // 0 = unlimited
   idle_timeout_seconds: 0,  // 0 = disabled
 }
@@ -1232,14 +1231,14 @@ session_limits: {
 **How it works:**
 
 1. The server starts two watchdog tasks when a call begins.
-2. `_watchdog_max_duration` fires after `max_duration_seconds` — emits `session.timeout` then hangs up.
-3. `_watchdog_idle` tracks `_last_user_activity`. When the user hasn't spoken for `idle_timeout_seconds`, it emits `session.timeout` with a grace period.
+2. The **max-duration watchdog** fires after `max_duration_seconds` — emits `session.timeout` then hangs up.
+3. The **idle watchdog** tracks user activity. When the user hasn't spoken for `idle_timeout_seconds`, it emits `session.idle_warning` (if configured), waits a grace period, then emits `session.timeout` and hangs up. Any user speech during the grace period resets the timer.
 4. The `session.timeout` event fires before the actual hangup, giving you a chance to warn the user:
 
 ```typescript
 agent.on("session.idle_warning", (event, call) => {
-  // event.remaining_seconds: seconds until timeout
-  // event.idle_timeout_seconds: the configured idle timeout
+  // event.remainingSeconds: seconds until timeout
+  // event.idleTimeoutSeconds: the configured idle timeout
   call.say("Are you still there?");
 });
 
@@ -1299,22 +1298,22 @@ Emitted per interval — one for **user** (mic) and one for **bot** (TTS):
 ```typescript
 agent.on("audio.metrics", (evt, call) => {
   // evt.source: "user" | "bot"
-  // evt.energy_db: -60 to 0 (higher = louder)
+  // evt.energyDb: -60 to 0 (higher = louder)
   // evt.rms: 0 to 1 (normalized amplitude)
   // evt.peak: 0 to 1
-  // evt.is_speech: boolean (VAD state)
-  // evt.vad_prob: 0 to 1
+  // evt.isSpeech: boolean (VAD state)
+  // evt.vadProb: 0 to 1
 });
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `source` | `"user"` \| `"bot"` | Audio source |
-| `energy_db` | `number` | Energy in decibels (-60 to 0) |
+| `energyDb` | `number` | Energy in decibels (-60 to 0) |
 | `rms` | `number` | Root mean square amplitude (0–1) |
 | `peak` | `number` | Peak amplitude (0–1) |
-| `is_speech` | `boolean` | VAD speech detection state |
-| `vad_prob` | `number` | VAD probability (0–1) |
+| `isSpeech` | `boolean` | VAD speech detection state |
+| `vadProb` | `number` | VAD probability (0–1) |
 
 ---
 
@@ -1374,10 +1373,7 @@ const agent = pc.deploy("florencia", { /* config */ });
 if (pc.mode) {
   const callers = process.env.DEV_CALLERS;
   if (callers) {
-    agent.send({
-      event: "dev.config",
-      callers: callers.split(",").map(s => s.trim()),
-    });
+    agent.setDevCallers(callers.split(",").map(s => s.trim()));
   }
 }
 ```
@@ -1418,17 +1414,14 @@ The voice server supports **caller-based routing** for non-production agents:
 1. **Production agent** registers `+13186330963` → stored in the main phone map
 2. **Dev agent** registers the **same number** → stored in the dev override map
 3. On incoming call:
-   - If the **caller** is in `_dev_allowed_callers` → routes to the dev agent
+   - If the **caller** is in the dev callers list → routes to the dev agent
    - Otherwise → routes to the production agent
 
-To set your dev callers, send a `dev.config` event after connecting:
+To set your dev callers:
 
 ```typescript
 if (pc.mode) {
-  agent.send({
-    event: "dev.config",
-    callers: ["+34607827824"],  // your phone number(s)
-  });
+  agent.setDevCallers(["+34607827824"]);
 }
 ```
 
@@ -1501,14 +1494,11 @@ Meta WhatsApp Business Number (phone_number_id: 123456)
     └── Message from anyone else → florencia (production)
 ```
 
-The `dev.config` event configures both phone and WhatsApp routing in one call:
+`setDevCallers()` configures both phone and WhatsApp routing in one call:
 
 ```typescript
 if (pc.mode) {
-  agent.send({
-    event: "dev.config",
-    callers: ["+34607827824"],  // routes BOTH phone calls AND WhatsApp messages
-  });
+  agent.setDevCallers(["+34607827824"]);  // routes BOTH phone calls AND WhatsApp messages
 }
 ```
 
@@ -1591,7 +1581,6 @@ npm run dev
 const pc = new Pinecall({ apiKey: "pk_..." });
 
 pc.mode;     // "dev" | "staging" | ""  — current environment mode
-pc.devMode;  // true if mode === "dev"  — backward-compatible getter
 pc.devId;    // "berna" — developer identity for slug isolation
 ```
 
@@ -1815,11 +1804,11 @@ const julia = pc.deploy("julia", {
 
 julia.on("call.started", (call) => call.say("¿Quién es?"));
 
-julia.on("llm.tool_call", async (call, data) => {
+julia.on("llm.tool_call", async (data, call) => {
   // Tools run locally — no webhooks, no exposed APIs
-  for (const tc of data.tool_calls) {
+  for (const tc of data.toolCalls) {
     const result = await handleTool(tc.name, JSON.parse(tc.arguments));
-    julia.send({ event: "llm.tool_result", call_id: call.id, msg_id: data.msg_id, results: [{ tool_call_id: tc.id, result }] });
+    call.toolResult(data.msgId, [{ toolCallId: tc.id, result }]);
   }
 });
 
@@ -1896,7 +1885,7 @@ Browser → Your Backend (your auth: session, JWT, OAuth)
               ↓
          pc.createToken("webrtc", "florencia")
               ↓  (API key in Authorization header)
-         voice.pinecall.io → { token, server, expires_in }
+         voice.pinecall.io → { token, server, expiresIn }
               ↓
          Your Backend returns token to browser
               ↓

@@ -267,12 +267,9 @@ function buildEventData(event: string, args: any[]): Record<string, unknown> {
             continue;
         }
 
-        // Event data object — copy safe fields
+        // Event data object — copy safe fields (already camelCase from SDK transform)
         for (const [k, v] of Object.entries(arg)) {
             if (typeof v === "function" || k.startsWith("_")) continue;
-            // Map snake_case to camelCase for common fields
-            if (k === "call_id") { data.callId = v; continue; }
-            if (k === "message_id") { data.messageId = v; continue; }
             data[k] = v;
         }
     }

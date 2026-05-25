@@ -24,7 +24,7 @@ export interface Voice {
     /** Description of the voice characteristics. */
     description?: string;
     /** URL to a preview audio clip. */
-    preview_url?: string;
+    previewUrl?: string;
 }
 
 export interface VoiceLanguage {
@@ -93,7 +93,7 @@ export interface TokenResponse {
     /** Voice server URL. */
     server: string;
     /** Token TTL in seconds. */
-    expires_in: number;
+    expiresIn: number;
 }
 
 export interface CreateTokenOptions {
@@ -286,7 +286,7 @@ export async function createToken(opts: CreateTokenOptions): Promise<TokenRespon
     return {
         token: data.token as string,
         server: (data.server as string) || apiUrl,
-        expires_in: (data.expires_in as number) || 60,
+        expiresIn: (data.expires_in as number) || 60,
     };
 }
 
@@ -383,7 +383,7 @@ function mapVoice(provider: string): (raw: Record<string, unknown>) => Voice {
         style: v.style as string | undefined,
         languages: Array.isArray(v.languages) ? v.languages.map(mapLanguage) : [],
         description: v.description as string | undefined,
-        preview_url: v.preview_url as string | undefined,
+        previewUrl: v.preview_url as string | undefined,
     });
 }
 

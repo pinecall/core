@@ -250,9 +250,13 @@ describe('Agent', () => {
     })
 
     expect(handler).toHaveBeenCalledOnce()
-    // Signature: (call, data)
-    expect(handler.mock.calls[0][0].id).toBe('CA_004')
-    expect(handler.mock.calls[0][1].tool_calls).toHaveLength(1)
+    // Signature: (data, call) — camelized ToolCallEvent
+    const data = handler.mock.calls[0][0]
+    expect(data.toolCalls).toHaveLength(1)
+    expect(data.toolCalls[0].id).toBe('tc_1')
+    expect(data.toolCalls[0].name).toBe('lookup')
+    expect(data.msgId).toBe('msg_5')
+    expect(handler.mock.calls[0][1].id).toBe('CA_004')
   })
 
   // ── _endAllCalls() ────────────────────────────────────

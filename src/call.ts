@@ -28,6 +28,8 @@ import type {
     ReplyRejectedEvent,
     AudioMetricsEvent,
     SessionTimeoutEvent,
+    ToolCallEvent,
+    ToolCallItem,
 } from "./types/events.js";
 import type { SessionConfig } from "./types/config.js";
 
@@ -67,6 +69,7 @@ export interface CallEvents {
     "call.unheld": () => void;
     "call.muted": () => void;
     "call.unmuted": (mutedTranscript: string | null) => void;
+    "llm.tool_call": (event: ToolCallEvent) => void;
     "session.timeout": (event: SessionTimeoutEvent) => void;
     "ended": (reason: string) => void;
 }
@@ -82,6 +85,10 @@ export interface ForwardOptions {
     message?: string;
     announce?: boolean;
 }
+
+// ─── Wire → SDK transform ────────────────────────────────────────────────
+
+import { snakeToCamel, camelizeEvent } from "./utils/camelize.js";
 
 // ─── Call class ──────────────────────────────────────────────────────────
 
@@ -207,6 +214,39 @@ export class Call extends TypedEmitter<CallEvents> {
         });
         this._activeStreams.add(stream);
         return stream;
+    }
+
+    /**
+     * Respond to a server-side LLM tool call.
+     *
+     * Replaces the low-level `agent.send({ event: "llm.tool_result", ... })` pattern.
+     *
+     * @example
+     * ```typescript
+     * agent.on("llm.tool_call", async (data, call) => {
+     *   const results = [];
+     *   for (const tc of data.toolCalls) {
+     *     const args = JSON.parse(tc.arguments);
+     *     const result = await handleTool(tc.name, args);
+     *     results.push({ toolCallId: tc.id, result });
+     *   }
+     *   call.toolResult(data.msgId, results);
+     * });
+     * ```
+     */
+    toolResult(
+        msgId: string,
+        results: Array<{ toolCallId: string; result: unknown }>,
+    ): void {
+        this._send({
+            event: "llm.tool_result",
+            call_id: this.id,
+            msg_id: msgId,
+            results: results.map(r => ({
+                tool_call_id: r.toolCallId,
+                result: r.result,
+            })),
+        });
     }
 
     // ── Control ──────────────────────────────────────────────────────────
@@ -411,13 +451,13 @@ export class Call extends TypedEmitter<CallEvents> {
 
         switch (type) {
             case "user.message": {
-                // Auto-track for in_reply_to
+                // Auto-track for in_reply_to (read raw wire fields)
                 this.lastMessageId = event.message_id as string;
                 this._lastTurnId = event.turn_id as number;
                 this._lastTurnText = event.text as string;
                 this._lastTurnConfidence = event.confidence as number;
                 this._lastTurnLanguage = event.language as string | undefined;
-                this.emit("user.message", event as unknown as UserMessageEvent);
+                this.emit("user.message", camelizeEvent<UserMessageEvent>(event));
                 break;
             }
 
@@ -467,45 +507,45 @@ export class Call extends TypedEmitter<CallEvents> {
                     stream.abort();
                 }
                 this._activeStreams.clear();
-                this.emit("turn.continued", event as unknown as TurnContinuedEvent);
+                this.emit("turn.continued", camelizeEvent<TurnContinuedEvent>(event));
                 break;
             }
 
             case "speech.started":
-                this.emit("speech.started", event as unknown as SpeechStartedEvent);
+                this.emit("speech.started", camelizeEvent<SpeechStartedEvent>(event));
                 break;
             case "speech.ended":
-                this.emit("speech.ended", event as unknown as SpeechEndedEvent);
+                this.emit("speech.ended", camelizeEvent<SpeechEndedEvent>(event));
                 break;
             case "user.speaking":
-                this.emit("user.speaking", event as unknown as UserSpeakingEvent);
+                this.emit("user.speaking", camelizeEvent<UserSpeakingEvent>(event));
                 break;
             case "turn.pause":
-                this.emit("turn.pause", event as unknown as TurnPauseEvent);
+                this.emit("turn.pause", camelizeEvent<TurnPauseEvent>(event));
                 break;
             case "turn.resumed":
-                this.emit("turn.resumed", event as unknown as TurnResumedEvent);
+                this.emit("turn.resumed", camelizeEvent<TurnResumedEvent>(event));
                 break;
             case "bot.speaking":
-                this.emit("bot.speaking", event as unknown as BotSpeakingEvent);
+                this.emit("bot.speaking", camelizeEvent<BotSpeakingEvent>(event));
                 break;
             case "bot.word":
-                this.emit("bot.word", event as unknown as BotWordEvent);
+                this.emit("bot.word", camelizeEvent<BotWordEvent>(event));
                 break;
             case "bot.finished":
-                this.emit("bot.finished", event as unknown as BotFinishedEvent);
+                this.emit("bot.finished", camelizeEvent<BotFinishedEvent>(event));
                 break;
             case "bot.interrupted":
-                this.emit("bot.interrupted", event as unknown as BotInterruptedEvent);
+                this.emit("bot.interrupted", camelizeEvent<BotInterruptedEvent>(event));
                 break;
             case "message.confirmed":
-                this.emit("message.confirmed", event as unknown as MessageConfirmedEvent);
+                this.emit("message.confirmed", camelizeEvent<MessageConfirmedEvent>(event));
                 break;
             case "reply.rejected":
-                this.emit("reply.rejected", event as unknown as ReplyRejectedEvent);
+                this.emit("reply.rejected", camelizeEvent<ReplyRejectedEvent>(event));
                 break;
             case "audio.metrics":
-                this.emit("audio.metrics", event as unknown as AudioMetricsEvent);
+                this.emit("audio.metrics", camelizeEvent<AudioMetricsEvent>(event));
                 break;
             case "call.held":
                 this.emit("call.held");
@@ -519,11 +559,25 @@ export class Call extends TypedEmitter<CallEvents> {
             case "call.unmuted":
                 this.emit("call.unmuted", (event.muted_transcript as string) ?? null);
                 break;
-            case "llm.tool_call":
-                this.emit("llm.tool_call", event);
+            case "llm.tool_call": {
+                // Filter re-emissions: skip events without tool_calls
+                const rawToolCalls = event.tool_calls as any[] | undefined;
+                if (!rawToolCalls || !Array.isArray(rawToolCalls)) break;
+                const toolCallEvent: ToolCallEvent = {
+                    event: "llm.tool_call",
+                    callId: event.call_id as string,
+                    toolCalls: rawToolCalls.map((tc: any) => ({
+                        id: tc.id as string,
+                        name: tc.name as string,
+                        arguments: tc.arguments as string,
+                    })),
+                    msgId: event.msg_id as string,
+                };
+                this.emit("llm.tool_call", toolCallEvent);
                 break;
+            }
             case "session.timeout":
-                this.emit("session.timeout", event as unknown as SessionTimeoutEvent);
+                this.emit("session.timeout", camelizeEvent<SessionTimeoutEvent>(event));
                 break;
         }
     }

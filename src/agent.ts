@@ -24,6 +24,7 @@ import { TypedEmitter } from "./utils/emitter.js";
 import { Call, type Turn } from "./call.js";
 import { forwardCallEvents } from "./utils/proxy.js";
 import { buildShortcutPayload } from "./utils/protocol.js";
+import { camelizeEvent } from "./utils/camelize.js";
 import { createAgentStream } from "./sse.js";
 import type { ServerResponse } from "node:http";
 import type { SessionConfig } from "./types/config.js";
@@ -46,6 +47,7 @@ import type {
     ReplyRejectedEvent,
     AudioMetricsEvent,
     SessionTimeoutEvent,
+    ToolCallEvent,
 } from "./types/events.js";
 
 // ─── Shortcut types ──────────────────────────────────────────────────────
@@ -157,6 +159,9 @@ export interface AgentEvents {
     "session.idle_warning": (event: any, call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent, call: Call) => void;
 
+    // LLM / Tool calls
+    "llm.tool_call": (event: ToolCallEvent, call: Call) => void;
+
     // Channel events
     "channel.added": (type: string, ref: string) => void;
     "channel.configured": (ref: string) => void;
@@ -209,8 +214,12 @@ export class Agent extends TypedEmitter<AgentEvents> {
     /**
      * Send a raw protocol message. Buffers if the agent isn't server-ready yet.
      *
+     * Prefer high-level methods like `call.toolResult()`, `call.say()`,
+     * `call.reply()`, `agent.setDevCallers()` etc. Use `send()` only
+     * as an escape hatch for protocol-level access.
+     *
      * @example
-     * agent.send({ event: "llm.tool_result", call_id, msg_id, results });
+     * agent.send({ event: "custom_event", call_id: call.id, data: { ... } });
      */
     send(data: Record<string, unknown>): void {
         if (this._serverReady) {
@@ -285,9 +294,9 @@ export class Agent extends TypedEmitter<AgentEvents> {
                 agent_id: this.id,
                 type: "whatsapp",
                 ref: waConfig.phoneNumberId,
-                accessToken: waConfig.accessToken,
-                ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
-                ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
+                access_token: waConfig.accessToken,
+                ...(waConfig.verifyToken ? { verify_token: waConfig.verifyToken } : {}),
+                ...(waConfig.appSecret ? { app_secret: waConfig.appSecret } : {}),
                 ...buildShortcutPayload(waConfig),
             };
             this._send(msg);
@@ -364,6 +373,25 @@ export class Agent extends TypedEmitter<AgentEvents> {
             session_id: sessionId,
             ...buildShortcutPayload(opts),
         });
+    }
+
+    // ── Development ──────────────────────────────────────────────────────
+
+    /**
+     * Set the dev caller whitelist for multi-env routing.
+     *
+     * In dev mode, incoming calls from these numbers are routed to the
+     * dev agent instead of production. Only relevant in dev environments.
+     *
+     * @example
+     * ```typescript
+     * if (pc.mode) {
+     *   agent.setDevCallers(["+34607827824"]);
+     * }
+     * ```
+     */
+    setDevCallers(callers: string[]): void {
+        this.send({ event: "dev.config", callers });
     }
 
     // ── Event Streaming ──────────────────────────────────────────────────
@@ -571,7 +599,7 @@ export class Agent extends TypedEmitter<AgentEvents> {
             default: {
                 // ── WhatsApp events (agent-scoped, no call) ──
                 if (eventType.startsWith("whatsapp.")) {
-                    this.emit(eventType as any, data);
+                    this.emit(eventType as any, camelizeEvent<Record<string, unknown>>(data));
                     break;
                 }
 
@@ -633,8 +661,9 @@ export class Agent extends TypedEmitter<AgentEvents> {
                         );
                         this._calls.set(callId, call);
                     }
-                    // Emit llm.tool_call on agent so _executeServerTools picks it up
-                    this.emit(eventType as any, call, data);
+                    // Route through _handleEvent for camelize + filter,
+                    // then the proxy forwards the typed event to the agent
+                    call._handleEvent(data);
                     break;
                 }
 
@@ -685,8 +714,9 @@ export class Agent extends TypedEmitter<AgentEvents> {
                         call._handleEvent(data);
                         // Emit llm.* events on agent too — they aren't proxied
                         // from Call (unlike user.message, bot.speaking, etc.)
-                        if (eventType.startsWith("llm.")) {
-                            this.emit(eventType as any, call, data);
+                        // Exception: llm.tool_call IS proxied (camelized by _handleEvent)
+                        if (eventType.startsWith("llm.") && eventType !== "llm.tool_call") {
+                            this.emit(eventType as any, data, call);
                         }
                     }
                 }
@@ -726,9 +756,9 @@ export class Agent extends TypedEmitter<AgentEvents> {
                     agent_id: this.id,
                     type: "whatsapp",
                     ref: waConfig.phoneNumberId,
-                    accessToken: waConfig.accessToken,
-                    ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
-                    ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
+                    access_token: waConfig.accessToken,
+                    ...(waConfig.verifyToken ? { verify_token: waConfig.verifyToken } : {}),
+                    ...(waConfig.appSecret ? { app_secret: waConfig.appSecret } : {}),
                     ...buildShortcutPayload(waConfig),
                 };
                 this._sendRaw(msg);
