@@ -1,0 +1,257 @@
+---
+title: "Agent"
+description: "Owns channels, routes call events, stores defaults, dials outbound calls."
+---
+
+# Agent
+
+Created via `pc.agent(id, config?)` or `pc.deploy(id, config)`. Owns channels, routes call events, stores defaults, dials outbound calls.
+
+## Creation
+
+```typescript
+const agent = pc.agent("my-agent", {
+  voice: "elevenlabs:abc",
+  language: "es",
+  stt: "deepgram-flux",
+  llm: {
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    enabled: true,
+    prompt: "System prompt with {{template_vars}}.",
+  },
+  tools: [/* OpenAI function-calling format */],
+});
+```
+
+| Config field | Type | Description |
+|---|---|---|
+| `voice` | `string \| VoiceConfig` | TTS provider — shortcut or full config |
+| `language` | `string` | BCP-47 language code |
+| `stt` | `string \| STTConfig` | STT provider — shortcut or full config |
+| `llm` | `LLMConfig` | LLM provider, model, prompt, enabled flag |
+| `tools` | `Tool[]` | OpenAI function-calling tool definitions |
+| `sessionLimits` | `SessionLimits` | Duration / idle timeout config |
+| `interruption` | `InterruptionConfig` | Energy thresholds for barge-in |
+| `analysis` | `AnalysisConfig` | Audio metrics streaming |
+| `allowedOrigins` | `string[]` | Public token access (see [Security](/docs/security)) |
+
+See [Reference → Providers](/docs/reference/stt-providers) for full provider configs.
+
+## Channels
+
+### `addChannel(type, ref?, config?)`
+
+Register a channel. Types: `phone`, `sip`, `webrtc`, `chat`, `whatsapp`, `mic`.
+
+```typescript
+agent.addChannel("phone", "+13186330963");
+agent.addChannel("phone", "sip:bot@trunk.twilio.com");
+agent.addChannel("webrtc");
+agent.addChannel("chat");
+
+// Per-channel config overrides
+agent.addChannel("phone", "+34911234567", {
+  voice: "elevenlabs:spanishVoiceId",
+  language: "es",
+});
+
+// WhatsApp
+agent.addChannel("whatsapp", {
+  phoneNumberId: "123456789012345",
+  accessToken: "EAABx...",
+  verifyToken: "my-secret",
+  appSecret: "abc123...",
+});
+```
+
+See [WhatsApp guide](/docs/guides/whatsapp) for WhatsApp channel config.
+
+### `configureChannel(ref, config)`
+
+Update a specific channel's config at runtime.
+
+```typescript
+agent.configureChannel("+34911234567", { voice: "cartesia:newVoice" });
+```
+
+### `removeChannel(ref)`
+
+Unregister a channel.
+
+```typescript
+agent.removeChannel("+34911234567");
+```
+
+## Config & hot-reload
+
+### `configure(opts)`
+
+Hot-reload the agent's defaults. Affects all **future** calls — existing calls keep their current config.
+
+```typescript
+agent.configure({ voice: "elevenlabs:frenchVoiceId", language: "fr" });
+agent.configure({ stt: "gladia" });
+agent.configure({
+  llm: { provider: "openai", model: "gpt-4.1", enabled: true, prompt: "..." },
+});
+```
+
+### `configureSession(callId, opts)`
+
+Update config for a live call (equivalent to `call.configure()`).
+
+```typescript
+agent.configureSession("CA7ec...", { language: "es" });
+```
+
+### `getConfig()`
+
+Returns the current `AgentConfig`.
+
+```typescript
+const cfg = agent.getConfig();
+```
+
+## Outbound calls
+
+### `dial(options)`
+
+Make an outbound call. Returns `Promise<Call>`.
+
+```typescript
+const call = await agent.dial({
+  to: "+14155551234",
+  from: "+13186330963",
+  greeting: "Hi! This is a follow-up call.",
+  metadata: { appointmentId: "appt_001" },
+  config: { voice: "cartesia:uuid", language: "ar" },
+});
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `to` | `string` | ✅ | Destination number (E.164) |
+| `from` | `string` | ✅ | Caller ID — must be a registered number |
+| `greeting` | `string` | — | Text the server speaks when callee picks up |
+| `metadata` | `object` | — | Custom data attached to the call |
+| `config` | `object` | — | Per-call config override (voice, STT, language) |
+
+See [Outbound Calls guide](/docs/guides/outbound-calls) for the full pattern.
+
+## Tokens
+
+### `createToken(channel)`
+
+Mint a short-lived token for browser WebRTC or chat. Scoped to this agent.
+
+```typescript
+const token = await agent.createToken("webrtc");
+// { token, server, expiresIn }
+```
+
+## Dev mode
+
+### `routeCallers(numbers)`
+
+Route phone and WhatsApp messages from these numbers to this agent (instead of any other agent registered on the same channel). Used for dev mode isolation.
+
+```typescript
+agent.routeCallers(["+34607827824", "+34612345678"]);
+```
+
+See [Dev mode guide](/docs/guides/dev-mode).
+
+## Calls
+
+### `call(callId)`
+
+Look up a live `Call` by ID. Returns `Call | undefined`.
+
+```typescript
+const call = agent.call("CA7ec...");
+```
+
+## Observability
+
+### `stream(res?)`
+
+Open an SSE stream of this agent's events. Same shape as `pc.stream()` but scoped to one agent.
+
+```typescript
+app.get("/events", () => agent.stream());
+app.get("/events", (req, res) => agent.stream(res));
+```
+
+## Events
+
+Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` as the last argument.
+
+### Lifecycle
+
+| Event | Signature | When |
+|---|---|---|
+| `call.started` | `(call)` | New call connected |
+| `call.ended` | `(call, reason)` | Call disconnected |
+
+### User speech
+
+| Event | Signature | When |
+|---|---|---|
+| `speech.started` | `(event, call)` | User began speaking (VAD) |
+| `speech.ended` | `(event, call)` | User stopped speaking (VAD) |
+| `user.speaking` | `(event, call)` | Interim STT transcript (updates live) |
+| `user.message` | `(event, call)` | Final confirmed user text |
+
+### Turns
+
+| Event | Signature | When |
+|---|---|---|
+| `eager.turn` | `(turn, call)` | Early turn signal (low-latency response) |
+| `turn.end` | `(turn, call)` | Final turn signal |
+| `turn.continued` | `(event, call)` | User kept talking (auto-aborts active streams) |
+
+### Bot speech
+
+| Event | Signature | When |
+|---|---|---|
+| `bot.speaking` | `(event, call)` | Bot started speaking a message |
+| `bot.word` | `(event, call)` | Individual word as TTS plays it |
+| `bot.finished` | `(event, call)` | Bot finished speaking a message |
+| `bot.interrupted` | `(event, call)` | Bot was cut off by user |
+
+### Protocol
+
+| Event | Signature | When |
+|---|---|---|
+| `message.confirmed` | `(event, call)` | Server acknowledged bot message |
+| `llm.tool_call` | `(data, call)` | Server-side LLM requests a tool call |
+| `session.idle_warning` | `(event, call)` | Warning — user hasn't spoken, call will timeout soon |
+| `session.timeout` | `(event, call)` | Session timeout fired (max duration / idle) |
+
+### WhatsApp
+
+| Event | Signature | When |
+|---|---|---|
+| `whatsapp.session_started` | `(event)` | New WhatsApp conversation started |
+| `whatsapp.message` | `(event)` | Incoming WhatsApp message received |
+| `whatsapp.response` | `(event)` | Agent sent a WhatsApp response |
+| `whatsapp.status` | `(event)` | Message delivery status |
+
+See [Events reference](/docs/reference/events) for full event data shapes.
+
+## Escape hatch
+
+### `send(data)`
+
+Send a raw protocol message. Use only when no higher-level method covers your case.
+
+```typescript
+agent.send({ type: "custom.command", payload: { /* ... */ } });
+```
+
+## What's next
+
+- [`Call`](/docs/api/call) — per-session methods
+- [Events reference](/docs/reference/events) — full event data shapes
+- [Hot-reload](/docs/concepts/hot-reload) — patterns for `configure()` and `setPrompt()`

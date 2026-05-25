@@ -1,0 +1,112 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Pinecall SDK",
+  "description": "Build real-time voice & messaging AI agents in TypeScript.",
+  "colors": {
+    "primary": "#0EA66B",
+    "light": "#34D399",
+    "dark": "#047857"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "docs/index",
+          "docs/quickstart"
+        ]
+      },
+      {
+        "group": "Concepts",
+        "pages": [
+          "docs/concepts/agents-and-channels",
+          "docs/concepts/server-vs-client-llm",
+          "docs/concepts/hot-reload",
+          "docs/concepts/deployment-topologies"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "docs/guides/inbound-voice",
+          "docs/guides/outbound-calls",
+          "docs/guides/whatsapp",
+          "docs/guides/webrtc-browser",
+          "docs/guides/tools-and-functions",
+          "docs/guides/multi-tenant",
+          "docs/guides/dev-mode"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "docs/api/pinecall",
+          "docs/api/agent",
+          "docs/api/call",
+          "docs/api/reply-stream"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "docs/reference/events",
+          "docs/reference/stt-providers",
+          "docs/reference/tts-providers",
+          "docs/reference/llm-providers",
+          "docs/reference/session-limits",
+          "docs/reference/rest-api"
+        ]
+      },
+      {
+        "group": "Security",
+        "pages": [
+          "docs/security"
+        ]
+      },
+      {
+        "group": "Examples",
+        "pages": [
+          "docs/examples/headless-agent",
+          "docs/examples/multi-channel-bot",
+          "docs/examples/browser-widget"
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/pinecall/sdk"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Sign up",
+      "href": "https://pinecall.io/signup"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/pinecall",
+      "x": "https://x.com/pinecall"
+    }
+  },
+  "search": {
+    "prompt": "Search the Pinecall SDK docs..."
+  },
+  "fonts": {
+    "heading": {
+      "family": "Geist"
+    },
+    "body": {
+      "family": "Geist"
+    }
+  }
+}
