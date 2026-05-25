@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Pinecall SDK",
+  "name": "Pinecall",
   "description": "Build real-time voice & messaging AI agents in TypeScript.",
   "colors": {
     "primary": "#0EA66B",
@@ -44,12 +44,46 @@
         ]
       },
       {
-        "group": "API Reference",
+        "group": "Examples",
+        "pages": [
+          "docs/examples/headless-agent",
+          "docs/examples/multi-channel-bot",
+          "docs/examples/browser-widget"
+        ]
+      },
+      {
+        "group": "@pinecall/sdk (Node.js)",
         "pages": [
           "docs/api/pinecall",
           "docs/api/agent",
           "docs/api/call",
           "docs/api/reply-stream"
+        ]
+      },
+      {
+        "group": "@pinecall/voice-core (Browser)",
+        "pages": [
+          "docs/voice-core/overview",
+          "docs/voice-core/voice-session",
+          "docs/voice-core/state-and-phases",
+          "docs/voice-core/datachannel-protocol"
+        ]
+      },
+      {
+        "group": "@pinecall/voice-widget (React)",
+        "pages": [
+          "docs/voice-widget/overview",
+          "docs/voice-widget/props",
+          "docs/voice-widget/theming",
+          "docs/voice-widget/use-voice-session-hook",
+          "docs/voice-widget/tools-api"
+        ]
+      },
+      {
+        "group": "@pinecall/chat-core (Browser)",
+        "pages": [
+          "docs/chat-core/overview",
+          "docs/chat-core/chat-session"
         ]
       },
       {
@@ -68,14 +102,6 @@
         "pages": [
           "docs/security"
         ]
-      },
-      {
-        "group": "Examples",
-        "pages": [
-          "docs/examples/headless-agent",
-          "docs/examples/multi-channel-bot",
-          "docs/examples/browser-widget"
-        ]
       }
     ]
   },
@@ -83,7 +109,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/pinecall/sdk"
+        "href": "https://github.com/pinecall"
       }
     ],
     "primary": {
@@ -99,7 +125,7 @@
     }
   },
   "search": {
-    "prompt": "Search the Pinecall SDK docs..."
+    "prompt": "Search the Pinecall docs..."
   },
   "fonts": {
     "heading": {

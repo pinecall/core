@@ -1,11 +1,11 @@
 ---
-title: "Pinecall SDK"
-description: "Build real-time voice & messaging AI agents in TypeScript."
+title: "Pinecall"
+description: "Build real-time voice & messaging AI agents in TypeScript. Four packages, one platform."
 ---
 
-# Pinecall SDK
+# Pinecall
 
-**Build real-time voice & messaging AI agents in TypeScript.** One package, one WebSocket connection, all your channels.
+**Build real-time voice & messaging AI agents in TypeScript.** A server SDK in Node.js, three browser SDKs (WebRTC, React widget, chat), all talking to one voice server.
 
 ```bash
 npm install @pinecall/sdk
@@ -40,9 +40,22 @@ That snippet is a production-ready agent. It accepts phone calls, accepts browse
 - **Outbound campaigns** — programmatic outbound calls with TTS greetings
 - **Embedded copilots** — voice inside your web app via the React widget
 
-## How the SDK is organized
+## The four packages
 
-The library has three core concepts. If you understand these, you understand the whole SDK:
+Pinecall ships as four npm packages. The server SDK runs your agent logic in Node.js; the three browser packages talk to the same agent from the browser.
+
+| Package | Where it runs | Use it for |
+|---|---|---|
+| [`@pinecall/sdk`](/docs/api/pinecall) | Node.js (server) | The agent — prompt, tools, channels, calls |
+| [`@pinecall/voice-core`](/docs/voice-core/overview) | Browser | WebRTC voice from any framework (vanilla, Vue, Svelte, …) |
+| [`@pinecall/voice-widget`](/docs/voice-widget/overview) | Browser (React) | Drop-in animated orb widget + interactive tools API |
+| [`@pinecall/chat-core`](/docs/chat-core/overview) | Browser | Text chat over WebSocket — vanilla + React hook |
+
+The same agent (`pc.agent("mara", ...)`) can be reached over phone, WebRTC, chat, or WhatsApp — without changing your agent code.
+
+## How `@pinecall/sdk` is organized
+
+The server SDK has three core concepts:
 
 - **`Pinecall`** — the WebSocket client. Manages the connection, multiplexes between agents.
 - **`Agent`** — a configured personality (prompt, voice, LLM). Owns channels and emits events.
@@ -67,8 +80,10 @@ A single `Pinecall` instance can host many agents. A single agent can serve many
 | Understand the moving parts | [Concepts → Agents and Channels](/docs/concepts/agents-and-channels) |
 | Build a phone agent | [Guides → Inbound Voice](/docs/guides/inbound-voice) |
 | Build a WhatsApp bot | [Guides → WhatsApp](/docs/guides/whatsapp) |
-| Embed voice in your web app | [Guides → WebRTC in the browser](/docs/guides/webrtc-browser) |
-| Look up a method | [API Reference](/docs/api/pinecall) |
+| Embed voice in your web app (React) | [`@pinecall/voice-widget`](/docs/voice-widget/overview) |
+| Embed voice in non-React apps | [`@pinecall/voice-core`](/docs/voice-core/overview) |
+| Embed text chat | [`@pinecall/chat-core`](/docs/chat-core/overview) |
+| Look up a server-side method | [`@pinecall/sdk` API Reference](/docs/api/pinecall) |
 | Tune STT, TTS, or the LLM | [Reference → Providers](/docs/reference/stt-providers) |
 
 ## Philosophy

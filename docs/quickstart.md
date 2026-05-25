@@ -65,7 +65,7 @@ That's a running voice agent. It's connected to Pinecall's voice server, it has 
 
 ## 5. Talk to it
 
-Connect from the browser using the [`@pinecall/voice-widget`](https://github.com/pinecall/voice-widget):
+Connect from the browser using [`@pinecall/voice-widget`](/docs/voice-widget/overview) — the React widget:
 
 ```bash
 npm install @pinecall/voice-widget
@@ -161,5 +161,8 @@ No webhook URL to expose. No public endpoint. Just a function that runs in your 
 
 - **Build a real phone agent** → [Guides → Inbound Voice](/docs/guides/inbound-voice)
 - **Build a WhatsApp bot** → [Guides → WhatsApp](/docs/guides/whatsapp)
+- **Embed voice in your web app (React)** → [`@pinecall/voice-widget`](/docs/voice-widget/overview)
+- **Embed voice in Vue / Svelte / vanilla** → [`@pinecall/voice-core`](/docs/voice-core/overview)
+- **Embed text chat** → [`@pinecall/chat-core`](/docs/chat-core/overview)
 - **Understand the architecture** → [Concepts → Agents and Channels](/docs/concepts/agents-and-channels)
 - **Look up every method** → [API Reference](/docs/api/pinecall)

@@ -95,6 +95,8 @@ export default function App() {
 
 That's the entire frontend. Click the orb, talk, listen.
 
+> Full [`@pinecall/voice-widget` reference](/docs/voice-widget/overview) — props, themes, multi-language, interactive tools API.
+
 ## Listening for events in the browser
 
 Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser UIs. The widget exposes them as props:
@@ -109,27 +111,30 @@ Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser 
 />
 ```
 
-For lower-level control, use `@pinecall/voice-core` directly — it gives you the raw event stream.
+For lower-level control, use [`@pinecall/voice-core`](/docs/voice-core/overview) directly — it gives you the raw event stream.
 
 ## Custom UI without the widget
 
-If the widget doesn't fit your design, build your own UI with `@pinecall/voice-core`:
+If the widget doesn't fit your design, build your own UI with [`@pinecall/voice-core`](/docs/voice-core/overview):
 
 ```typescript
-import { PinecallClient } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/voice-core";
 
-const client = new PinecallClient();
+const session = new VoiceSession({ agent: "mara" });
 
-const { token, server } = await fetch("/api/token").then((r) => r.json());
-await client.connect({ token, server, agentId: "mara" });
+session.addEventListener("message", (e) => {
+  const msg = e.detail.message;
+  // msg.role: "user" | "bot"
+  // msg.text: string (updates word-by-word for bot)
+});
 
-client.on("user.message", (e) => console.log("User:", e.text));
-client.on("bot.speaking", (e) => console.log("Bot:", e.text));
-client.on("bot.word", (e) => updateLiveCaption(e.word));
+await session.connect();
 
 // User clicks "End"
-await client.disconnect();
+session.disconnect();
 ```
+
+For React, prefer the [`useVoiceSession()` hook](/docs/voice-widget/use-voice-session-hook) — same session management, no orb.
 
 ## Skipping the backend for demos
 
@@ -181,6 +186,9 @@ ws.send(JSON.stringify({ type: "user.message", text: "Hello" }));
 
 ## What's next
 
+- [`@pinecall/voice-widget`](/docs/voice-widget/overview) — themes, multi-language, Tools API
+- [`@pinecall/voice-core`](/docs/voice-core/overview) — for non-React frameworks
+- [`@pinecall/chat-core`](/docs/chat-core/overview) — for text-only chat (no audio)
 - [Security](/docs/security) — the full token security model
 - [Multi-tenant](/docs/guides/multi-tenant) — scope tokens per user/tenant
 - [Dev mode](/docs/guides/dev-mode) — slug-based isolation lets every dev have their own agent

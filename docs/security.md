@@ -145,5 +145,8 @@ Without `appSecret`, the webhook accepts any request — anyone who finds your e
 ## What's next
 
 - [WebRTC in the browser](/docs/guides/webrtc-browser) — full setup
+- [`@pinecall/voice-widget`](/docs/voice-widget/overview) — React widget security model
+- [`@pinecall/voice-core`](/docs/voice-core/overview) — framework-agnostic browser client
+- [`@pinecall/chat-core`](/docs/chat-core/overview) — text chat security follows the same pattern
 - [Multi-tenant](/docs/guides/multi-tenant) — per-tenant token isolation
 - [WhatsApp](/docs/guides/whatsapp) — webhook verification
