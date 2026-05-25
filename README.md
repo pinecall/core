@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Build real-time voice & messaging AI agents in TypeScript.</strong><br/>
-  WebSocket client for Pinecall Voice — 63 KB, one dependency.
+  WebSocket client for Pinecall Voice — ~80 KB, one dependency.
 </p>
 
 <p align="center">
@@ -253,6 +253,8 @@ mara.on("call.ended", (call, reason) => {
 | `stt` | `string` | STT provider (default: `deepgram-flux`) |
 | `tools` | `array` | OpenAI function-calling tool definitions |
 | `channels` | `string[]` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
+| `sessionLimits` | `object` | Session timeout config (see [Session Limits](#session-limits)) |
+| `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](#allowedorigins-convenience-mode)) |
 
 `deploy()` returns an `Agent` — you can attach event handlers, add more channels, or hot-reload config.
 
@@ -1120,7 +1122,7 @@ stt: { provider: "transcribe", language: "en-US" }
 voice: {
   provider: "elevenlabs",
   voice_id: "JBFqnCBsd6RMkjVDRZzb",
-  model: "eleven_turbo_v2_5",
+  model: "eleven_flash_v2_5",
   speed: 1.0,
   stability: 0.5,
   similarity_boost: 0.75,
@@ -1513,7 +1515,11 @@ WebRTC and Chat channels don't need caller-based routing — they use **slug-bas
 ```typescript
 // Dev mode → agent registers as "dev-berna-florencia"
 // The browser requests a token for "dev-berna-florencia" specifically
-const { token } = await fetchWebRTCToken({ agentId: "dev-berna-florencia" });
+const token = await createToken({
+  channel: "webrtc",
+  agentId: "dev-berna-florencia",
+  apiKey: process.env.PINECALL_API_KEY!,
+});
 ```
 
 Each developer gets their own slug, their own tokens, their own sessions. Multiple developers can test simultaneously without interference.
