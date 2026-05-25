@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.2] — 2026-05-25
+
+### Added
+
+- Documentation: Philosophy page, SSE Event Streaming guide, Chat Bot example.
+- New docs sections: `@pinecall/voice-core`, `@pinecall/voice-widget`, `@pinecall/chat-core`.
+
+### Changed
+
+- Examples: simplified tool handlers from switch/case to object map pattern.
+- README: minor updates.
+
+---
+
 ## [0.2.1] — 2026-05-25
 
 ### Fixed
