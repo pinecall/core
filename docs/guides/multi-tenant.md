@@ -155,6 +155,6 @@ The SDK has no hard limit, but standard Node.js performance considerations apply
 
 ## What's next
 
-- [Deployment topologies](/docs/concepts/deployment-topologies) — embedded is required for SSE
-- [Security](/docs/security) — token model details
-- [Events reference](/docs/reference/events) — all events available over SSE
+- [Deployment topologies](/concepts/deployment-topologies) — embedded is required for SSE
+- [Security](/security) — token model details
+- [Events reference](/reference/events) — all events available over SSE

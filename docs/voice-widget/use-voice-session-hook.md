@@ -70,7 +70,7 @@ The hook returns the full session state **plus** action methods:
 | `userSpeaking` | `boolean` | User is physically talking (VAD-level) |
 | `agentSpeaking` | `boolean` | TTS is currently playing |
 | `duration` | `number` | Seconds since connected, updates every second |
-| `messages` | `TranscriptMessage[]` | Full transcript — see [State and Phases](/docs/voice-core/state-and-phases) |
+| `messages` | `TranscriptMessage[]` | Full transcript — see [State and Phases](/voice-core/state-and-phases) |
 | `idleWarning` | `number \| null` | Seconds until idle timeout (null = no warning) |
 | `connect` | `() => Promise<void>` | Start the call |
 | `disconnect` | `() => void` | End the call |
@@ -110,7 +110,7 @@ function AdvancedVoice() {
 }
 ```
 
-If you specifically want to render interactive UI for tool calls, stick with `<VoiceWidget>` and use the [Tools API](/docs/voice-widget/tools-api) — it handles the correlation between calls and results for you.
+If you specifically want to render interactive UI for tool calls, stick with `<VoiceWidget>` and use the [Tools API](/voice-widget/tools-api) — it handles the correlation between calls and results for you.
 
 ## `useVoice()` vs `useVoiceSession()`
 
@@ -121,10 +121,10 @@ There are two hooks in this package and the names are easy to confuse:
 | `useVoiceSession()` | Creates its own session | Anywhere — standalone |
 | `useVoice()` | Reads from `<VoiceWidget>` context | Inside `<VoiceWidget>` children only |
 
-Use `useVoiceSession()` for fully custom UIs that replace the widget entirely. Use `useVoice()` when you're building tool renderers as children of `<VoiceWidget>` — see [Tools API](/docs/voice-widget/tools-api).
+Use `useVoiceSession()` for fully custom UIs that replace the widget entirely. Use `useVoice()` when you're building tool renderers as children of `<VoiceWidget>` — see [Tools API](/voice-widget/tools-api).
 
 ## What's next
 
-- [Props reference](/docs/voice-widget/props) — if you want the orb after all
-- [Tools API](/docs/voice-widget/tools-api) — interactive UI for tool calls
-- [`@pinecall/voice-core`](/docs/voice-core/overview) — for non-React frameworks
+- [Props reference](/voice-widget/props) — if you want the orb after all
+- [Tools API](/voice-widget/tools-api) — interactive UI for tool calls
+- [`@pinecall/voice-core`](/voice-core/overview) — for non-React frameworks

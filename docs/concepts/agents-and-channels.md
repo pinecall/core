@@ -145,6 +145,6 @@ Most platforms conflate the two: you build a "Twilio bot" or a "WhatsApp bot." P
 
 ## What's next
 
-- [Server-side vs client-side LLM](/docs/concepts/server-vs-client-llm) — the most important architectural decision
-- [Hot-reload](/docs/concepts/hot-reload) — change voice, language, prompt, or tools mid-call
-- [Deployment topologies](/docs/concepts/deployment-topologies) — embedded, standalone, or headless
+- [Server-side vs client-side LLM](/concepts/server-vs-client-llm) — the most important architectural decision
+- [Hot-reload](/concepts/hot-reload) — change voice, language, prompt, or tools mid-call
+- [Deployment topologies](/concepts/deployment-topologies) — embedded, standalone, or headless

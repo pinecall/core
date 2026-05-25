@@ -29,8 +29,8 @@ It does **not** include UI. For React you get a hook (`usePinecallChat`). For Vu
 
 | | Use |
 |---|---|
-| You want voice with UI rendering | [`@pinecall/voice-widget`](/docs/voice-widget/overview) |
-| You want voice with no UI assumptions | [`@pinecall/voice-core`](/docs/voice-core/overview) |
+| You want voice with UI rendering | [`@pinecall/voice-widget`](/voice-widget/overview) |
+| You want voice with no UI assumptions | [`@pinecall/voice-core`](/voice-core/overview) |
 | **You want text chat** | **`@pinecall/chat-core`** |
 | You want to embed both voice + chat | Use both packages on the same agent |
 
@@ -102,4 +102,4 @@ The agent's chat channel routes through the same LLM pipeline as voice — inclu
 
 ## What's next
 
-- [`ChatSession` API](/docs/chat-core/chat-session) — full reference for both vanilla and React
+- [`ChatSession` API](/chat-core/chat-session) — full reference for both vanilla and React

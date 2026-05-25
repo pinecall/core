@@ -10,7 +10,7 @@ This guide walks through building a phone agent end-to-end: registering a phone 
 ## Prerequisites
 
 - A Pinecall API key
-- A phone number on your Pinecall account (purchase one or port one — see [REST API → fetchPhones](/docs/reference/rest-api))
+- A phone number on your Pinecall account (purchase one or port one — see [REST API → fetchPhones](/reference/rest-api))
 - Node.js ≥ 18
 
 ## The minimum viable phone agent
@@ -54,7 +54,7 @@ agent.on("call.started", (call) => {
 });
 ```
 
-For outbound calls, set `greeting` in `agent.dial()` instead — the server speaks it as soon as the callee picks up. See [Outbound Calls](/docs/guides/outbound-calls).
+For outbound calls, set `greeting` in `agent.dial()` instead — the server speaks it as soon as the callee picks up. See [Outbound Calls](/guides/outbound-calls).
 
 ## Handling tool calls
 
@@ -99,7 +99,7 @@ agent.on("llm.tool_call", async (data, call) => {
 });
 ```
 
-See [Tools and Functions](/docs/guides/tools-and-functions) for the full pattern.
+See [Tools and Functions](/guides/tools-and-functions) for the full pattern.
 
 ## Personalizing the conversation per caller
 
@@ -174,7 +174,7 @@ Calls also end automatically:
 - After `max_duration_seconds` (default: 10 minutes) — reason `max_duration`
 - After `idle_timeout_seconds` of silence (default: 60s) — reason `idle_timeout`
 
-See [Session Limits](/docs/reference/session-limits) for tuning these.
+See [Session Limits](/reference/session-limits) for tuning these.
 
 ## Listening for live transcripts
 
@@ -216,7 +216,7 @@ agent.on("call.ended", async (call, reason) => {
 
 ## What's next
 
-- [Outbound calls](/docs/guides/outbound-calls) — make programmatic outbound calls
-- [Tools and Functions](/docs/guides/tools-and-functions) — let the agent take actions
-- [Dev mode](/docs/guides/dev-mode) — share one number between prod and any number of devs
-- [`Call` API reference](/docs/api/call) — every method
+- [Outbound calls](/guides/outbound-calls) — make programmatic outbound calls
+- [Tools and Functions](/guides/tools-and-functions) — let the agent take actions
+- [Dev mode](/guides/dev-mode) — share one number between prod and any number of devs
+- [`Call` API reference](/api/call) — every method

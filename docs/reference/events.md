@@ -164,7 +164,7 @@ agent.on("llm.tool_call", (data: {
 
 The server-side LLM is requesting one or more tool calls. Handle them and respond with `call.toolResult(data.msgId, results)`.
 
-See [Tools and Functions](/docs/guides/tools-and-functions).
+See [Tools and Functions](/guides/tools-and-functions).
 
 ### `session.idle_warning`
 
@@ -276,5 +276,5 @@ A `:ping` comment is sent every 30s as keepalive.
 
 ## What's next
 
-- [`Call` API reference](/docs/api/call) — methods to call in response to events
-- [Multi-tenant](/docs/guides/multi-tenant) — scope SSE event streams
+- [`Call` API reference](/api/call) — methods to call in response to events
+- [Multi-tenant](/guides/multi-tenant) — scope SSE event streams

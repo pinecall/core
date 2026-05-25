@@ -130,6 +130,6 @@ Each dev gets their own slug, their own tokens, their own sessions. Nothing cros
 
 ## What's next
 
-- [Deployment topologies](/docs/concepts/deployment-topologies) — headless agents are common for dev
-- [Multi-tenant](/docs/guides/multi-tenant) — similar isolation pattern for SaaS
-- [`Agent.routeCallers`](/docs/api/agent) — the API reference
+- [Deployment topologies](/concepts/deployment-topologies) — headless agents are common for dev
+- [Multi-tenant](/guides/multi-tenant) — similar isolation pattern for SaaS
+- [`Agent.routeCallers`](/api/agent) — the API reference

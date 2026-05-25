@@ -17,7 +17,7 @@ import { decodeEvent } from "../../protocol/codec.js";
 import { forwardCallEvents } from "../proxy.js";
 import type { ToolCallItem } from "../../protocol/events.js";
 
-const NOOP_SEND = () => {};
+
 
 export class ChatHandler implements EventHandler {
     readonly events = [
@@ -52,7 +52,7 @@ export class ChatHandler implements EventHandler {
                         direction: "inbound",
                         transport: "unknown",
                     },
-                    NOOP_SEND,
+                    (data) => agent.send(data),
                 );
 
                 agent._setCall(callId, call);
@@ -76,7 +76,7 @@ export class ChatHandler implements EventHandler {
                             direction: "inbound",
                             transport: "unknown",
                         },
-                        NOOP_SEND,
+                        (data) => agent.send(data),
                     );
                     agent._setCall(callId, call);
                     forwardCallEvents(call, agent, call);
@@ -126,7 +126,7 @@ export class ChatHandler implements EventHandler {
                             direction: "inbound",
                             transport: "unknown",
                         },
-                        NOOP_SEND,
+                        (data) => agent.send(data),
                     );
                     agent._setCall(callId, call);
                     forwardCallEvents(call, agent, call);

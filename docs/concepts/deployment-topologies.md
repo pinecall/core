@@ -147,6 +147,6 @@ Migration between topologies is cheap. The agent code is the same in all three. 
 
 ## What's next
 
-- [Multi-tenant dashboards](/docs/guides/multi-tenant) — embed multiple agents, scope events per user
-- [Dev mode](/docs/guides/dev-mode) — run prod and dev agents on the same phone number
-- [SSE streaming reference](/docs/reference/events) — for embedded dashboards
+- [Multi-tenant dashboards](/guides/multi-tenant) — embed multiple agents, scope events per user
+- [Dev mode](/guides/dev-mode) — run prod and dev agents on the same phone number
+- [SSE streaming reference](/reference/events) — for embedded dashboards

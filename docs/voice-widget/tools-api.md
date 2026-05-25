@@ -338,6 +338,6 @@ The agent doesn't need different code paths for "voice user" vs "GUI user" — i
 
 ## What's next
 
-- [Props reference](/docs/voice-widget/props) — `trackedTools` and friends
-- [`useVoiceSession` hook](/docs/voice-widget/use-voice-session-hook) — for non-tool custom UIs
-- [Tools and functions guide](/docs/guides/tools-and-functions) — server-side tool definition
+- [Props reference](/voice-widget/props) — `trackedTools` and friends
+- [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — for non-tool custom UIs
+- [Tools and functions guide](/guides/tools-and-functions) — server-side tool definition

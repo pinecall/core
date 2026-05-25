@@ -191,6 +191,6 @@ Status values: `sent` → `delivered` → `read`.
 
 ## What's next
 
-- [Tools and Functions](/docs/guides/tools-and-functions) — let your WhatsApp bot take actions
-- [Dev mode](/docs/guides/dev-mode) — route specific WhatsApp senders to dev agents
-- [Multi-tenant](/docs/guides/multi-tenant) — host many tenants' WhatsApp bots on one agent
+- [Tools and Functions](/guides/tools-and-functions) — let your WhatsApp bot take actions
+- [Dev mode](/guides/dev-mode) — route specific WhatsApp senders to dev agents
+- [Multi-tenant](/guides/multi-tenant) — host many tenants' WhatsApp bots on one agent

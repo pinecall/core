@@ -58,7 +58,7 @@ const agent = pc.agent("support", {
 });
 ```
 
-See [`Agent`](/docs/api/agent) for full config.
+See [`Agent`](/api/agent) for full config.
 
 ### `deploy(id, config)`
 
@@ -85,8 +85,8 @@ const mara = pc.deploy("mara", {
 | `stt` | `string` | STT provider (default: `deepgram-flux`) |
 | `tools` | `array` | OpenAI function-calling tool definitions |
 | `channels` | `string[]` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
-| `sessionLimits` | `object` | Session timeout config (see [Session Limits](/docs/reference/session-limits)) |
-| `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](/docs/security)) |
+| `sessionLimits` | `object` | Session timeout config (see [Session Limits](/reference/session-limits)) |
+| `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](/security)) |
 
 ### `getAgent(id)`
 
@@ -113,7 +113,7 @@ const token = await pc.createToken("webrtc", "mara");
 // { token, server, expiresIn }
 ```
 
-See [Security](/docs/security) for the full token model.
+See [Security](/security) for the full token model.
 
 ### `stream(res?, options?)`
 
@@ -131,7 +131,7 @@ app.get("/events", () => pc.stream({ agents: ["mara", "julia"] }));
 app.get("/events", (req, res) => pc.stream(res, { agents: ["mara"] }));
 ```
 
-See [Multi-tenant guide](/docs/guides/multi-tenant) for the filtering pattern.
+See [Multi-tenant guide](/guides/multi-tenant) for the filtering pattern.
 
 ## Events
 
@@ -153,6 +153,6 @@ pc.on("error", (err) => console.error(err));
 
 ## What's next
 
-- [`Agent`](/docs/api/agent) — channels, events, hot-reload, dial
-- [`Call`](/docs/api/call) — per-session control
-- [Security](/docs/security) — token model and best practices
+- [`Agent`](/api/agent) — channels, events, hot-reload, dial
+- [`Call`](/api/call) — per-session control
+- [Security](/security) — token model and best practices

@@ -113,6 +113,6 @@ call.configure({ stt: "deepgram" });
 
 ## What's next
 
-- [TTS Providers](/docs/reference/tts-providers)
-- [LLM Providers](/docs/reference/llm-providers)
-- [`Agent.configure`](/docs/api/agent)
+- [TTS Providers](/reference/tts-providers)
+- [LLM Providers](/reference/llm-providers)
+- [`Agent.configure`](/api/agent)

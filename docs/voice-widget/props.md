@@ -22,7 +22,7 @@ Full reference for `<VoiceWidget />`.
 | `languages` | `Record<string, LanguagePreset>` | — | Multi-language presets (see below) |
 | `defaultLanguage` | `string` | first key | Initial language selection |
 | `onLanguageChange` | `(lang, preset) => void` | — | Called when the user picks a language |
-| `trackedTools` | `string[]` | — | Tool names to track in widget state for UI rendering (see [Tools API](/docs/voice-widget/tools-api)) |
+| `trackedTools` | `string[]` | — | Tool names to track in widget state for UI rendering (see [Tools API](/voice-widget/tools-api)) |
 | `className` | `string` | — | Extra CSS class on the root wrapper |
 | `onStatusChange` | `(status) => void` | — | Called when connection status changes |
 
@@ -42,7 +42,7 @@ Pass session-level overrides to the agent. Same shortcut syntax as `@pinecall/sd
 />
 ```
 
-See [STT Providers](/docs/reference/stt-providers) and [TTS Providers](/docs/reference/tts-providers) for the full shortcut formats.
+See [STT Providers](/reference/stt-providers) and [TTS Providers](/reference/tts-providers) for the full shortcut formats.
 
 ## `metadata` — server-side context
 
@@ -156,10 +156,10 @@ Tells the widget which tool calls to expose in widget state for UI rendering. Un
 </VoiceWidget>
 ```
 
-See [Tools API](/docs/voice-widget/tools-api) for the full pattern.
+See [Tools API](/voice-widget/tools-api) for the full pattern.
 
 ## What's next
 
-- [Theming](/docs/voice-widget/theming) — all CSS variables and preset values
-- [Tools API](/docs/voice-widget/tools-api) — interactive UI from tool calls
-- [`useVoiceSession` hook](/docs/voice-widget/use-voice-session-hook) — bypass the orb, build custom UI
+- [Theming](/voice-widget/theming) — all CSS variables and preset values
+- [Tools API](/voice-widget/tools-api) — interactive UI from tool calls
+- [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — bypass the orb, build custom UI

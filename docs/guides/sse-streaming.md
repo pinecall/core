@@ -167,7 +167,7 @@ SSE streaming requires the agent and the HTTP endpoint to run in the **same proc
 | Agent + web server in one process | ✅ | `pc.stream()` has direct access to events |
 | Agent in a separate process (Docker, serverless) | ❌ | Events never reach the web server process |
 
-If you run agents in separate containers (the "separated" topology), you'd need a shared event bus (Redis Pub/Sub, NATS) between the agent and the dashboard. See [Deployment Topologies](/docs/concepts/deployment-topologies).
+If you run agents in separate containers (the "separated" topology), you'd need a shared event bus (Redis Pub/Sub, NATS) between the agent and the dashboard. See [Deployment Topologies](/concepts/deployment-topologies).
 
 ## Framework examples
 
@@ -202,6 +202,6 @@ fastify.get("/events", (req, reply) => {
 
 ## What's next
 
-- [Events reference](/docs/reference/events) — every event with payload shapes
-- [Deployment Topologies](/docs/concepts/deployment-topologies) — when SSE is available
-- [Multi-tenant](/docs/guides/multi-tenant) — scope streams per customer
+- [Events reference](/reference/events) — every event with payload shapes
+- [Deployment Topologies](/concepts/deployment-topologies) — when SSE is available
+- [Multi-tenant](/guides/multi-tenant) — scope streams per customer

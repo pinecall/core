@@ -18,92 +18,92 @@
       {
         "group": "Get Started",
         "pages": [
-          "docs/index",
-          "docs/quickstart"
+          "index",
+          "quickstart"
         ]
       },
       {
         "group": "Concepts",
         "pages": [
-          "docs/concepts/philosophy",
-          "docs/concepts/agents-and-channels",
-          "docs/concepts/server-vs-client-llm",
-          "docs/concepts/hot-reload",
-          "docs/concepts/deployment-topologies"
+          "concepts/philosophy",
+          "concepts/agents-and-channels",
+          "concepts/server-vs-client-llm",
+          "concepts/hot-reload",
+          "concepts/deployment-topologies"
         ]
       },
       {
         "group": "Guides",
         "pages": [
-          "docs/guides/inbound-voice",
-          "docs/guides/outbound-calls",
-          "docs/guides/whatsapp",
-          "docs/guides/webrtc-browser",
-          "docs/guides/tools-and-functions",
-          "docs/guides/multi-tenant",
-          "docs/guides/sse-streaming",
-          "docs/guides/dev-mode"
+          "guides/inbound-voice",
+          "guides/outbound-calls",
+          "guides/whatsapp",
+          "guides/webrtc-browser",
+          "guides/tools-and-functions",
+          "guides/multi-tenant",
+          "guides/sse-streaming",
+          "guides/dev-mode"
         ]
       },
       {
         "group": "Examples",
         "pages": [
-          "docs/examples/headless-agent",
-          "docs/examples/multi-channel-bot",
-          "docs/examples/chat-bot",
-          "docs/examples/browser-widget"
+          "examples/headless-agent",
+          "examples/multi-channel-bot",
+          "examples/chat-bot",
+          "examples/browser-widget"
         ]
       },
       {
         "group": "@pinecall/sdk (Node.js)",
         "pages": [
-          "docs/api/pinecall",
-          "docs/api/agent",
-          "docs/api/call",
-          "docs/api/reply-stream"
+          "api/pinecall",
+          "api/agent",
+          "api/call",
+          "api/reply-stream"
         ]
       },
       {
         "group": "@pinecall/voice-core (Browser)",
         "pages": [
-          "docs/voice-core/overview",
-          "docs/voice-core/voice-session",
-          "docs/voice-core/state-and-phases",
-          "docs/voice-core/datachannel-protocol"
+          "voice-core/overview",
+          "voice-core/voice-session",
+          "voice-core/state-and-phases",
+          "voice-core/datachannel-protocol"
         ]
       },
       {
         "group": "@pinecall/voice-widget (React)",
         "pages": [
-          "docs/voice-widget/overview",
-          "docs/voice-widget/props",
-          "docs/voice-widget/theming",
-          "docs/voice-widget/use-voice-session-hook",
-          "docs/voice-widget/tools-api"
+          "voice-widget/overview",
+          "voice-widget/props",
+          "voice-widget/theming",
+          "voice-widget/use-voice-session-hook",
+          "voice-widget/tools-api"
         ]
       },
       {
         "group": "@pinecall/chat-core (Browser)",
         "pages": [
-          "docs/chat-core/overview",
-          "docs/chat-core/chat-session"
+          "chat-core/overview",
+          "chat-core/chat-session"
         ]
       },
       {
         "group": "Reference",
         "pages": [
-          "docs/reference/events",
-          "docs/reference/stt-providers",
-          "docs/reference/tts-providers",
-          "docs/reference/llm-providers",
-          "docs/reference/session-limits",
-          "docs/reference/rest-api"
+          "reference/events",
+          "reference/stt-providers",
+          "reference/tts-providers",
+          "reference/llm-providers",
+          "reference/session-limits",
+          "reference/rest-api"
         ]
       },
       {
         "group": "Security",
         "pages": [
-          "docs/security"
+          "security"
         ]
       }
     ]

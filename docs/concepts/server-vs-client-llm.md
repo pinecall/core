@@ -110,10 +110,10 @@ What if you want to use the server-side LLM but inject context or modify history
 - **Set template variables** — define `{{customer_name}}` in the prompt, fill it per-call
 - **Modify history** — `call.addHistory([...])`, `call.setHistory([...])`, `call.clearHistory()`
 
-See [Hot-Reload](/docs/concepts/hot-reload) for the full set of mid-call controls.
+See [Hot-Reload](/concepts/hot-reload) for the full set of mid-call controls.
 
 ## What's next
 
-- [Hot-reload everything](/docs/concepts/hot-reload)
-- [Tool calling guide](/docs/guides/tools-and-functions)
-- [Events reference](/docs/reference/events) — see all the events you can hook into
+- [Hot-reload everything](/concepts/hot-reload)
+- [Tool calling guide](/guides/tools-and-functions)
+- [Events reference](/reference/events) — see all the events you can hook into

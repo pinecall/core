@@ -117,5 +117,5 @@ sessionLimits: {
 
 ## What's next
 
-- [Events reference → `session.*`](/docs/reference/events)
-- [Outbound calls](/docs/guides/outbound-calls)
+- [Events reference → `session.*`](/reference/events)
+- [Outbound calls](/guides/outbound-calls)

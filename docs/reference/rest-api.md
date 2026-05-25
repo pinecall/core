@@ -88,7 +88,7 @@ const token = await agent.createToken("webrtc");
 | `apiKey` | `string` | ✅ | API key for authentication |
 | `apiUrl` | `string` | — | Custom server URL |
 
-See [Security](/docs/security) for the full token security model.
+See [Security](/security) for the full token security model.
 
 ## `fetchTwilioBalance(opts?)`
 
@@ -117,6 +117,6 @@ fetchPhones({ apiKey: "pk_...", apiUrl: "http://localhost:1337" });
 
 ## What's next
 
-- [`Pinecall.createToken`](/docs/api/pinecall) — instance method form
-- [Security](/docs/security) — token security model
-- [TTS Providers](/docs/reference/tts-providers) — discovering voices
+- [`Pinecall.createToken`](/api/pinecall) — instance method form
+- [Security](/security) — token security model
+- [TTS Providers](/reference/tts-providers) — discovering voices

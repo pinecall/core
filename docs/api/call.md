@@ -62,7 +62,7 @@ for await (const token of llm.stream(prompt)) {
 stream.end();
 ```
 
-See [`ReplyStream`](/docs/api/reply-stream) for details.
+See [`ReplyStream`](/api/reply-stream) for details.
 
 ### `toolResult(msgId, results)`
 
@@ -274,6 +274,6 @@ agent.on("llm.tool_call", async (data, call) => {
 
 ## What's next
 
-- [`ReplyStream`](/docs/api/reply-stream) — for client-side LLMs
-- [Events reference](/docs/reference/events) — all events the call emits
-- [Hot-reload](/docs/concepts/hot-reload) — `configure`, `setPrompt`, `addContext` patterns
+- [`ReplyStream`](/api/reply-stream) — for client-side LLMs
+- [Events reference](/reference/events) — all events the call emits
+- [Hot-reload](/concepts/hot-reload) — `configure`, `setPrompt`, `addContext` patterns

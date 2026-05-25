@@ -9,7 +9,7 @@ A text-based chat agent using `@pinecall/chat-core`. Same Pinecall agent, same p
 
 ## What it does
 
-A booking assistant for a spa. Users chat via a React widget, the agent responds with streamed text, and calls tools to check availability and create appointments.
+A booking assistant for a spa. Users chat via a React widget, the agent responds with streamed text, and calls a tool to check availability.
 
 ## Backend — `server.js`
 
@@ -26,14 +26,14 @@ Help customers book appointments. Be warm and concise.
 Available services: Haircut ($30), Color ($80), Facial ($60), Massage ($90).`,
   model: "gpt-4.1-mini",
   language: "es",
-  channels: ["chat", "webrtc"],
+  channels: ["chat"],
   allowedOrigins: ["http://localhost:*"],
   tools: [
     {
       type: "function",
       function: {
         name: "getAvailability",
-        description: "Check available time slots for a service.",
+        description: "Check available time slots for a service and date.",
         parameters: {
           type: "object",
           properties: {
@@ -44,50 +44,21 @@ Available services: Haircut ($30), Color ($80), Facial ($60), Massage ($90).`,
         },
       },
     },
-    {
-      type: "function",
-      function: {
-        name: "createBooking",
-        description: "Book an appointment.",
-        parameters: {
-          type: "object",
-          properties: {
-            service: { type: "string" },
-            date: { type: "string" },
-            time: { type: "string" },
-            name: { type: "string" },
-          },
-          required: ["service", "date", "time", "name"],
-        },
-      },
-    },
   ],
 });
-
-// Tool handlers — simple object map, no switch/case
-const handlers = {
-  getAvailability: async ({ service, date }) => ({
-    service, date,
-    slots: ["10:00", "11:30", "14:00", "16:00"],
-  }),
-  createBooking: async ({ service, date, time, name }) => ({
-    confirmed: true, service, date, time, name,
-    id: `BK-${Date.now()}`,
-  }),
-};
 
 agent.on("llm.tool_call", async (data, call) => {
   const results = await Promise.all(
     data.toolCalls.map(async (tc) => ({
       toolCallId: tc.id,
-      result: await handlers[tc.name]?.(JSON.parse(tc.arguments))
-        ?? { error: `unknown: ${tc.name}` },
+      result: tc.name === "getAvailability"
+        ? { slots: ["10:00", "11:30", "14:00", "16:00"] }
+        : { error: `unknown: ${tc.name}` },
     }))
   );
   call.toolResult(data.msgId, results);
 });
 
-// SSE events for a live dashboard
 const app = express();
 app.use(express.static("public"));
 app.get("/events", (req, res) => agent.stream(res));
@@ -133,20 +104,14 @@ function Chat() {
 }
 ```
 
-The `usePinecallChat` hook handles:
-
-- Token fetching (via `allowedOrigins`)
-- WebSocket connection lifecycle
-- Message state (streamed token-by-token)
-- Typing indicator
-- Auto-reconnect
+The `usePinecallChat` hook handles token fetching (via `allowedOrigins`), WebSocket lifecycle, streamed messages (token-by-token), typing indicator, and auto-reconnect.
 
 ## Same agent, voice + chat
 
-Notice the `channels: ["chat", "webrtc"]` — this agent handles **both** text chat and voice calls. A customer can chat first, then switch to voice. Same prompt, same tools, same conversation context.
+Change `channels: ["chat"]` to `channels: ["chat", "webrtc"]` and the same agent handles **both** text and voice. Same prompt, same tools, same conversation context.
 
 ## What's next
 
-- [`@pinecall/chat-core` reference](/docs/chat-core/overview) — full ChatSession API
-- [Browser Widget example](/docs/examples/browser-widget) — the voice equivalent
-- [SSE Event Streaming](/docs/guides/sse-streaming) — build a live dashboard
+- [`@pinecall/chat-core` reference](/chat-core/overview) — full ChatSession API
+- [Browser Widget example](/examples/browser-widget) — the voice equivalent
+- [SSE Event Streaming](/guides/sse-streaming) — build a live dashboard

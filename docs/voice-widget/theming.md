@@ -127,5 +127,5 @@ const brandTheme: Partial<VoiceWidgetTheme> = {
 
 ## What's next
 
-- [Props reference](/docs/voice-widget/props) — everything else the widget accepts
-- [`useVoiceSession` hook](/docs/voice-widget/use-voice-session-hook) — for fully custom UIs that bypass the orb entirely
+- [Props reference](/voice-widget/props) — everything else the widget accepts
+- [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — for fully custom UIs that bypass the orb entirely

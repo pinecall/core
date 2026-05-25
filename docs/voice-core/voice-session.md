@@ -34,7 +34,7 @@ const session = new VoiceSession({
 });
 ```
 
-The `config` object uses Pinecall's shortcut syntax — same format the server SDK accepts. See [STT Providers](/docs/reference/stt-providers) and [TTS Providers](/docs/reference/tts-providers).
+The `config` object uses Pinecall's shortcut syntax — same format the server SDK accepts. See [STT Providers](/reference/stt-providers) and [TTS Providers](/reference/tts-providers).
 
 ## Methods
 
@@ -83,7 +83,7 @@ Returns the current state snapshot. The returned object is **stable by identity*
 const { status, phase, messages, isMuted, duration } = session.getState();
 ```
 
-See [State and Phases](/docs/voice-core/state-and-phases) for the full shape.
+See [State and Phases](/voice-core/state-and-phases) for the full shape.
 
 ### `subscribe(listener)`
 
@@ -219,7 +219,7 @@ function useVoiceSession(agent: string) {
 }
 ```
 
-> If you're using React and want a ready-made widget instead of building UI, use [`@pinecall/voice-widget`](/docs/voice-widget/overview) — it wraps this pattern and ships an animated orb UI.
+> If you're using React and want a ready-made widget instead of building UI, use [`@pinecall/voice-widget`](/voice-widget/overview) — it wraps this pattern and ships an animated orb UI.
 
 ### Vue 3
 
@@ -274,6 +274,6 @@ import type {
 
 ## What's next
 
-- [State and phases](/docs/voice-core/state-and-phases) — the reactive state model in detail
-- [DataChannel protocol](/docs/voice-core/datachannel-protocol) — every event the server emits
-- [`@pinecall/voice-widget`](/docs/voice-widget/overview) — the React widget built on top
+- [State and phases](/voice-core/state-and-phases) — the reactive state model in detail
+- [DataChannel protocol](/voice-core/datachannel-protocol) — every event the server emits
+- [`@pinecall/voice-widget`](/voice-widget/overview) — the React widget built on top

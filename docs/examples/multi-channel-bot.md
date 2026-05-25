@@ -209,6 +209,6 @@ Configure the WhatsApp webhook (in Meta's dashboard) to point to `https://voice.
 
 ## What's next
 
-- [Browser widget example](/docs/examples/browser-widget)
-- [Multi-tenant guide](/docs/guides/multi-tenant) — host many bots like this
-- [WhatsApp guide](/docs/guides/whatsapp) — full WhatsApp setup
+- [Browser widget example](/examples/browser-widget)
+- [Multi-tenant guide](/guides/multi-tenant) — host many bots like this
+- [WhatsApp guide](/guides/whatsapp) — full WhatsApp setup

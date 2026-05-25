@@ -34,9 +34,9 @@ const agent = pc.agent("my-agent", {
 | `sessionLimits` | `SessionLimits` | Duration / idle timeout config |
 | `interruption` | `InterruptionConfig` | Energy thresholds for barge-in |
 | `analysis` | `AnalysisConfig` | Audio metrics streaming |
-| `allowedOrigins` | `string[]` | Public token access (see [Security](/docs/security)) |
+| `allowedOrigins` | `string[]` | Public token access (see [Security](/security)) |
 
-See [Reference → Providers](/docs/reference/stt-providers) for full provider configs.
+See [Reference → Providers](/reference/stt-providers) for full provider configs.
 
 ## Channels
 
@@ -65,7 +65,7 @@ agent.addChannel("whatsapp", {
 });
 ```
 
-See [WhatsApp guide](/docs/guides/whatsapp) for WhatsApp channel config.
+See [WhatsApp guide](/guides/whatsapp) for WhatsApp channel config.
 
 ### `configureChannel(ref, config)`
 
@@ -137,7 +137,7 @@ const call = await agent.dial({
 | `metadata` | `object` | — | Custom data attached to the call |
 | `config` | `object` | — | Per-call config override (voice, STT, language) |
 
-See [Outbound Calls guide](/docs/guides/outbound-calls) for the full pattern.
+See [Outbound Calls guide](/guides/outbound-calls) for the full pattern.
 
 ## Tokens
 
@@ -160,7 +160,7 @@ Route phone and WhatsApp messages from these numbers to this agent (instead of a
 agent.routeCallers(["+34607827824", "+34612345678"]);
 ```
 
-See [Dev mode guide](/docs/guides/dev-mode).
+See [Dev mode guide](/guides/dev-mode).
 
 ## Calls
 
@@ -238,7 +238,7 @@ Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` 
 | `whatsapp.response` | `(event)` | Agent sent a WhatsApp response |
 | `whatsapp.status` | `(event)` | Message delivery status |
 
-See [Events reference](/docs/reference/events) for full event data shapes.
+See [Events reference](/reference/events) for full event data shapes.
 
 ## Escape hatch
 
@@ -252,6 +252,6 @@ agent.send({ type: "custom.command", payload: { /* ... */ } });
 
 ## What's next
 
-- [`Call`](/docs/api/call) — per-session methods
-- [Events reference](/docs/reference/events) — full event data shapes
-- [Hot-reload](/docs/concepts/hot-reload) — patterns for `configure()` and `setPrompt()`
+- [`Call`](/api/call) — per-session methods
+- [Events reference](/reference/events) — full event data shapes
+- [Hot-reload](/concepts/hot-reload) — patterns for `configure()` and `setPrompt()`

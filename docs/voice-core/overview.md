@@ -22,7 +22,7 @@ npm install @pinecall/voice-core
 - Opens a peer connection to `voice.pinecall.io`
 - Exposes the conversation as a reactive state object + an event stream
 
-It does **not** render UI. For a drop-in React widget with an animated orb, use [`@pinecall/voice-widget`](/docs/voice-widget/overview) (which is built on top of `voice-core`).
+It does **not** render UI. For a drop-in React widget with an animated orb, use [`@pinecall/voice-widget`](/voice-widget/overview) (which is built on top of `voice-core`).
 
 ## Quick start
 
@@ -73,7 +73,7 @@ You can mix them in the same app — they share the same underlying state machin
 
 ## What's next
 
-- [`VoiceSession` class](/docs/voice-core/voice-session) — constructor, methods, options
-- [State, phases, and transcripts](/docs/voice-core/state-and-phases) — the reactive state model
-- [DataChannel protocol](/docs/voice-core/datachannel-protocol) — every event the server emits
-- [`@pinecall/voice-widget`](/docs/voice-widget/overview) — the React widget built on `voice-core`
+- [`VoiceSession` class](/voice-core/voice-session) — constructor, methods, options
+- [State, phases, and transcripts](/voice-core/state-and-phases) — the reactive state model
+- [DataChannel protocol](/voice-core/datachannel-protocol) — every event the server emits
+- [`@pinecall/voice-widget`](/voice-widget/overview) — the React widget built on `voice-core`

@@ -17,7 +17,7 @@ Pinecall supports multiple TTS providers. Voices accept either a string shortcut
 
 ## Discovering voices
 
-Use the [`fetchVoices`](/docs/reference/rest-api) REST helper to list voices on your account:
+Use the [`fetchVoices`](/reference/rest-api) REST helper to list voices on your account:
 
 ```typescript
 import { fetchVoices } from "@pinecall/sdk";
@@ -118,6 +118,6 @@ agent.addChannel("phone", "+34911234567", {
 
 ## What's next
 
-- [STT Providers](/docs/reference/stt-providers)
-- [REST API → fetchVoices](/docs/reference/rest-api)
-- [`Agent.configure`](/docs/api/agent)
+- [STT Providers](/reference/stt-providers)
+- [REST API → fetchVoices](/reference/rest-api)
+- [`Agent.configure`](/api/agent)

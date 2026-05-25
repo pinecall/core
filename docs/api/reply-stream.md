@@ -144,5 +144,5 @@ agent.on("turn.end", async (turn, call) => {
 
 ## What's next
 
-- [Server-side vs client-side LLM](/docs/concepts/server-vs-client-llm) — when to use each
-- [Events reference](/docs/reference/events) — `turn.end`, `turn.continued`, `bot.interrupted`
+- [Server-side vs client-side LLM](/concepts/server-vs-client-llm) — when to use each
+- [Events reference](/reference/events) — `turn.end`, `turn.continued`, `bot.interrupted`

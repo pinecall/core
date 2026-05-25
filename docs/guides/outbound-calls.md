@@ -145,6 +145,6 @@ call.on("call.ended", async (_, reason) => {
 
 ## What's next
 
-- [Inbound voice](/docs/guides/inbound-voice) — for receiving calls
-- [Tools and Functions](/docs/guides/tools-and-functions) — let the outbound agent act on responses (book a slot, cancel, transfer)
-- [Session limits](/docs/reference/session-limits) — cap outbound call duration
+- [Inbound voice](/guides/inbound-voice) — for receiving calls
+- [Tools and Functions](/guides/tools-and-functions) — let the outbound agent act on responses (book a slot, cancel, transfer)
+- [Session limits](/reference/session-limits) — cap outbound call duration

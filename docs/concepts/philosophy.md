@@ -88,7 +88,7 @@ const agent = pc.deploy("mara", {
 });
 ```
 
-Change anything — prompt, voice, model, channels — and the server picks it up on the next connection. No redeployment of a separate config layer. See [Hot Reload](/docs/concepts/hot-reload).
+Change anything — prompt, voice, model, channels — and the server picks it up on the next connection. No redeployment of a separate config layer. See [Hot Reload](/concepts/hot-reload).
 
 ## Your data never leaves your process
 
@@ -98,6 +98,6 @@ No data is stored on Pinecall servers. No conversation history is persisted unle
 
 ## What's next
 
-- [Quickstart](/docs/quickstart) — see the philosophy in action
-- [Agents and Channels](/docs/concepts/agents-and-channels) — the core abstraction
-- [Deployment Topologies](/docs/concepts/deployment-topologies) — how to run in production
+- [Quickstart](/quickstart) — see the philosophy in action
+- [Agents and Channels](/concepts/agents-and-channels) — the core abstraction
+- [Deployment Topologies](/concepts/deployment-topologies) — how to run in production

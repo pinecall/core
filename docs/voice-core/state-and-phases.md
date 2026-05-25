@@ -149,9 +149,9 @@ session.subscribe(() => {
 });
 ```
 
-The `voice-widget` package follows exactly this pattern — see [its theming guide](/docs/voice-widget/theming) for the full set of CSS classes.
+The `voice-widget` package follows exactly this pattern — see [its theming guide](/voice-widget/theming) for the full set of CSS classes.
 
 ## What's next
 
-- [DataChannel protocol](/docs/voice-core/datachannel-protocol) — the raw events that drive state changes
-- [`VoiceSession` class](/docs/voice-core/voice-session) — methods and constructor
+- [DataChannel protocol](/voice-core/datachannel-protocol) — the raw events that drive state changes
+- [`VoiceSession` class](/voice-core/voice-session) — methods and constructor

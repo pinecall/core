@@ -121,5 +121,5 @@ Pinecall treats the agent as **live state inside your process**. That changes wh
 
 ## What's next
 
-- [Tools and Functions](/docs/guides/tools-and-functions) — combine hot-reload with tool calling
-- [`Call` API reference](/docs/api/call) — every method you can use mid-call
+- [Tools and Functions](/guides/tools-and-functions) — combine hot-reload with tool calling
+- [`Call` API reference](/api/call) — every method you can use mid-call

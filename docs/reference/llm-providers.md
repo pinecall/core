@@ -7,7 +7,7 @@ description: "Server-side LLM providers and configuration."
 
 When using server-side LLM (the recommended path for most agents), the server runs the LLM and handles STT/TTS. Configure it via the `llm` field on the agent.
 
-For client-side LLMs, see [ReplyStream](/docs/api/reply-stream).
+For client-side LLMs, see [ReplyStream](/api/reply-stream).
 
 ## OpenAI
 
@@ -97,7 +97,7 @@ agent.on("call.started", async (call) => {
 });
 ```
 
-See [Hot-Reload](/docs/concepts/hot-reload) for the full pattern.
+See [Hot-Reload](/concepts/hot-reload) for the full pattern.
 
 ## Temperature & max_tokens
 
@@ -127,7 +127,7 @@ tools: [
 ],
 ```
 
-See [Tools and Functions](/docs/guides/tools-and-functions) for handling the calls.
+See [Tools and Functions](/guides/tools-and-functions) for handling the calls.
 
 ## Hot-reloading the LLM
 
@@ -144,6 +144,6 @@ This is useful for A/B testing different models, or upgrading the model for VIP 
 
 ## What's next
 
-- [Server-side vs client-side LLM](/docs/concepts/server-vs-client-llm)
-- [Tools and Functions](/docs/guides/tools-and-functions)
-- [Hot-reload](/docs/concepts/hot-reload)
+- [Server-side vs client-side LLM](/concepts/server-vs-client-llm)
+- [Tools and Functions](/guides/tools-and-functions)
+- [Hot-reload](/concepts/hot-reload)

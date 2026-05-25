@@ -69,7 +69,7 @@ The response shape:
 }
 ```
 
-Tokens are single-use, scoped to the agent, and expire in 60 seconds. See [Security](/docs/security) for the full security model.
+Tokens are single-use, scoped to the agent, and expire in 60 seconds. See [Security](/security) for the full security model.
 
 ## 3. Drop in the widget
 
@@ -95,8 +95,6 @@ export default function App() {
 
 That's the entire frontend. Click the orb, talk, listen.
 
-> Full [`@pinecall/voice-widget` reference](/docs/voice-widget/overview) — props, themes, multi-language, interactive tools API.
-
 ## Listening for events in the browser
 
 Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser UIs. The widget exposes them as props:
@@ -111,30 +109,27 @@ Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser 
 />
 ```
 
-For lower-level control, use [`@pinecall/voice-core`](/docs/voice-core/overview) directly — it gives you the raw event stream.
+For lower-level control, use `@pinecall/voice-core` directly — it gives you the raw event stream.
 
 ## Custom UI without the widget
 
-If the widget doesn't fit your design, build your own UI with [`@pinecall/voice-core`](/docs/voice-core/overview):
+If the widget doesn't fit your design, build your own UI with `@pinecall/voice-core`:
 
 ```typescript
-import { VoiceSession } from "@pinecall/voice-core";
+import { PinecallClient } from "@pinecall/voice-core";
 
-const session = new VoiceSession({ agent: "mara" });
+const client = new PinecallClient();
 
-session.addEventListener("message", (e) => {
-  const msg = e.detail.message;
-  // msg.role: "user" | "bot"
-  // msg.text: string (updates word-by-word for bot)
-});
+const { token, server } = await fetch("/api/token").then((r) => r.json());
+await client.connect({ token, server, agentId: "mara" });
 
-await session.connect();
+client.on("user.message", (e) => console.log("User:", e.text));
+client.on("bot.speaking", (e) => console.log("Bot:", e.text));
+client.on("bot.word", (e) => updateLiveCaption(e.word));
 
 // User clicks "End"
-session.disconnect();
+await client.disconnect();
 ```
-
-For React, prefer the [`useVoiceSession()` hook](/docs/voice-widget/use-voice-session-hook) — same session management, no orb.
 
 ## Skipping the backend for demos
 
@@ -157,7 +152,7 @@ Then the widget can fetch tokens directly from the voice server, no backend need
 <VoiceWidget agent="demo-bot" apiKey="pk_publishable_..." />
 ```
 
-> **Warning:** `allowedOrigins` protects against casual embedding but not against a determined attacker (Origin headers can be spoofed from scripts/curl). For production, always use `tokenProvider` with your backend's auth. See [Security](/docs/security).
+> **Warning:** `allowedOrigins` protects against casual embedding but not against a determined attacker (Origin headers can be spoofed from scripts/curl). For production, always use `tokenProvider` with your backend's auth. See [Security](/security).
 
 ## Chat channel (text only)
 
@@ -186,9 +181,6 @@ ws.send(JSON.stringify({ type: "user.message", text: "Hello" }));
 
 ## What's next
 
-- [`@pinecall/voice-widget`](/docs/voice-widget/overview) — themes, multi-language, Tools API
-- [`@pinecall/voice-core`](/docs/voice-core/overview) — for non-React frameworks
-- [`@pinecall/chat-core`](/docs/chat-core/overview) — for text-only chat (no audio)
-- [Security](/docs/security) — the full token security model
-- [Multi-tenant](/docs/guides/multi-tenant) — scope tokens per user/tenant
-- [Dev mode](/docs/guides/dev-mode) — slug-based isolation lets every dev have their own agent
+- [Security](/security) — the full token security model
+- [Multi-tenant](/guides/multi-tenant) — scope tokens per user/tenant
+- [Dev mode](/guides/dev-mode) — slug-based isolation lets every dev have their own agent

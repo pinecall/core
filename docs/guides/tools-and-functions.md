@@ -266,6 +266,6 @@ agent.on("llm.tool_call", async (data, call) => {
 
 ## What's next
 
-- [Hot-reload](/docs/concepts/hot-reload) — change the prompt or tools mid-call
-- [Events reference](/docs/reference/events) — all events including `llm.tool_call`
-- [`Call` API reference](/docs/api/call) — `toolResult`, `forward`, `hangup`, etc.
+- [Hot-reload](/concepts/hot-reload) — change the prompt or tools mid-call
+- [Events reference](/reference/events) — all events including `llm.tool_call`
+- [`Call` API reference](/api/call) — `toolResult`, `forward`, `hangup`, etc.
