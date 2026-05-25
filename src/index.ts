@@ -150,7 +150,7 @@ export type { Voice, VoiceLanguage, FetchVoicesOptions } from "./api/voices.js";
 export { fetchPhones } from "./api/phones.js";
 export type { Phone as PhoneInfo, FetchPhonesOptions } from "./api/phones.js";
 
-export { fetchWebRTCToken, createToken } from "./api/tokens.js";
+export { createToken } from "./api/tokens.js";
 export type {
     WebRTCToken,
     TokenResponse,

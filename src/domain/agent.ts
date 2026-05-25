@@ -110,24 +110,19 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** @internal Reference to parent Pinecall client (for createToken). */
     #client: {
         createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<TokenResponse>;
-        _createTokenRaw: (channel: "webrtc" | "chat", wireId: string) => Promise<TokenResponse>;
     } | null = null;
-    /** @internal Wire ID used for server communication. */
-    #wireId: string;
 
     /** @internal — created by Pinecall.agent() */
     constructor(
         id: string,
         config: AgentConfig,
         send: (data: Record<string, unknown>) => void,
-        wireId?: string,
     ) {
         super();
         this.id = id;
         this.name = id;
         this.#config = config;
         this.#sendRaw = send;
-        this.#wireId = wireId || id;
     }
 
     /**
@@ -192,9 +187,9 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 agent_id: this.id,
                 type: "whatsapp",
                 ref: waConfig.phoneNumberId,
-                access_token: waConfig.accessToken,
-                ...(waConfig.verifyToken ? { verify_token: waConfig.verifyToken } : {}),
-                ...(waConfig.appSecret ? { app_secret: waConfig.appSecret } : {}),
+                accessToken: waConfig.accessToken,
+                ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
+                ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
                 ...buildShortcutPayload(waConfig),
             };
             this._send(msg);
@@ -251,7 +246,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     // ── Development ──────────────────────────────────────────────────────
 
-    setDevCallers(callers: string[]): void {
+    routeCallers(callers: string[]): void {
         this.send({ event: "dev.config", callers });
     }
 
@@ -273,13 +268,12 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 "Use pc.createToken(channel, agentId) instead.",
             );
         }
-        return this.#client._createTokenRaw(channel, this.#wireId);
+        return this.#client.createToken(channel, this.id);
     }
 
     /** @internal Set the parent Pinecall client reference. */
     _setClient(client: {
         createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<TokenResponse>;
-        _createTokenRaw: (channel: "webrtc" | "chat", wireId: string) => Promise<TokenResponse>;
     }): void {
         this.#client = client;
     }
@@ -376,11 +370,6 @@ export class Agent extends TypedEventBus<AgentEvents> {
         return this.#channels;
     }
 
-    /** @internal Get the wire ID. */
-    _getWireId(): string {
-        return this.#wireId;
-    }
-
     /** @internal Mark agent as server-ready and flush buffered messages. */
     _flushPending(): void {
         this.#serverReady = true;
@@ -395,9 +384,9 @@ export class Agent extends TypedEventBus<AgentEvents> {
                     agent_id: this.id,
                     type: "whatsapp",
                     ref: waConfig.phoneNumberId,
-                    access_token: waConfig.accessToken,
-                    ...(waConfig.verifyToken ? { verify_token: waConfig.verifyToken } : {}),
-                    ...(waConfig.appSecret ? { app_secret: waConfig.appSecret } : {}),
+                    accessToken: waConfig.accessToken,
+                    ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
+                    ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
                     ...buildShortcutPayload(waConfig),
                 };
                 this.#sendRaw(msg);

@@ -47,7 +47,6 @@
   - [createToken](#createtokenopts)
   - [fetchVoices](#fetchvoicesopts)
   - [fetchPhones](#fetchphonesopts)
-  - [fetchWebRTCToken](#fetchwebrtctokenopts) _(deprecated)_
   - [fetchTwilioBalance](#fetchtwiliobalanceopts)
 - [SSE Streaming](#sse-streaming)
   - [Single Agent](#single-agent-stream)
@@ -67,17 +66,11 @@
   - [Interruption](#interruption)
   - [Session Limits](#session-limits)
   - [Audio Metrics](#analysis--audio-metrics)
-- [Multi-Environment](#multi-environment)
-  - [How It Works](#how-it-works)
-  - [Setup (.env.local)](#setup)
+- [Dev Mode](#dev-mode)
+  - [Caller-Based Routing](#caller-based-routing)
   - [Multi-Developer Isolation](#multi-developer-isolation)
-  - [Phone Routing](#phone-routing)
-    - [Multi-Developer Strategies](#multi-developer-strategies)
   - [WhatsApp Dev Routing](#whatsapp-dev-routing)
   - [WebRTC & Chat Dev Routing](#webrtc--chat-dev-routing)
-  - [Staging](#staging)
-  - [Environment Variables](#environment-variables-1)
-  - [Vite Integration](#vite-integration)
   - [Deployment Topologies](#deployment-topologies)
     - [Observe vs Interact](#observe-vs-interact)
     - [Embedded Agent (same process)](#embedded-agent-same-process)
@@ -350,7 +343,7 @@ agent.removeChannel("+34911234567");
 | `agent.call(callId)` | Get a `Call` object by ID (`undefined` if not found) |
 | `agent.getConfig()` | Returns the current `AgentConfig` |
 | `agent.stream()` | SSE stream of this agent's events (see [SSE](#sse-streaming)) |
-| `agent.setDevCallers(numbers)` | Set dev caller whitelist for multi-env routing |
+| `agent.routeCallers(numbers)` | Route phone/WhatsApp calls from these numbers to this agent |
 | `agent.send(data)` | Escape hatch — send a raw protocol message |
 
 #### `agent.configure()` — Hot-Reload
@@ -731,22 +724,7 @@ const token = await agent.createToken("webrtc");
 
 > See [Security](#security) for the full token security model.
 
-### `fetchWebRTCToken(opts)` _(deprecated)_
 
-> **⚠️ Deprecated.** Use [`createToken()`](#createtokenopts) instead. `fetchWebRTCToken` only works when the agent has `allowedOrigins` configured.
-
-Legacy helper — fetches a token from the public endpoint (requires `allowedOrigins` on the agent).
-
-```typescript
-import { fetchWebRTCToken } from "@pinecall/sdk";
-
-const { token, server } = await fetchWebRTCToken({
-  agentId: "my-agent",
-  apiKey: "pk_...",  // optional: authenticates the request
-});
-```
-
-**Returns:** `{ token: string, server?: string }`.
 
 ### `fetchTwilioBalance(opts?)`
 
@@ -1319,194 +1297,95 @@ agent.on("audio.metrics", (evt, call) => {
 
 ---
 
-## Multi-Environment
+## Dev Mode
 
-Run dev, staging, and production agents **simultaneously** on the same voice server, sharing the same phone numbers. No extra Twilio costs. Each developer gets their own isolated agent instance.
+Run dev and production agents **simultaneously** on the same voice server, sharing the same phone numbers. No extra Twilio costs. Each developer gets their own isolated agent instance.
 
-### How It Works
+Agent IDs are fully **explicit** — you construct the name yourself:
 
-The SDK reads `PINECALL_MODE` from the environment and prefixes agent IDs automatically:
-
-| `PINECALL_MODE` | Wire slug | Notes |
-|-----------------|-----------|-------|
-| _(empty/unset)_ | `florencia` | Production — all callers |
-| `dev` | `dev-berna-florencia` | Dev — includes developer ID for isolation |
-| `staging` | `staging-florencia` | Staging — shared environment, no dev ID |
-
-The server routes phone calls based on the **caller's phone number**:
-
-```
-            Incoming call to +13186330963
-                       │
-              ┌────────┴────────┐
-              │                 │
-         Caller in          Caller NOT in
-         DEV_CALLERS        DEV_CALLERS
-              │                 │
-    ┌─────────┴─────────┐  ┌───┴───┐
-    │  dev-berna-        │  │       │
-    │  florencia         │  │ florencia │
-    │  (your dev agent)  │  │ (prod)    │
-    └───────────────────┘  └───────┘
-```
-
-Dev and prod coexist on the **same phone number**. The server's caller-based routing handles the split.
-
-### Setup
-
-Set `PINECALL_MODE` **before** importing `@pinecall/sdk`. The SDK reads it at initialization time.
-
-```javascript
-// agent/index.js — set mode before SDK import
-const ENV = process.env.NODE_ENV || "production";
-if (ENV === "development") process.env.PINECALL_MODE = "dev";
-else if (ENV === "staging") process.env.PINECALL_MODE = "staging";
-
+```typescript
 import { Pinecall } from "@pinecall/sdk";
+import { userInfo } from "os";
+
+const isDev = process.env.NODE_ENV === "development";
+const name = isDev ? `dev-${userInfo().username}-florencia` : "florencia";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 await pc.connect();
 
-const agent = pc.deploy("florencia", { /* config */ });
-// In dev: registers as "dev-berna-florencia"
-// In prod: registers as "florencia"
+const agent = pc.deploy(name, { /* config */ });
+```
 
-// Configure caller-based routing for dev/staging
-if (pc.mode) {
+| Environment | Agent ID | Who handles |
+|-------------|----------|-------------|
+| Production | `florencia` | All callers |
+| Dev (Berna) | `dev-berna-florencia` | Routed callers only |
+| Dev (Juan) | `dev-juan-florencia` | Routed callers only |
+
+### Caller-Based Routing
+
+Phone and WhatsApp calls are routed to dev agents based on the **caller's phone number**. Use `routeCallers()` to configure:
+
+```typescript
+if (isDev) {
   const callers = process.env.DEV_CALLERS;
   if (callers) {
-    agent.setDevCallers(callers.split(",").map(s => s.trim()));
+    agent.routeCallers(callers.split(",").map(s => s.trim()));
   }
 }
 ```
 
-Each developer creates a `.env.local` file (gitignored) with their personal config:
+```
+           Incoming call to +13186330963
+                      │
+             ┌────────┴────────┐
+             │                 │
+        Caller in          Caller NOT in
+        DEV_CALLERS        DEV_CALLERS
+             │                 │
+   ┌─────────┴─────────┐  ┌───┴───┐
+   │  dev-berna-        │  │       │
+   │  florencia         │  │ florencia │
+   │  (your dev agent)  │  │ (prod)    │
+   └───────────────────┘  └───────┘
+```
+
+Each developer creates a `.env.local` file (gitignored):
 
 ```bash
 # .env.local — each developer sets their own
-PINECALL_DEV_ID=berna
 DEV_CALLERS=+34607827824
 ```
 
 ### Multi-Developer Isolation
 
-In dev mode, the SDK includes a **developer identity** in the agent slug to prevent collisions:
+Multiple developers can run the same agent simultaneously — each gets their own slug based on their OS username:
 
-```
-dev-{PINECALL_DEV_ID}-{agentName}
-```
-
-The developer ID is resolved in order:
-
-1. `PINECALL_DEV_ID` environment variable
-2. OS username (automatic fallback)
-
-This means multiple developers can run the same agent simultaneously without interfering:
-
-| Developer | `.env.local` | Wire Slug | Phone Routing |
-|-----------|-------------|-----------|---------------|
-| Berna | `PINECALL_DEV_ID=berna` | `dev-berna-florencia` | Calls from +34607... → Berna's agent |
-| Juan | `PINECALL_DEV_ID=juan` | `dev-juan-florencia` | Calls from +34612... → Juan's agent |
-| Production | _(none)_ | `florencia` | All other callers |
-
-### Phone Routing
-
-The voice server supports **caller-based routing** for non-production agents:
-
-1. **Production agent** registers `+13186330963` → stored in the main phone map
-2. **Dev agent** registers the **same number** → stored in the dev override map
-3. On incoming call:
-   - If the **caller** is in the dev callers list → routes to the dev agent
-   - Otherwise → routes to the production agent
-
-To set your dev callers:
-
-```typescript
-if (pc.mode) {
-  agent.setDevCallers(["+34607827824"]);
-}
-```
-
-#### Multi-Developer Strategies
-
-When multiple developers work on the same agent, there are two approaches for phone testing:
-
-**Option A: Shared number + caller override (recommended)**
-
-All developers share the same Twilio number. Each developer configures their personal phone number in `DEV_CALLERS`. The server routes based on who's calling:
+| Developer | Agent ID | Phone Routing |
+|-----------|----------|---------------|
+| Berna | `dev-berna-florencia` | Calls from +34607... → Berna's agent |
+| Juan | `dev-juan-florencia` | Calls from +34612... → Juan's agent |
+| Production | `florencia` | All other callers |
 
 ```
 +13186330963 (shared Twilio number)
     │
     ├── Call from +34607... → dev-berna-florencia
     ├── Call from +34612... → dev-juan-florencia
-    ├── Call from +34699... → dev-flor-florencia
     └── Call from anyone else → florencia (production)
-```
-
-```bash
-# Berna's .env.local
-PINECALL_DEV_ID=berna
-DEV_CALLERS=+34607827824
-
-# Juan's .env.local
-PINECALL_DEV_ID=juan
-DEV_CALLERS=+34612345678
-
-# Flor's .env.local
-PINECALL_DEV_ID=flor
-DEV_CALLERS=+34699887766
 ```
 
 Zero extra Twilio cost. One number serves all environments simultaneously.
 
-**Option B: Dedicated number per developer**
-
-Each developer uses their own Twilio number. No caller override needed — all calls to that number go to the dev agent:
-
-```typescript
-// Berna uses a dedicated dev number
-agent.addChannel("phone", "+18005551001");  // Berna's dev number
-
-// Production uses the main number
-agent.addChannel("phone", "+13186330963");
-```
-
-Simpler routing, but requires extra Twilio numbers ($1/month each).
-
-**Comparison:**
-
-| | Shared + Override | Dedicated Numbers |
-|---|---|---|
-| Cost | No extra | $1/month per dev |
-| Setup | `DEV_CALLERS` in `.env.local` | Separate Twilio number per dev |
-| Routing | Caller-based | Number-based |
-| External callers | Can't reach dev agent | Can reach dev agent |
-| Best for | Internal testing | External/client testing |
-
 ### WhatsApp Dev Routing
 
-WhatsApp uses the same **sender-based routing** pattern as phone calls. Multiple developers can share the same WhatsApp Business number, with messages routed to dev agents based on the sender's phone number.
-
-```
-Meta WhatsApp Business Number (phone_number_id: 123456)
-    │
-    ├── Message from +34607... → dev-berna-florencia
-    ├── Message from +34612... → dev-juan-florencia
-    └── Message from anyone else → florencia (production)
-```
-
-`setDevCallers()` configures both phone and WhatsApp routing in one call:
+WhatsApp uses the same **sender-based routing** pattern as phone calls. `routeCallers()` configures both phone and WhatsApp routing in one call:
 
 ```typescript
-if (pc.mode) {
-  agent.setDevCallers(["+34607827824"]);  // routes BOTH phone calls AND WhatsApp messages
+if (isDev) {
+  agent.routeCallers(["+34607827824"]);  // routes BOTH phone calls AND WhatsApp messages
 }
 ```
-
-> **Same `DEV_CALLERS`, both channels.** When your phone number sends a WhatsApp message to the business number, it routes to your dev agent. When your phone number calls the Twilio number, it also routes to your dev agent. One config, all channels.
-
-Alternatively, each developer can register a separate Meta test number (from the Meta API console), avoiding the need for caller-based routing on WhatsApp.
 
 ### WebRTC & Chat Dev Routing
 
@@ -1522,73 +1401,9 @@ const token = await createToken({
 });
 ```
 
-Each developer gets their own slug, their own tokens, their own sessions. Multiple developers can test simultaneously without interference.
+Each developer gets their own slug, their own tokens, their own sessions.
 
-> **Any web app can connect.** WebRTC and Chat connections go **directly** to `voice.pinecall.io` via DataChannel (audio) or WebSocket (text). The browser never needs access to the agent process. This means any number of web apps, mobile apps, or third-party integrations can connect to the same agent using tokens — without the developer exposing SSE endpoints, webhook URLs, or the agent's Node.js process. The voice server is the relay.
-
-### Staging
-
-Staging uses a simple prefix without developer ID — it's a **shared environment**:
-
-```bash
-NODE_ENV=staging node agent/index.js
-# → Agent slug: "staging-florencia"
-```
-
-Staging agents use the same caller-based override map. Useful for pre-production testing on a staging server.
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PINECALL_MODE` | `""` | `"dev"`, `"staging"`, or empty for production |
-| `PINECALL_DEV_ID` | OS username | Developer identity for slug isolation |
-| `DEV_CALLERS` | — | Comma-separated phone numbers for caller-based routing |
-
-### Vite Integration
-
-When using Vite as your dev server, agents can be embedded in the same process via a plugin:
-
-```javascript
-// vite-agent-plugin.mjs
-export default function agentPlugin() {
-  return {
-    name: "my-agent",
-    async configureServer() {
-      const { startAgent } = await import("./agent/index.js");
-      await startAgent();
-    },
-  };
-}
-```
-
-```javascript
-// vite.config.js
-import agentPlugin from "./vite-agent-plugin.mjs";
-
-export default defineConfig({
-  plugins: [react(), agentPlugin()],
-});
-```
-
-`npm run dev` starts both the web server and the voice agent in a single process. Vite sets `NODE_ENV=development` automatically, so the agent runs in dev mode with no extra configuration.
-
-```
-npm run dev
-  🟢 SDK connected
-  🔧 DEV mode [berna] — calls from +34607827824 → dev-berna-florencia
-  🌸 Florencia agent ready (Phone + WebRTC + WhatsApp) [dev]
-  ➜  Local: http://localhost:5173/
-```
-
-### Public API
-
-```typescript
-const pc = new Pinecall({ apiKey: "pk_..." });
-
-pc.mode;     // "dev" | "staging" | ""  — current environment mode
-pc.devId;    // "berna" — developer identity for slug isolation
-```
+> **Any web app can connect.** WebRTC and Chat connections go **directly** to `voice.pinecall.io` via DataChannel (audio) or WebSocket (text). The browser never needs access to the agent process.
 
 ### Deployment Topologies
 
@@ -1596,11 +1411,9 @@ Pinecall uses **two fundamentally different communication patterns**. Understand
 
 #### Observe vs Interact
 
-There are **three communication patterns** in Pinecall. Which one you use depends on the channel and your use case.
-
 **1. Phone calls (inbound + outbound) — Backend only, EventEmitter**
 
-Phone calls are inherently backend-side. Registering an agent with `pc.agent()` requires a `PINECALL_API_KEY` — this must **never** be exposed in frontend code. The agent runs in your Node.js process and receives all call events via the SDK's WebSocket → in-memory EventEmitter.
+Phone calls are inherently backend-side. The agent runs in your Node.js process and receives all call events via the SDK's WebSocket → in-memory EventEmitter.
 
 ```
          Twilio ──► voice.pinecall.io ──► SDK WebSocket ──► Your Node.js
@@ -1611,81 +1424,35 @@ Phone calls are inherently backend-side. Registering an agent with `pc.agent()` 
                                                       agent.on("llm.tool_call")
 ```
 
-There is no browser involvement. The entire call lifecycle (STT → LLM → TTS → tool calls) happens server-side. If your agent is phone-only, your architecture is simple: a single Node.js process with the SDK.
-
 **2. Browser interaction (WebRTC / Chat) — Direct to voice server**
 
-When users interact from a web app (voice widget, chatbox), the browser connects **directly** to `voice.pinecall.io` — it never touches your backend:
+When users interact from a web app, the browser connects **directly** to `voice.pinecall.io`:
 
 ```
-Browser ──► GET  /webrtc/token?agent_id=mara   (public, no API key)
+Browser ──► GET  /webrtc/token?agent_id=mara
         ──► POST /webrtc/offer  { sdp, token }  → audio via DataChannel
 
-Browser ──► GET  /chat/token?agent_id=mara     (public, no API key)
+Browser ──► GET  /chat/token?agent_id=mara
         ──► WS   /chat/ws?token=cht_xxx        → text via WebSocket
 ```
 
-The token endpoints are public because they only verify that the agent is online — no secrets are exchanged. The browser gets a short-lived signed token, then opens a direct connection to the voice server. Your agent process can run anywhere.
-
-> **🔒 Origin restriction (recommended):** By default, any website can request a token for your agent. To restrict which domains can embed your voice widget or chatbox, configure `allowedOrigins`:
->
-> ```typescript
-> const agent = pc.agent("mara", {
->   allowedOrigins: ["https://yourdomain.com", "http://localhost:*"],
->   // ...config
-> });
-> ```
->
-> When set, the server validates the `Origin` header and rejects requests from unlisted domains. For maximum security (mobile apps, multi-tenant platforms), proxy token requests through your own backend with API key authentication.
-
 **3. SSE — Observe events for dashboards and panels**
 
-SSE is for **observing** agent events from a web frontend — call center panels, admin dashboards, monitoring UIs. It requires the agent to run in the same Node.js process as your web server (embedded topology):
+SSE requires the agent to run in the same Node.js process as your web server:
 
 ```
 Browser ←── SSE ←── Your Express/Remix ←── agent.stream() ←── EventEmitter
 ```
 
-This is how you build a **call center panel** without exposing API keys:
-
-```typescript
-// Your backend — agent + SSE in the same process
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
-
-const agent = pc.agent("support", { /* config */ });
-agent.addChannel("phone", "+13186330963");
-
-// SSE endpoint — filter by user role, no API key to the browser
-app.get("/api/events", (req, res) => {
-  const userId = req.auth.userId;
-  const allowed = getUserAgents(userId);  // your auth logic
-  pc.stream(res, { agents: allowed });    // only their agents
-});
-```
-
-The browser sees real-time call events (who's calling, transcripts, tool calls) but has **zero access** to the API key or agent internals. You control exactly which events reach which user.
-
-**Summary:**
-
-| Channel | Who initiates | Where it runs | How events flow | API key exposed? |
-|---------|--------------|---------------|----------------|-----------------|
-| **Phone** (inbound) | Twilio | Backend only | EventEmitter → SDK WebSocket | ❌ Server-side only |
-| **Phone** (outbound) | `agent.dial()` | Backend only | EventEmitter → SDK WebSocket | ❌ Server-side only |
-| **WebRTC** | Browser user | Browser → voice server | DataChannel (direct) | ❌ Token-based |
-| **Chat** | Browser user | Browser → voice server | WebSocket (direct) | ❌ Token-based |
-| **WhatsApp** | Meta webhook | voice server | SDK WebSocket → EventEmitter | ❌ Server-side only |
-| **SSE** | Browser (observe) | Your backend → browser | EventEmitter → `agent.stream()` | ❌ Your auth controls access |
-
-> **Key insight:** API keys never leave your backend. Phone calls and tool execution happen server-side. Browser users connect via tokens. SSE lets you build dashboards with your own auth layer on top.
-
----
-
-With this in mind, your agent can run **embedded** inside your web server or as a **standalone** process:
+| Channel | Who initiates | Where it runs | API key exposed? |
+|---------|--------------|---------------|-----------------|
+| **Phone** | Twilio | Backend only | ❌ Server-side only |
+| **WebRTC** | Browser | Browser → voice server | ❌ Token-based |
+| **Chat** | Browser | Browser → voice server | ❌ Token-based |
+| **WhatsApp** | Meta webhook | voice server | ❌ Server-side only |
+| **SSE** | Browser (observe) | Your backend → browser | ❌ Your auth |
 
 #### Embedded Agent (same process)
-
-The agent runs inside your web server (Express, Remix, Hono, etc.) or via a Vite plugin. Both the web app and the agent share the same Node.js process.
 
 ```
 ┌──────────────────────────────────────┐
@@ -1704,97 +1471,22 @@ The agent runs inside your web server (Express, Remix, Hono, etc.) or via a Vite
 └──────────────────────────────────────┘
 ```
 
-**What works:**
-- ✅ **SSE Streaming** — `agent.stream()` and `pc.stream()` pipe events directly from the in-memory `EventEmitter`
-- ✅ **REST endpoints** — `req.app.agent` or module-level reference
-- ✅ **Hot-reload** — file watchers, Vite HMR
-- ✅ **Single `npm run dev`** — Vite plugin boots the agent automatically
-
-**Example (Vite plugin — recommended for dev):**
-
-```javascript
-// vite-agent-plugin.mjs
-export default function agentPlugin() {
-  return {
-    name: "my-agent",
-    async configureServer() {
-      const { startAgent } = await import("./agent/index.js");
-      await startAgent();
-    },
-  };
-}
-```
-
-**Example (Express):**
-
-```typescript
-import express from "express";
-import { Pinecall } from "@pinecall/sdk";
-
-const app = express();
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
-
-const agent = pc.agent("receptionist", { /* config */ });
-agent.addChannel("phone", "+13186330963");
-agent.addChannel("webrtc");
-agent.addChannel("chat");
-
-// SSE endpoint — works because agent is in the same process
-app.get("/api/events", (req, res) => agent.stream(res));
-
-// Custom API that reads agent state
-app.get("/api/calls", (req, res) => {
-  res.json({ activeCalls: agent.calls.size });
-});
-
-app.listen(3000);
-```
-
 #### Standalone Agent (separate process)
-
-The agent runs as its own Node process, alongside a separate web server. Both connect to `voice.pinecall.io` independently.
 
 ```
 ┌──────────────┐     ┌──────────────────┐
 │  Web App     │     │  Agent Process   │
-│  (Next.js,   │     │  node agent.js   │
-│  Remix, etc) │     │  pc.agent()      │
-│              │     │                  │
-│  SSE ❌      │     │  WS ────────►    │
-│  No agent    │     │  voice.pinecall  │
-│  reference   │     │  .io             │
+│  (Next.js)   │     │  node agent.js   │
+│              │     │  pc.agent()      │
+│  SSE ❌      │     │  WS → voice.io   │
 └──────────────┘     └──────────────────┘
-        │                     │
-        │    ┌────────────────┘
-        ▼    ▼
-   voice.pinecall.io
 ```
-
-Browser users (WebRTC, chat) connect directly to the voice server via tokens — they don't care where the agent process lives. SSE is the only thing that breaks because it needs in-process access to the EventEmitter.
 
 #### Headless Agent (no web server)
-
-The agent doesn't need a web server at all. Many agents are **pure phone/SIP agents** — they answer calls, run tools, and hang up. No frontend, no API, no UI. Just a Node process running 24/7.
-
-```
-┌─────────────────────────┐
-│  node agent.js          │
-│                         │
-│  pc.agent("julia")      │
-│  addChannel("phone")    │
-│  addChannel("sip:...")  │
-│                         │
-│  WS ────────────────►   │
-│  voice.pinecall.io      │
-└─────────────────────────┘
-       That's it.
-```
 
 ```typescript
 // agent.js — a complete production agent, no web server needed
 import { Pinecall } from "@pinecall/sdk";
-import { openDoor, identifyVisitor } from "./tools.js";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 await pc.connect();
@@ -1804,47 +1496,25 @@ const julia = pc.deploy("julia", {
   model: "gpt-4.1-mini",
   voice: "elevenlabs:abc",
   language: "es",
-  channels: ["phone:+13186330963", "sip:julia@trunk.twilio.com"],
+  channels: ["phone:+13186330963"],
   tools: [openDoor, identifyVisitor],
 });
 
 julia.on("call.started", (call) => call.say("¿Quién es?"));
-
-julia.on("llm.tool_call", async (data, call) => {
-  // Tools run locally — no webhooks, no exposed APIs
-  for (const tc of data.toolCalls) {
-    const result = await handleTool(tc.name, JSON.parse(tc.arguments));
-    call.toolResult(data.msgId, [{ toolCallId: tc.id, result }]);
-  }
-});
-
 console.log("Julia is live. Ctrl+C to stop.");
-// Runs forever — PM2, Docker, systemd, whatever.
 ```
-
-This is the simplest possible deployment. Deploy it with PM2, Docker, systemd — it connects to the voice server and waits for calls. The tool handlers (`openDoor`, `identifyVisitor`) call your internal APIs, databases, or hardware directly from the same process. No webhook URLs, no public endpoints, no attack surface.
 
 #### Comparison
 
 | Feature | Embedded | Standalone | Headless |
 |---------|----------|------------|----------|
-| Web server | ✅ Same process | Separate process | ❌ None |
-| SSE (`agent.stream()`) | ✅ Works | ❌ Not available | ❌ N/A |
-| WebRTC (browser voice) | ✅ Via DataChannel | ✅ Via DataChannel | ✅ Via DataChannel |
-| Chat (browser text) | ✅ Via `/chat/ws` | ✅ Via `/chat/ws` | ✅ Via `/chat/ws` |
+| SSE (`agent.stream()`) | ✅ | ❌ | ❌ |
+| WebRTC / Chat | ✅ | ✅ | ✅ |
 | Phone / SIP | ✅ | ✅ | ✅ |
-| WhatsApp | ✅ | ✅ | ✅ |
-| Tool calls | ✅ In-process | ✅ In-process | ✅ In-process |
-| Agent state in web API | ✅ Direct reference | ❌ No shared memory | ❌ N/A |
 | Complexity | Medium | Medium | **Lowest** |
-| Best for | Dev + dashboards | Web app + agent | Phone/SIP agents |
-
-**Recommendation:**
-- **Embedded** for development (Vite plugin) and apps that need SSE dashboards
-- **Standalone** for production web apps where the agent and web server scale independently
-- **Headless** for phone/SIP agents, IoT, background services — anything without a UI
 
 ---
+
 
 ## Philosophy
 

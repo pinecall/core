@@ -19,7 +19,7 @@ import { Dispatcher } from "./dispatch/dispatcher.js";
 import { forwardAgentEvents } from "./dispatch/proxy.js";
 import type { WireEvent } from "./protocol/wire.js";
 import type { DispatchContext } from "./dispatch/handler.js";
-import { PINECALL_MODE, PINECALL_DEV_ID, PINECALL_LOG } from "./env/mode.js";
+
 
 // Handlers
 import { ConnectionHandler } from "./dispatch/handlers/connection.js";
@@ -58,10 +58,6 @@ export interface PinecallOptions {
     apiKey: string;
     /** Server URL. Default: wss://voice.pinecall.io */
     apiUrl?: string;
-    /** Mode: "dev", "staging", or empty for production. */
-    mode?: string;
-    /** Developer ID for dev-mode routing. */
-    devId?: string;
     /** Auto-reconnect on disconnect. Default: true. */
     autoReconnect?: boolean;
     /** Prompts directory for setPromptFile. Default: "prompts". */
@@ -111,8 +107,6 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     readonly #apiKey: string;
     readonly #apiUrl: string;
     readonly #wsUrl: string;
-    readonly #mode: string;
-    readonly #devId: string;
     readonly #autoReconnect: boolean;
     readonly #promptsDir: string;
 
@@ -138,14 +132,14 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         this.#apiUrl = rawUrl.replace(/^ws/, "http");
         this.#wsUrl = rawUrl.replace(/^http/, "ws");
 
-        this.#mode = opts.mode ?? PINECALL_MODE;
-        this.#devId = opts.devId ?? PINECALL_DEV_ID;
         this.#autoReconnect = opts.autoReconnect !== false;
         this.#promptsDir = opts.promptsDir ?? "prompts";
 
         this.#reconnector = new Reconnector();
-        this.#resolver = new StandardAgentIdResolver(this.#mode, this.#devId);
-        this.#logger = PINECALL_LOG ? fileLogger(PINECALL_LOG) : noopLogger;
+        this.#resolver = new StandardAgentIdResolver();
+
+        const logPath = this.#getEnv("PINECALL_LOG");
+        this.#logger = logPath ? fileLogger(logPath) : noopLogger;
 
         // Build dispatcher with all handlers in priority order
         this.#dispatcher = new Dispatcher([
@@ -172,13 +166,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         return this.#connected;
     }
 
-    get mode(): string {
-        return this.#mode;
-    }
 
-    get devId(): string {
-        return this.#devId;
-    }
 
     get agents(): ReadonlyMap<string, Agent> {
         return this.#agents;
@@ -252,18 +240,14 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             return this.#agents.get(id)!;
         }
 
-        const wireId = this.#buildWireId(id);
-
         const agent = new Agent(
             id,
             config,
             (data) => this.#send(data),
-            wireId,
         );
 
         agent._setClient({
             createToken: (channel, agentId) => this.createToken(channel, agentId),
-            _createTokenRaw: (channel, wId) => this.#createTokenRaw(channel, wId),
         });
 
         this.#agents.set(id, agent);
@@ -341,14 +325,9 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     // ── Token generation ─────────────────────────────────────────────────
 
     async createToken(channel: "webrtc" | "chat", agentId: string): Promise<TokenResponse> {
-        const wireId = this.#buildWireId(agentId);
-        return this.#createTokenRaw(channel, wireId);
-    }
-
-    async #createTokenRaw(channel: "webrtc" | "chat", wireId: string): Promise<TokenResponse> {
         return createTokenApi({
             channel,
-            agentId: wireId,
+            agentId,
             apiKey: this.#apiKey,
             apiUrl: this.#apiUrl,
         });
@@ -380,26 +359,24 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         }
     }
 
-    #buildWireId(slug: string): string {
-        if (this.#mode === "dev" && this.#devId) {
-            return `dev-${this.#devId}-${slug}`;
-        } else if (this.#mode) {
-            return `${this.#mode}-${slug}`;
-        }
-        return slug;
-    }
-
     #registerAgent(agent: Agent): void {
-        const wireId = agent._getWireId();
         const config = agent.getConfig();
 
         this.#send({
             event: "agent.create",
-            agent_id: wireId,
+            agent_id: agent.id,
             ...buildShortcutPayload(config),
             ...(config.allowedOrigins ? { allowed_origins: config.allowedOrigins } : {}),
             ...(config.historySave !== undefined ? { history_save: config.historySave } : {}),
         });
+    }
+
+    #getEnv(key: string): string | undefined {
+        try {
+            return (globalThis as any).process?.env?.[key];
+        } catch {
+            return undefined;
+        }
     }
 
     #onMessage(data: Record<string, unknown>): void {
