@@ -286,11 +286,32 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     dial(options: {
         to: string;
-        from: string;
+        /** Caller ID. If omitted, uses the agent's only phone channel. */
+        from?: string;
         greeting?: string;
         metadata?: Record<string, unknown>;
         config?: Record<string, unknown>;
     }): Promise<Call> {
+        // Auto-resolve `from` if not provided
+        let from = options.from;
+        if (!from) {
+            const phoneChannels: string[] = [];
+            for (const [key, ch] of this.#channels) {
+                if (ch.type === "phone" && ch.ref) phoneChannels.push(ch.ref);
+            }
+            if (phoneChannels.length === 0) {
+                return Promise.reject(new Error(
+                    "No phone channels registered. Add one with agent.addChannel(\"phone\", \"+1...\") or pass `from` explicitly.",
+                ));
+            }
+            if (phoneChannels.length > 1) {
+                return Promise.reject(new Error(
+                    `Multiple phone channels registered (${phoneChannels.join(", ")}). Pass \`from\` to specify which one to use.`,
+                ));
+            }
+            from = phoneChannels[0];
+        }
+
         return new Promise<Call>((resolve, reject) => {
             let settled = false;
             const cleanup = () => {
@@ -318,7 +339,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 event: "call.dial",
                 agent_id: this.id,
                 to: options.to,
-                from: options.from,
+                from,
                 ...(options.greeting ? { greeting: options.greeting } : {}),
                 ...(options.metadata ? { metadata: options.metadata } : {}),
                 ...(options.config ? { config: options.config } : {}),

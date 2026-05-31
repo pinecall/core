@@ -161,10 +161,6 @@ When `callMeEndpoint` is set AND `channels` includes `phone`, a "Call Me" option
 The SDK provides `call.streamSSE(res)` — it handles SSE headers, word-by-word buffering, keepalive pings, and cleanup automatically. Your endpoint is just a few lines:
 
 ```javascript
-// server.js
-import express from "express";
-
-const FROM = "+13186330963"; // your Twilio number
 const GREETING = "Hi! You asked me to call you. How can I help?";
 
 app.use(express.json());
@@ -179,13 +175,15 @@ app.post("/api/call-me", async (req, res) => {
 
   // Dial and stream — that's it
   try {
-    const call = await florencia.dial({ to: phone, from: FROM, greeting: GREETING });
+    const call = await florencia.dial({ to: phone, greeting: GREETING });
     call.streamSSE(res, { greeting: GREETING });
   } catch (err) {
     res.status(500).json({ error: "Could not place the call" });
   }
 });
 ```
+
+> `from` is auto-resolved from the agent's phone channel. Pass it explicitly only if the agent has multiple phone numbers.
 
 `call.streamSSE(res)` does the following automatically:
 
@@ -205,12 +203,24 @@ app.post("/api/call-me", async (req, res) => {
 `agent.dial()` places an outbound phone call via Twilio. The agent must have a phone channel configured:
 
 ```typescript
+// Simplest — from is auto-resolved from the agent's phone channel
+const call = await agent.dial({ to: "+51987654321", greeting: "Hello!" });
+
+// Explicit from — required only when the agent has multiple phone numbers
 const call = await agent.dial({
-  to: "+51987654321",      // destination phone number
-  from: "+13186330963",    // your Twilio number (registered channel)
-  greeting: "Hello!",      // TTS greeting spoken when user picks up
+  to: "+51987654321",
+  from: "+13186330963",
+  greeting: "Hello!",
 });
 ```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `to` | `string` | ✅ | Destination phone number (E.164) |
+| `from` | `string` | Auto | Caller ID — auto-resolved if agent has one phone channel |
+| `greeting` | `string` | No | TTS greeting spoken when user picks up |
+| `metadata` | `object` | No | Metadata passed to the call |
+| `config` | `object` | No | Session config overrides |
 
 > **Note:** For outbound calls, the server speaks the greeting via TTS automatically. This is different from inbound calls, where you use `call.say()` in the `call.started` handler.
 
