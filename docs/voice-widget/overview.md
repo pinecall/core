@@ -81,7 +81,16 @@ The built-in chat view provides:
 
 ### Call Me flow
 
-When `callMeEndpoint` is set and phone channels exist, users can enter their phone number and receive a call from the agent. The widget sends a POST request and shows a live transcript via SSE.
+When `callMeEndpoint` is set and phone channels exist, users can enter their phone number and receive a call from the agent. Your backend dials with `agent.dial()` and streams the call to the browser with `call.streamSSE(res)`:
+
+```javascript
+app.post("/api/call-me", async (req, res) => {
+  const call = await agent.dial({ to: req.body.phone, from: "+1...", greeting: "Hi!" });
+  call.streamSSE(res, { greeting: "Hi!" });
+});
+```
+
+The widget renders a live transcript of the phone call — agent speech word-by-word, user transcription, and call end state.
 
 ## What you get out of the box
 
