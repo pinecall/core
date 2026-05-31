@@ -52,7 +52,7 @@ export type {
 } from "./config/agent.js";
 
 export { Call } from "./domain/call.js";
-export type { CallEvents, ReplyOptions, ForwardOptions } from "./domain/call.js";
+export type { CallEvents, ReplyOptions, ForwardOptions, SSEResponse, StreamSSEOptions } from "./domain/call.js";
 
 // Re-export Turn from domain
 export type { Turn } from "./domain/turn.js";

@@ -405,4 +405,124 @@ export class Call extends TypedEventBus<CallEvents> {
         // Defer listener cleanup so "ended" handlers can still interact
         queueMicrotask(() => this.removeAllListeners());
     }
+
+    // ─── SSE streaming ──────────────────────────────────────────────────
+
+    /**
+     * Stream this call's events as Server-Sent Events to an HTTP response.
+     *
+     * Handles SSE headers, word-by-word buffering, event scoping,
+     * keepalive pings, and automatic cleanup. Designed for "Call Me"
+     * endpoints where the browser needs a live transcript.
+     *
+     * @param res  Node.js HTTP response (Express, Connect, raw http.ServerResponse)
+     * @param opts Optional config
+     *
+     * @example
+     * ```ts
+     * app.post("/api/call-me", async (req, res) => {
+     *   const call = await agent.dial({ to: req.body.phone, from: "+1...", greeting: "Hi!" });
+     *   call.streamSSE(res);
+     * });
+     * ```
+     */
+    streamSSE(res: SSEResponse, opts?: StreamSSEOptions): void {
+        const greeting = opts?.greeting;
+
+        // ── SSE headers ──
+        if (typeof res.writeHead === "function") {
+            res.writeHead(200, {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            });
+        }
+        if (typeof (res as any).flushHeaders === "function") {
+            (res as any).flushHeaders();
+        }
+
+        const send = (event: string, data: Record<string, unknown>) => {
+            try {
+                res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+                if (typeof (res as any).flush === "function") (res as any).flush();
+            } catch { /* client gone */ }
+        };
+
+        // ── Keepalive ping ──
+        const ping = setInterval(() => {
+            try {
+                res.write(":ping\n\n");
+                if (typeof (res as any).flush === "function") (res as any).flush();
+            } catch { clearInterval(ping); }
+        }, 25_000);
+
+        // ── Initial events ──
+        send("call.started", { callId: this.id });
+
+        if (greeting) {
+            send("bot.confirmed", { text: greeting, messageId: "greeting" });
+        }
+
+        // ── Word buffering ──
+        const wordBuffers = new Map<string, string>();
+
+        // ── Event listeners ──
+        this.on("bot.word", (event) => {
+            const prev = wordBuffers.get(event.messageId) || "";
+            const sep = prev && !prev.endsWith(" ") ? " " : "";
+            const text = prev + sep + event.word;
+            wordBuffers.set(event.messageId, text);
+            send("bot.word", { text, messageId: event.messageId });
+        });
+
+        this.on("message.confirmed", (event) => {
+            wordBuffers.delete(event.messageId);
+            if (event.text) {
+                send("bot.confirmed", { text: event.text, messageId: event.messageId });
+            }
+        });
+
+        this.on("user.speaking", (event) => {
+            send("user.speaking", { text: event.text, messageId: event.messageId });
+        });
+
+        this.on("user.message", (event) => {
+            send("user.message", { text: event.text, messageId: event.messageId });
+        });
+
+        this.on("llm.tool_call", (event) => {
+            const tools = event.toolCalls ?? [];
+            for (const tc of tools) {
+                send("tool.call", { name: tc.name, args: tc.arguments });
+            }
+        });
+
+        this.on("ended", (reason) => {
+            send("call.ended", { reason, duration: Math.round(this.duration || 0) });
+            clearInterval(ping);
+            res.end();
+        });
+
+        // ── Client disconnect ──
+        res.on("close", () => {
+            clearInterval(ping);
+            // Call listeners auto-cleanup on _applyEnd
+        });
+    }
+}
+
+// ── SSE types (minimal duck-typing for Express/Connect/raw http) ─────
+
+/** Minimal writable response for streamSSE. */
+export interface SSEResponse {
+    writeHead?: (status: number, headers: Record<string, string>) => void;
+    write: (chunk: string) => boolean;
+    end: () => void;
+    on: (event: string, handler: () => void) => void;
+}
+
+export interface StreamSSEOptions {
+    /** Greeting text to send as the first bot message (for outbound calls). */
+    greeting?: string;
 }

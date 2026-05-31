@@ -120,68 +120,251 @@ Enables the built-in text chat view inside the ContactHub. Requires `{ type: "ch
 
 ## `callMeEndpoint` — outbound calls
 
-When set AND the agent has `phone` channels, a "Call Me" option appears in the ContactHub.
+### Why Call Me?
+
+Not every user wants to talk through their browser. Some are on a phone without headphones, on a noisy connection, or simply prefer a real phone call. "Call Me" lets the user enter their phone number and the **agent calls them** — same AI, same tools, same prompt, but over a regular phone call via Twilio.
+
+The widget handles the UI (phone input, dialing animation, live transcript). You provide the backend endpoint that dials and streams events.
+
+### How it works
+
+```
+User enters phone → widget POSTs { phone } to your endpoint
+                          ↓
+              Your backend calls agent.dial()
+                          ↓
+              call.streamSSE(res) streams events as SSE
+                          ↓
+              Widget renders a live transcript
+```
+
+### Widget setup
+
+When `callMeEndpoint` is set AND `channels` includes `phone`, a "Call Me" option appears in the ContactHub:
 
 ```tsx
 <VoiceWidget
   agent="florencia"
+  name="Florencia"
+  locale="es"
   channels={[
     { type: "webrtc" },
+    { type: "chat" },
     { type: "phone", numbers: ["+13186330963"] },
   ]}
   callMeEndpoint="/api/call-me"
 />
 ```
 
-Your endpoint receives a POST with `{ phone }` and should return an SSE stream:
+### Backend: `call.streamSSE(res)`
+
+The SDK provides `call.streamSSE(res)` — it handles SSE headers, word-by-word buffering, keepalive pings, and cleanup automatically. Your endpoint is just a few lines:
 
 ```javascript
-// Server-side (e.g. Express route)
+// server.js
+import express from "express";
+
+const FROM = "+13186330963"; // your Twilio number
+const GREETING = "Hi! You asked me to call you. How can I help?";
+
+app.use(express.json());
+
 app.post("/api/call-me", async (req, res) => {
   const { phone } = req.body;
 
-  // Trigger outbound call
-  const call = await agent.dial({ to: phone, from: "+13186330963" });
+  // Validate (E.164 format)
+  if (!phone || !/^\+\d{10,15}$/.test(phone)) {
+    return res.status(400).json({ error: "Invalid phone number" });
+  }
 
-  // Stream transcript to the browser as SSE
-  res.setHeader("Content-Type", "text/event-stream");
-  call.on("transcript", (text) => {
-    res.write(`event: transcript\ndata: ${JSON.stringify({ text })}\n\n`);
-  });
-  call.on("call.ended", () => {
-    res.write(`event: end\ndata: {}\n\n`);
-    res.end();
-  });
+  // Dial and stream — that's it
+  try {
+    const call = await florencia.dial({ to: phone, from: FROM, greeting: GREETING });
+    call.streamSSE(res, { greeting: GREETING });
+  } catch (err) {
+    res.status(500).json({ error: "Could not place the call" });
+  }
 });
 ```
 
-The widget shows a live transcript of the call as it happens.
+`call.streamSSE(res)` does the following automatically:
+
+1. Sets SSE headers (`Content-Type: text/event-stream`, etc.)
+2. Sends `call.started` with the call ID
+3. Sends the greeting as the first `bot.confirmed` message
+4. Streams `bot.word` events (progressive word-by-word agent speech)
+5. Sends `bot.confirmed` when agent finishes a complete message
+6. Streams `user.speaking` (interim) and `user.message` (final) for user speech
+7. Streams `tool.call` for tool invocations
+8. Sends `call.ended` with reason and duration, then closes the stream
+9. Sends `:ping` keepalives every 25s to prevent proxy timeouts
+10. Cleans up listeners when the client disconnects
+
+### `agent.dial()` — outbound call API
+
+`agent.dial()` places an outbound phone call via Twilio. The agent must have a phone channel configured:
+
+```typescript
+const call = await agent.dial({
+  to: "+51987654321",      // destination phone number
+  from: "+13186330963",    // your Twilio number (registered channel)
+  greeting: "Hello!",      // TTS greeting spoken when user picks up
+});
+```
+
+> **Note:** For outbound calls, the server speaks the greeting via TTS automatically. This is different from inbound calls, where you use `call.say()` in the `call.started` handler.
+
+### SSE event protocol
+
+The widget expects these events from `streamSSE`:
+
+| Event | Data | Description |
+|---|---|---|
+| `call.started` | `{ callId }` | Call connected |
+| `bot.word` | `{ text, messageId }` | Agent speaking (progressive, accumulated) |
+| `bot.confirmed` | `{ text, messageId }` | Final agent message (replaces words) |
+| `user.speaking` | `{ text, messageId }` | User speaking (interim transcript) |
+| `user.message` | `{ text, messageId }` | Final user message |
+| `tool.call` | `{ name, args }` | Tool invocation |
+| `call.ended` | `{ reason, duration }` | Call finished (stream closes) |
+
+### Production considerations
+
+- **Rate limiting** — cap outbound calls per IP or globally (e.g. 3 per 20 min)
+- **Phone validation** — normalize numbers before dialing (handle local formats)
+- **Auth** — protect your endpoint (session, JWT, etc.) so anyone can't trigger calls
 
 ## `tokenProvider` — token security
 
-Keeps your API key server-side. The widget calls your backend to get a short-lived token instead of hitting the Pinecall API directly.
+Browser connections (WebRTC and chat) require **short-lived tokens**. Your backend generates them using `@pinecall/sdk`, and the widget fetches them via the `tokenProvider` callback. This keeps your API key server-side.
+
+### Backend setup
+
+You need two things on your backend:
+
+1. A Pinecall client connected to the voice server
+2. An HTTP endpoint that generates tokens for the frontend
+
+```typescript
+// server.js
+import express from "express";
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const app = express();
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
+
+const florencia = pc.agent("florencia", {
+  voice: "elevenlabs:5vkxOzoz40FrElmLP4P7",
+  language: "es",
+  stt: "deepgram-flux",
+  llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+});
+
+florencia.addChannel("webrtc");
+florencia.addChannel("chat");
+
+florencia.on("call.started", (call) => call.say("¡Hola!"));
+
+// ── Token endpoint ──────────────────────────────────────────
+// Protect this with YOUR auth (session, JWT, OAuth, etc.)
+app.get("/api/token", authMiddleware, async (req, res) => {
+  const channel = (req.query.channel as string) || "webrtc";
+  const token = await florencia.createToken(channel);
+  res.json(token);
+});
+
+await pc.connect();
+app.listen(3000);
+```
+
+### Two ways to generate tokens
+
+| Method | When to use |
+|---|---|
+| `agent.createToken(channel)` | You have the `Agent` instance in the same process |
+| `pc.createToken(channel, agentId)` | The agent runs in a separate process; you only have the `Pinecall` client |
+
+```typescript
+// Option A: from the agent instance
+const token = await florencia.createToken("webrtc");
+
+// Option B: from the Pinecall client (agent in another process)
+const token = await pc.createToken("webrtc", "florencia");
+```
+
+Both return the same shape:
+
+```json
+{ "token": "tok_...", "server": "wss://voice.pinecall.io", "expires_in": 60 }
+```
+
+### Frontend: single-channel (WebRTC only)
 
 ```tsx
 <VoiceWidget
   agent="florencia"
   tokenProvider={async () => {
-    const res = await fetch("/api/token", { credentials: "include" });
+    const res = await fetch("/api/token?channel=webrtc", {
+      credentials: "include", // send your session cookie
+    });
     if (!res.ok) throw new Error(`Token failed: ${res.status}`);
     return res.json();
   }}
 />
 ```
 
-Your backend generates the token:
+### Frontend: multi-channel (WebRTC + chat)
+
+When using `channels` with both `webrtc` and `chat`, the widget needs tokens for each channel. Use `tokenProvider` for WebRTC and `chat.tokenProvider` for chat:
+
+```tsx
+<VoiceWidget
+  agent="florencia"
+  channels={[{ type: "webrtc" }, { type: "chat" }]}
+  tokenProvider={async () => {
+    const res = await fetch("/api/token?channel=webrtc", { credentials: "include" });
+    return res.json();
+  }}
+  chat={{
+    greeting: "¡Hola! ¿En qué puedo ayudarte?",
+    tokenProvider: async () => {
+      const res = await fetch("/api/token?channel=chat", { credentials: "include" });
+      return res.json();
+    },
+  }}
+/>
+```
+
+> If you omit `chat.tokenProvider`, the widget falls back to the top-level `tokenProvider` — which works if your backend endpoint accepts `?channel=chat`.
+
+### Alternative: `allowedOrigins` (demos only)
+
+For demos without a backend, skip the token endpoint. The agent auto-generates tokens for matching browser origins:
 
 ```typescript
-app.get("/api/token", authMiddleware, async (req, res) => {
-  const token = await agent.createToken("webrtc");
-  res.json(token);
+// Backend
+const agent = pc.agent("demo", {
+  allowedOrigins: ["https://mysite.com", "http://localhost:*"],
 });
 ```
 
-> **Never** store API keys in frontend code. Use `tokenProvider` for production.
+```tsx
+// Frontend — no tokenProvider needed
+<VoiceWidget agent="demo" />
+```
+
+> **⚠️ Warning:** `allowedOrigins` is origin-header based. Real browsers can't spoof it, but scripts/curl can. For production with real users, always use `tokenProvider`.
+
+### Token properties
+
+| Property | Value | Effect |
+|---|---|---|
+| Single-use | Consumed on first connection | Can't be reused |
+| Short-lived | 60 second TTL | Expires quickly |
+| Scoped | Locked to agent + org | Can't be used elsewhere |
+
+> **Never** store API keys in frontend code. See [Security](/security) for the full token model.
 
 ## `locale` and `labels` — localization
 
