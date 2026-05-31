@@ -33,6 +33,10 @@ export type { PinecallOptions, PinecallEvents } from "./client.js";
 export type { DeployConfig } from "./config/agent.js";
 export type { StreamOptions } from "./sse/stream.js";
 
+// Tool definition
+export { tool } from "./tool.js";
+export type { Tool, ToolConfig } from "./tool.js";
+
 export { Agent } from "./domain/agent.js";
 export type {
     AgentEvents,

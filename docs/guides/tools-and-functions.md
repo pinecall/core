@@ -9,90 +9,56 @@ Tools are how your agent moves beyond conversation into action: looking up an or
 
 ## Defining tools
 
-Tool definitions use the OpenAI function-calling format. Declare them when creating the agent:
+Use the `tool()` helper with a Zod schema. Tools are auto-executed by the SDK when the LLM calls them — no manual event handler needed.
 
 ```typescript
-const agent = pc.agent("support", {
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by its ID.",
+  schema: z.object({
+    orderId: z.string().describe("The order ID, like ORD-12345"),
+  }),
+  execute: async ({ orderId }) => {
+    return await db.orders.findOne(orderId);
+  },
+});
+
+const scheduleCallback = tool({
+  name: "scheduleCallback",
+  description: "Schedule a callback for a specific date and time.",
+  schema: z.object({
+    datetime: z.string().describe("ISO 8601 datetime"),
+    reason: z.string(),
+  }),
+  execute: async ({ datetime, reason }, call) => {
+    return await scheduler.book({
+      phone: call.from,
+      datetime,
+      reason,
+    });
+  },
+});
+
+const agent = pc.deploy("support", {
+  prompt: "You are a helpful support agent. Use tools to look up information.",
+  model: "gpt-4.1-mini",
   voice: "elevenlabs:abc",
   language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a helpful support agent. Use tools to look up information.",
-  },
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "lookupOrder",
-        description: "Look up an order by its ID.",
-        parameters: {
-          type: "object",
-          properties: {
-            orderId: { type: "string", description: "The order ID, like ORD-12345" },
-          },
-          required: ["orderId"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "scheduleCallback",
-        description: "Schedule a callback for a specific date and time.",
-        parameters: {
-          type: "object",
-          properties: {
-            datetime: { type: "string", description: "ISO 8601 datetime" },
-            reason: { type: "string" },
-          },
-          required: ["datetime", "reason"],
-        },
-      },
-    },
-  ],
+  channels: ["webrtc"],
+  tools: [lookupOrder, scheduleCallback],
 });
+
+agent.on("call.started", (call) => call.say("Hi, how can I help?"));
 ```
 
-## Handling tool calls
+That's it. When the LLM decides to call `lookupOrder`, the SDK:
 
-The LLM decides when to call a tool and emits `llm.tool_call` events. Your handler executes the function and returns the result.
-
-```typescript
-agent.on("llm.tool_call", async (data, call) => {
-  const results = [];
-
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-
-    try {
-      let result;
-      switch (tc.name) {
-        case "lookupOrder":
-          result = await db.orders.findOne(args.orderId);
-          break;
-        case "scheduleCallback":
-          result = await scheduler.book({
-            phone: call.from,
-            datetime: args.datetime,
-            reason: args.reason,
-          });
-          break;
-        default:
-          result = { error: `Unknown tool: ${tc.name}` };
-      }
-      results.push({ toolCallId: tc.id, result });
-    } catch (err) {
-      results.push({ toolCallId: tc.id, result: { error: err.message } });
-    }
-  }
-
-  call.toolResult(data.msgId, results);
-});
-```
-
-A single `llm.tool_call` event can contain multiple parallel tool calls. Always handle the array, not just `toolCalls[0]`.
+1. Parses the arguments through `z.object({ orderId: z.string() })`
+2. Calls your `execute` function with the validated args + the `Call` object
+3. Sends the result back to the LLM via `call.toolResult()`
 
 ## Tool call lifecycle
 
@@ -100,22 +66,46 @@ A single `llm.tool_call` event can contain multiple parallel tool calls. Always 
 User: "Where's order ORD-12345?"
    │
    ▼
-LLM: decides to call lookupOrder
+LLM: decides to call lookupOrder({ orderId: "ORD-12345" })
    │
    ▼
-agent.on("llm.tool_call") fires with { toolCalls: [{ name: "lookupOrder", arguments: '{"orderId":"ORD-12345"}', id: "tc_abc" }], msgId: "msg_def" }
+SDK: schema.parse(args) → validates
    │
    ▼
-Your handler: db.orders.findOne("ORD-12345") → { status: "shipped", trackingNumber: "..." }
+SDK: execute({ orderId: "ORD-12345" }, call) → your function runs
    │
    ▼
-call.toolResult("msg_def", [{ toolCallId: "tc_abc", result: { status: "shipped", ... } }])
+SDK: call.toolResult(msgId, [{ toolCallId, result }]) → auto-sent
    │
    ▼
 LLM resumes with the tool result in context, produces a spoken response
    │
    ▼
 "Your order shipped yesterday. Tracking number is..."
+```
+
+## The `call` parameter
+
+Every `execute` function receives the `Call` object as its second argument. Use it to interact with the call mid-tool-execution:
+
+```typescript
+const transferToHuman = tool({
+  name: "transferToHuman",
+  description: "Escalate to a human agent.",
+  schema: z.object({
+    department: z.enum(["sales", "support", "billing"]),
+  }),
+  execute: async ({ department }, call) => {
+    const numbers = {
+      sales: "+15551110000",
+      support: "+15551110001",
+      billing: "+15551110002",
+    };
+    call.say("Of course, let me connect you to a specialist.");
+    call.forward(numbers[department]);
+    return { transferred: true };
+  },
+});
 ```
 
 ## Why local functions beat webhooks
@@ -141,131 +131,113 @@ Pinecall tools run in your process. That means:
 ### Database lookups
 
 ```typescript
-{
+const findCustomer = tool({
   name: "findCustomer",
   description: "Find a customer by phone number or email.",
-  parameters: {
-    type: "object",
-    properties: {
-      query: { type: "string", description: "Phone or email" },
-    },
-    required: ["query"],
+  schema: z.object({
+    query: z.string().describe("Phone or email"),
+  }),
+  execute: async ({ query }) => {
+    const customer = await db.customers.find({
+      or: [{ phone: query }, { email: query }],
+    });
+    return customer ?? { error: "not_found" };
   },
-}
-
-case "findCustomer": {
-  const customer = await db.customers.find({
-    or: [{ phone: args.query }, { email: args.query }],
-  });
-  result = customer ?? { error: "not_found" };
-  break;
-}
+});
 ```
 
 ### Transfer to human
 
 ```typescript
-{
+const transferToHuman = tool({
   name: "transferToHuman",
-  description: "Escalate to a human agent. Use when the customer is angry or has a complex issue.",
-  parameters: {
-    type: "object",
-    properties: {
-      department: { type: "string", enum: ["sales", "support", "billing"] },
-    },
-    required: ["department"],
+  description: "Escalate to a human agent when the customer is angry or has a complex issue.",
+  schema: z.object({
+    department: z.enum(["sales", "support", "billing"]),
+  }),
+  execute: async ({ department }, call) => {
+    const numbers = { sales: "+15551110000", support: "+15551110001", billing: "+15551110002" };
+    call.say("Of course, let me connect you to a specialist.");
+    call.forward(numbers[department]);
+    return { transferred: true };
   },
-}
-
-case "transferToHuman": {
-  const numbers = {
-    sales: "+15551110000",
-    support: "+15551110001",
-    billing: "+15551110002",
-  };
-  call.say("Of course, let me connect you to a specialist.");
-  call.forward(numbers[args.department]);
-  result = { transferred: true };
-  break;
-}
+});
 ```
 
 ### Booking / scheduling
 
 ```typescript
-{
+const bookAppointment = tool({
   name: "bookAppointment",
   description: "Book an appointment in the doctor's calendar.",
-  parameters: {
-    type: "object",
-    properties: {
-      datetime: { type: "string", description: "ISO 8601 datetime" },
-      duration_minutes: { type: "number" },
-      patient_name: { type: "string" },
-    },
-    required: ["datetime", "duration_minutes", "patient_name"],
+  schema: z.object({
+    datetime: z.string().describe("ISO 8601 datetime"),
+    durationMinutes: z.number(),
+    patientName: z.string(),
+  }),
+  execute: async ({ datetime, durationMinutes, patientName }) => {
+    const slot = await calendar.book({
+      start: new Date(datetime),
+      duration: durationMinutes,
+      patient: patientName,
+    });
+    return slot.success
+      ? { booked: true, confirmationId: slot.id }
+      : { booked: false, error: slot.conflictReason };
   },
-}
-
-case "bookAppointment": {
-  const slot = await calendar.book({
-    start: new Date(args.datetime),
-    duration: args.duration_minutes,
-    patient: args.patient_name,
-  });
-  result = slot.success
-    ? { booked: true, confirmationId: slot.id }
-    : { booked: false, error: slot.conflictReason };
-  break;
-}
+});
 ```
 
 ### End the call
 
 ```typescript
-{
+const endCall = tool({
   name: "endCall",
-  description: "End the call. Use when the customer says goodbye.",
-  parameters: { type: "object", properties: {} },
-}
-
-case "endCall": {
-  call.say("Have a great day!");
-  call.once("bot.finished", () => call.hangup());
-  result = { ended: true };
-  break;
-}
+  description: "End the call when the customer says goodbye.",
+  schema: z.object({}),
+  execute: async (_, call) => {
+    call.say("Have a great day!");
+    call.once("bot.finished", () => call.hangup());
+    return { ended: true };
+  },
+});
 ```
 
 ## Returning errors
 
-If a tool call fails, return an `error` field in the result. The LLM will see it and can recover (apologize, retry, ask clarifying questions).
+If a tool call fails, the SDK catches the error and returns `{ error: err.message }` to the LLM automatically. The LLM can then recover (apologize, retry, ask clarifying questions).
+
+You can also return errors explicitly:
 
 ```typescript
-try {
-  result = await db.orders.findOne(args.orderId);
-  if (!result) result = { error: "Order not found" };
-} catch (err) {
-  result = { error: `Lookup failed: ${err.message}` };
-}
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID.",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => {
+    const order = await db.orders.findOne(orderId);
+    if (!order) return { error: "Order not found" };
+    return order;
+  },
+});
 ```
 
-Don't throw — that breaks the conversation. Return the error so the LLM can handle it.
+## Listening to tool calls (optional)
+
+The `llm.tool_call` event still fires for every tool call — useful for logging, metrics, or UI:
+
+```typescript
+agent.on("llm.tool_call", (data, call) => {
+  console.log(`Tools called: ${data.toolCalls.map(t => t.name).join(", ")}`);
+});
+```
 
 ## Tools work across all channels
 
-The same tool handlers work for phone, WebRTC, chat, and WhatsApp. The `Call` object is your interface regardless of transport.
-
-```typescript
-agent.on("llm.tool_call", async (data, call) => {
-  // call.transport === "phone" | "webrtc" | "chat" | "whatsapp"
-  // call.from is always populated
-  // call.toolResult() always works
-});
-```
+The same tools work for phone, WebRTC, chat, and WhatsApp. The `Call` object is your interface regardless of transport.
 
 ## What's next
 
 - [Hot-reload](/concepts/hot-reload) — change the prompt or tools mid-call
 - [Events reference](/reference/events) — all events including `llm.tool_call`
-- [`Call` API reference](/api/call) — `toolResult`, `forward`, `hangup`, etc.
+- [`Call` API reference](/api/call) — `forward`, `hangup`, etc.

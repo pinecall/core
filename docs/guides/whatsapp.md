@@ -82,9 +82,19 @@ That's it. The first message a new contact sends fires `whatsapp.session_started
 
 ## Adding tools
 
-Tools work identically on WhatsApp and voice channels. The same `llm.tool_call` handler covers both:
+Tools work identically on WhatsApp and voice channels. Define them with `tool()` — the SDK handles execution on all channels:
 
 ```typescript
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => await db.orders.findOne(orderId),
+});
+
 const support = pc.agent("support", {
   llm: {
     provider: "openai",
@@ -92,30 +102,7 @@ const support = pc.agent("support", {
     enabled: true,
     prompt: "...",
   },
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "lookupOrder",
-        description: "Look up an order by ID",
-        parameters: {
-          type: "object",
-          properties: { orderId: { type: "string" } },
-          required: ["orderId"],
-        },
-      },
-    },
-  ],
-});
-
-support.on("llm.tool_call", async (data, call) => {
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    const order = await db.orders.findOne(args.orderId);
-    results.push({ toolCallId: tc.id, result: order });
-  }
-  call.toolResult(data.msgId, results);
+  tools: [lookupOrder],
 });
 ```
 
@@ -128,6 +115,7 @@ const support = pc.agent("support", {
   voice: "elevenlabs:abc",
   language: "en",
   llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  tools: [lookupOrder],
 });
 
 support.addChannel("whatsapp", { /* WhatsApp config */ });
@@ -140,11 +128,7 @@ support.on("call.started", (call) => {
     call.say("Hello!");
   }
 });
-
-// Shared tool handling for all channels
-support.on("llm.tool_call", async (data, call) => {
-  // works for both voice and WhatsApp calls
-});
+// Tools auto-execute on all channels — no extra handler needed.
 ```
 
 ## Voice notes

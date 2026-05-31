@@ -35,6 +35,44 @@ const orders = {
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 await pc.connect();
 
+// ---- Tools ----
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by its ID (format: ORD-XXX)",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => orders[orderId] ?? { error: "not_found" },
+});
+
+const transferToHuman = tool({
+  name: "transferToHuman",
+  description: "Transfer voice call to a human agent. Only works on phone/WebRTC.",
+  schema: z.object({}),
+  execute: async (_, call) => {
+    if (call.transport === "phone" || call.transport === "webrtc") {
+      call.say("Sure, let me get a human on the line.");
+      call.forward("+15558675309");
+      return { transferred: true };
+    }
+    return { transferred: false, note: "A human will respond within an hour." };
+  },
+});
+
+const endConversation = tool({
+  name: "endConversation",
+  description: "End the conversation when the customer says goodbye.",
+  schema: z.object({}),
+  execute: async (_, call) => {
+    if (call.transport === "phone" || call.transport === "webrtc") {
+      call.say("Thanks for calling. Have a great day!");
+      call.once("bot.finished", () => call.hangup());
+    }
+    return { ended: true };
+  },
+});
+
 // ---- The agent ----
 const support = pc.agent("acme-support", {
   voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
@@ -53,36 +91,7 @@ You can:
 Be concise. On voice, keep responses to 1-2 sentences.
 On WhatsApp, you can be slightly longer but still brief.`,
   },
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "lookupOrder",
-        description: "Look up an order by its ID (format: ORD-XXX)",
-        parameters: {
-          type: "object",
-          properties: { orderId: { type: "string" } },
-          required: ["orderId"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "transferToHuman",
-        description: "Transfer voice call to a human agent. Only works on phone/WebRTC.",
-        parameters: { type: "object", properties: {} },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "endConversation",
-        description: "End the conversation when the customer says goodbye.",
-        parameters: { type: "object", properties: {} },
-      },
-    },
-  ],
+  tools: [lookupOrder, transferToHuman, endConversation],
 });
 
 // ---- Add all three channels ----
@@ -101,39 +110,6 @@ support.on("call.started", (call) => {
       call.say("Hi, this is Nova at Acme. How can I help?");
     }
   }
-});
-
-// ---- Tool handling (shared across all channels) ----
-const handlers = {
-  lookupOrder: async ({ orderId }) => orders[orderId] ?? { error: "not_found" },
-
-  transferToHuman: async (_, call) => {
-    if (call.transport === "phone" || call.transport === "webrtc") {
-      call.say("Sure, let me get a human on the line.");
-      call.forward("+15558675309");
-      return { transferred: true };
-    }
-    return { transferred: false, note: "A human will respond within an hour." };
-  },
-
-  endConversation: async (_, call) => {
-    if (call.transport === "phone" || call.transport === "webrtc") {
-      call.say("Thanks for calling. Have a great day!");
-      call.once("bot.finished", () => call.hangup());
-    }
-    return { ended: true };
-  },
-};
-
-support.on("llm.tool_call", async (data, call) => {
-  const results = await Promise.all(
-    data.toolCalls.map(async (tc) => ({
-      toolCallId: tc.id,
-      result: await handlers[tc.name]?.(JSON.parse(tc.arguments), call)
-        ?? { error: `unknown: ${tc.name}` },
-    }))
-  );
-  call.toolResult(data.msgId, results);
 });
 
 // ---- Logging (universal) ----

@@ -14,27 +14,32 @@ Traditional voice AI platforms ask you to adapt your app to them — configure a
 Pinecall flips this. The agent runs **inside your process**:
 
 ```typescript
-import { Pinecall } from "@pinecall/sdk";
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
 import { db } from "./db.js";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 await pc.connect();
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up a customer's order by their phone number.",
+  schema: z.object({ phone: z.string() }),
+  execute: async ({ phone }) => await db.orders.findOne({ phone }),
+});
 
 const agent = pc.deploy("support", {
   prompt: "You are a support agent for Acme Corp.",
   model: "gpt-4.1-mini",
   voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
   channels: ["+15551234567"],
+  tools: [lookupOrder],
 });
 
-agent.on("llm.tool_call", async (data, call) => {
-  // This runs in YOUR process — full access to your DB, APIs, secrets
-  const order = await db.orders.findOne({ phone: call.from });
-  call.toolResult(data.msgId, [{ toolCallId: data.toolCalls[0].id, result: order }]);
-});
+agent.on("call.started", (call) => call.say("Hi, how can I help?"));
 ```
 
-No webhooks. No separate tool server. No "upload your tools as JSON". Your tools are just functions.
+No webhooks. No separate tool server. No "upload your tools as JSON". Your tools are just functions with Zod schemas, auto-executed by the SDK.
 
 ## Voice as a library, not a platform
 

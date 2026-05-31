@@ -24,6 +24,7 @@ export interface DispatchContext {
     client: {
         _emitWire(event: string, ...args: unknown[]): void;
         _getAgent(id: string): Agent | undefined;
+        _allAgents(): Agent[];
     };
 }
 

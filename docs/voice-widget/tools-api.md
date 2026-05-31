@@ -166,6 +166,44 @@ This shows the full pattern: slot picker, contact form, agent-driven auto-fill, 
 ### Server-side agent
 
 ```typescript
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const getAvailableSlots = tool({
+  name: "getAvailableSlots",
+  description: "Get available slots for a date.",
+  schema: z.object({ date: z.string() }),
+  execute: async ({ date }) => ({
+    slots: ["9:00 AM", "10:00 AM", "2:00 PM", "4:00 PM"],
+  }),
+});
+
+const showContactForm = tool({
+  name: "showContactForm",
+  description: "Show a contact form on screen.",
+  schema: z.object({}),
+  execute: async () => ({ shown: true }),
+});
+
+const fillField = tool({
+  name: "fillField",
+  description: "Auto-fill a form field with a value extracted from the conversation.",
+  schema: z.object({
+    field: z.enum(["name", "email", "phone"]),
+    value: z.string(),
+  }),
+  execute: async ({ field, value }) => ({ field, value }),
+});
+
+const confirmBooking = tool({
+  name: "confirmBooking",
+  description: "Confirm the booking.",
+  schema: z.object({ date: z.string(), time: z.string(), clientName: z.string() }),
+  execute: async ({ date, time, clientName }) => ({
+    confirmationId: "BK-" + Math.random().toString(36).slice(2, 8),
+  }),
+});
+
 const agent = pc.deploy("booking-demo", {
   prompt: `You are a booking assistant.
 - Call getAvailableSlots when the user wants to book.
@@ -175,52 +213,11 @@ const agent = pc.deploy("booking-demo", {
 - When the form is submitted, call confirmBooking.`,
   model: "gpt-4.1-mini",
   voice: "elevenlabs:abc",
-  tools: [
-    { type: "function", function: { name: "getAvailableSlots", description: "...", parameters: {...} } },
-    { type: "function", function: { name: "showContactForm", description: "...", parameters: {...} } },
-    {
-      type: "function",
-      function: {
-        name: "fillField",
-        description: "Auto-fill a form field with a value extracted from the conversation.",
-        parameters: {
-          type: "object",
-          properties: {
-            field: { type: "string", enum: ["name", "email", "phone"] },
-            value: { type: "string" },
-          },
-          required: ["field", "value"],
-        },
-      },
-    },
-    { type: "function", function: { name: "confirmBooking", description: "...", parameters: {...} } },
-  ],
+  tools: [getAvailableSlots, showContactForm, fillField, confirmBooking],
   channels: ["webrtc"],
 });
 
-agent.on("llm.tool_call", async (data, call) => {
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    let result;
-    switch (tc.name) {
-      case "getAvailableSlots":
-        result = { slots: ["9:00 AM", "10:00 AM", "2:00 PM", "4:00 PM"] };
-        break;
-      case "showContactForm":
-        result = { shown: true };
-        break;
-      case "fillField":
-        result = { field: args.field, value: args.value };
-        break;
-      case "confirmBooking":
-        result = { confirmationId: "BK-" + Math.random().toString(36).slice(2, 8) };
-        break;
-    }
-    results.push({ toolCallId: tc.id, result });
-  }
-  call.toolResult(data.msgId, results);
-});
+agent.on("call.started", (call) => call.say("Hi! Want to book an appointment?"));
 ```
 
 ### Browser — contact form with auto-fill
@@ -325,6 +322,65 @@ export default function App() {
 }
 ```
 
+## Alternative: `tools` prop (render functions)
+
+If you don't need the flexibility of `trackedTools` + `useVoice()`, use the `tools` prop for a simpler inline approach. Each tool name maps to a render function that receives the result:
+
+```tsx
+<VoiceWidget
+  agent="booking-demo"
+  tools={{
+    getAvailableSlots: (result, { respond, dismiss }) => (
+      <div className="slot-picker">
+        {result.slots.map((slot: string) => (
+          <button
+            key={slot}
+            onClick={() => {
+              respond(`I'd like the ${slot} slot`);
+              dismiss();
+            }}
+          >
+            {slot}
+          </button>
+        ))}
+      </div>
+    ),
+    confirmBooking: (result, { dismiss }) => (
+      <div className="confirmation">
+        <p>✅ Booked for {result.time}</p>
+        <button onClick={dismiss}>Done</button>
+      </div>
+    ),
+  }}
+/>
+```
+
+### Render function signature
+
+```typescript
+type ToolRenderer = (
+  result: any,               // parsed tool result
+  context: ToolRenderContext, // { respond, dismiss }
+  toolCall: ToolUI,           // full tool call metadata
+) => React.ReactNode;
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `result` | `any` | The parsed JSON result from your backend tool |
+| `context.respond` | `(text: string) => void` | Inject text as if the user spoke it |
+| `context.dismiss` | `() => void` | Remove the tool UI from the transcript |
+| `toolCall` | `ToolUI` | Full tool call metadata (name, arguments, ID) |
+
+### `tools` vs `trackedTools` — when to use which
+
+| Scenario | Use |
+|---|---|
+| Simple inline renderers | `tools` prop |
+| Complex components needing React state | `trackedTools` + `useVoice()` |
+| Multiple components sharing tool state | `trackedTools` + `useVoice()` |
+| Context injection via `setContext` | `trackedTools` + `useVoice()` |
+
 ## Why this pattern is powerful
 
 What this enables is multimodal interaction:
@@ -338,6 +394,6 @@ The agent doesn't need different code paths for "voice user" vs "GUI user" — i
 
 ## What's next
 
-- [Props reference](/voice-widget/props) — `trackedTools` and friends
+- [Props reference](/voice-widget/props) — `tools`, `trackedTools`, `channels`, `chat`, and more
 - [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — for non-tool custom UIs
 - [Tools and functions guide](/guides/tools-and-functions) — server-side tool definition

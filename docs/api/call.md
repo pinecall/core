@@ -66,18 +66,14 @@ See [`ReplyStream`](/api/reply-stream) for details.
 
 ### `toolResult(msgId, results)`
 
-Respond to a server-side LLM tool call. Always called from within an `llm.tool_call` handler.
+Send tool results back to the server-side LLM. When using `tool()`, the SDK calls this automatically — you don't need to call it yourself.
 
 ```typescript
-agent.on("llm.tool_call", async (data, call) => {
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    const result = await myToolHandler(tc.name, args);
-    results.push({ toolCallId: tc.id, result });
-  }
-  call.toolResult(data.msgId, results);
-});
+// Auto-called by tool() — you rarely need this directly.
+// Only use for advanced cases where you bypass tool() auto-execution.
+call.toolResult(msgId, [
+  { toolCallId: "tc_abc", result: { status: "shipped" } },
+]);
 ```
 
 ### `cancel(msgId?)`
@@ -262,13 +258,18 @@ agent.on("call.ended", async (call, reason) => {
 ### Transfer when escalation requested
 
 ```typescript
-agent.on("llm.tool_call", async (data, call) => {
-  for (const tc of data.toolCalls) {
-    if (tc.name === "transferToHuman") {
-      call.say("Connecting you now.");
-      call.forward("+15558675309");
-    }
-  }
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const transferToHuman = tool({
+  name: "transferToHuman",
+  description: "Escalate to a human agent.",
+  schema: z.object({}),
+  execute: async (_, call) => {
+    call.say("Connecting you now.");
+    call.forward("+15558675309");
+    return { transferred: true };
+  },
 });
 ```
 

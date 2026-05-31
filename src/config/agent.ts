@@ -5,6 +5,7 @@
  */
 
 import type { SessionConfig } from "./session.js";
+import type { Tool } from "../tool.js";
 
 // ─── Shortcut types ──────────────────────────────────────────────────────
 
@@ -26,8 +27,8 @@ export interface AgentConfig {
     interruption?: InterruptionShortcut;
     /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
     llm?: string | Record<string, unknown>;
-    /** OpenAI-format tool definitions for server-side LLM. */
-    tools?: Array<Record<string, unknown>>;
+    /** Declarative tool definitions created with `tool()`. Auto-executed on llm.tool_call. */
+    tools?: Tool[];
     config?: SessionConfig;
     /** Persist conversations to MongoDB on the voice server. */
     historySave?: boolean;
@@ -66,6 +67,12 @@ export interface WhatsAppChannelConfig extends ChannelConfig {
     verifyToken?: string;
     /** Meta App Secret for HMAC signature verification (recommended). */
     appSecret?: string;
+    /**
+     * Actual WhatsApp phone number in E.164 format (e.g. "+51987654321").
+     * Used by the widget to auto-generate wa.me links.
+     * Optional — if not set, the WhatsApp option won't appear in the ContactHub popover.
+     */
+    phone?: string;
 }
 
 // ─── Deploy config ───────────────────────────────────────────────────────

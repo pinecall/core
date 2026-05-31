@@ -268,7 +268,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
      */
     deploy(id: string, config: DeployConfig = {}): Agent {
         // Extract deploy-specific fields from agent config
-        const { channels, model, prompt, tools, ...agentConfig } = config;
+        const { channels, model, prompt, ...agentConfig } = config;
 
         // Build LLM config from model field
         if (model) {
@@ -289,8 +289,6 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             };
         }
 
-        // Pass through tools
-        if (tools) (agentConfig as any).tools = tools;
 
         const agent = this.agent(id, agentConfig);
 
@@ -423,6 +421,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             client: {
                 _emitWire: (event, ...args) => (this as any).emit(event, ...args),
                 _getAgent: (id) => this.#agents.get(id),
+                _allAgents: () => [...this.#agents.values()],
             },
         };
 
@@ -476,5 +475,10 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     /** @internal Get an agent by ID. */
     _getAgent(id: string): Agent | undefined {
         return this.#agents.get(id);
+    }
+
+    /** @internal Get all registered agents. Used by ToolHandler when agent_id is missing. */
+    _allAgents(): Agent[] {
+        return [...this.#agents.values()];
     }
 }

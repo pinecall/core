@@ -14,26 +14,25 @@ When you build a Pinecall agent, you choose where the LLM runs. This is the sing
 The Pinecall server runs the LLM. You give it a prompt, a model, and (optionally) tool definitions. The server handles STT, runs the LLM, generates TTS — you only handle tool calls.
 
 ```typescript
-const agent = pc.agent("receptionist", {
-  voice: "elevenlabs:abc",
-  language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a helpful receptionist. Be concise.",
-  },
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupCustomer = tool({
+  name: "lookupCustomer",
+  description: "Look up a customer by phone",
+  schema: z.object({ phone: z.string() }),
+  execute: async ({ phone }) => await db.customers.findOne({ phone }),
 });
 
-agent.on("llm.tool_call", async (data, call) => {
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    const result = await myToolHandler(tc.name, args);
-    results.push({ toolCallId: tc.id, result });
-  }
-  call.toolResult(data.msgId, results);
+const agent = pc.deploy("receptionist", {
+  prompt: "You are a helpful receptionist. Be concise.",
+  model: "gpt-4.1-mini",
+  voice: "elevenlabs:abc",
+  language: "en",
+  tools: [lookupCustomer],
 });
+
+agent.on("call.started", (call) => call.say("Hello, how can I help?"));
 ```
 
 ### Client-side LLM (bring your own)

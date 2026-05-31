@@ -108,26 +108,24 @@ Standard OpenAI parameters:
 
 ## Tools
 
-Tool definitions use the OpenAI function-calling format regardless of provider:
+Define tools with `tool()` and Zod schemas. The SDK auto-converts them to the OpenAI function-calling wire format and auto-executes them:
 
 ```typescript
-tools: [
-  {
-    type: "function",
-    function: {
-      name: "lookupOrder",
-      description: "Look up an order by ID",
-      parameters: {
-        type: "object",
-        properties: { orderId: { type: "string" } },
-        required: ["orderId"],
-      },
-    },
-  },
-],
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => await db.orders.findOne(orderId),
+});
+
+// Pass to agent config
+tools: [lookupOrder],
 ```
 
-See [Tools and Functions](/guides/tools-and-functions) for handling the calls.
+See [Tools and Functions](/guides/tools-and-functions) for the full pattern.
 
 ## Hot-reloading the LLM
 

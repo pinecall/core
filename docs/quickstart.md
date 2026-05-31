@@ -119,43 +119,32 @@ Now the same agent serves browser **and** phone calls. The events are identical 
 
 ## Add a tool
 
-Tools are just local functions:
+Tools are local functions with Zod schemas — auto-executed by the SDK:
 
 ```typescript
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => await db.orders.findOne(orderId),
+});
+
 const mara = pc.deploy("mara", {
   prompt: "You are Mara. Look up orders when asked.",
   model: "gpt-4.1-mini",
   voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
   language: "en",
   channels: ["webrtc"],
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "lookupOrder",
-        description: "Look up an order by ID",
-        parameters: {
-          type: "object",
-          properties: { orderId: { type: "string" } },
-          required: ["orderId"],
-        },
-      },
-    },
-  ],
+  tools: [lookupOrder],
 });
 
-mara.on("llm.tool_call", async (data, call) => {
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    const order = await db.orders.findOne(args.orderId); // your DB
-    results.push({ toolCallId: tc.id, result: order });
-  }
-  call.toolResult(data.msgId, results);
-});
+mara.on("call.started", (call) => call.say("Hello! How can I help?"));
 ```
 
-No webhook URL to expose. No public endpoint. Just a function that runs in your process.
+No webhook URL to expose. No manual event handler. Just a function that runs in your process.
 
 ## Where to go next
 

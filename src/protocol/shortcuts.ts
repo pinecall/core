@@ -26,7 +26,10 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     if (opts.interruption !== undefined) payload.interruption = opts.interruption;
     if (opts.llm !== undefined) payload.llm = opts.llm;
     if ((opts as any).prompt !== undefined) payload.prompt = (opts as any).prompt;
-    if ((opts as any).tools !== undefined) payload.tools = (opts as any).tools;
+    if ((opts as any).tools !== undefined) {
+        const tools = (opts as any).tools as any[];
+        payload.tools = tools.map((t: any) => t._toWire ? t._toWire() : t);
+    }
     if ((opts as any).sessionLimits !== undefined) payload.session_limits = (opts as any).sessionLimits;
     else if ((opts as any).session_limits !== undefined) payload.session_limits = (opts as any).session_limits;
     if (opts.config !== undefined) payload.config = opts.config;

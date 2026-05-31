@@ -16,6 +16,7 @@ import { createAgentStream } from "../sse/stream.js";
 import type { ServerResponse } from "node:http";
 import type { Turn } from "./turn.js";
 import type { AgentConfig, ChannelConfig, WhatsAppChannelConfig } from "../config/agent.js";
+import type { Tool } from "../tool.js";
 import type { TokenResponse } from "../api/tokens.js";
 import type {
     CallStartedEvent,
@@ -101,6 +102,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** Human-readable display name. Defaults to id. */
     name: string;
     #config: AgentConfig;
+    #tools: Tool[] = [];
     #calls = new Map<string, Call>();
     #sendRaw: (data: Record<string, unknown>) => void;
     #serverReady = false;
@@ -122,6 +124,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
         this.id = id;
         this.name = id;
         this.#config = config;
+        this.#tools = config.tools ?? [];
         this.#sendRaw = send;
     }
 
@@ -190,6 +193,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 accessToken: waConfig.accessToken,
                 ...(waConfig.verifyToken ? { verifyToken: waConfig.verifyToken } : {}),
                 ...(waConfig.appSecret ? { appSecret: waConfig.appSecret } : {}),
+                ...(waConfig.phone ? { phone: waConfig.phone } : {}),
                 ...buildShortcutPayload(waConfig),
             };
             this._send(msg);
@@ -368,6 +372,11 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** @internal Get channels map (for PHONE_IN_USE handling). */
     _getChannels(): Map<string, { type: string; ref?: string; config?: ChannelConfig }> {
         return this.#channels;
+    }
+
+    /** @internal Get executable Tool objects for auto-dispatch. */
+    _getTools(): Tool[] {
+        return this.#tools;
     }
 
     /** @internal Mark agent as server-ready and flush buffered messages. */

@@ -15,11 +15,19 @@ A complete, production-ready voice agent in a single file. No web server, no fro
 
 ```typescript
 // julia.js — run with `node julia.js`
-import { Pinecall } from "@pinecall/sdk";
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
 import { promises as fs } from "node:fs";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 await pc.connect();
+
+const openDoor = tool({
+  name: "openDoor",
+  description: "Abrir la puerta de la calle.",
+  schema: z.object({}),
+  execute: async () => ({ opened: true, at: new Date().toISOString() }),
+});
 
 const julia = pc.deploy("julia", {
   voice: "elevenlabs:JBFqnCBsd6RMkjVDRZzb",
@@ -30,34 +38,12 @@ Identifica visitantes. Si es un reparto, abre la puerta con openDoor.
 Si vienen a visitar a alguien, pregunta a quién y qué unidad.
 Sé breve, amable y profesional.`,
   channels: ["+13186330963"],
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "openDoor",
-        description: "Abrir la puerta de la calle.",
-        parameters: { type: "object", properties: {} },
-      },
-    },
-  ],
+  tools: [openDoor],
 });
 
 // Greeting — spoken by the SDK, NOT the server
 julia.on("call.started", (call) => {
   call.say("Hola, soy Julia, la conserje del edificio. ¿En qué puedo ayudarte?");
-});
-
-// Tool handler
-julia.on("llm.tool_call", async (data, call) => {
-  const results = await Promise.all(
-    data.toolCalls.map(async (tc) => ({
-      toolCallId: tc.id,
-      result: tc.name === "openDoor"
-        ? { opened: true, at: new Date().toISOString() }
-        : { error: `unknown: ${tc.name}` },
-    }))
-  );
-  call.toolResult(data.msgId, results);
 });
 
 // Log every call to disk
@@ -78,30 +64,28 @@ console.log("Julia is live. Ctrl+C to stop.");
 PINECALL_API_KEY=pk_... node julia.js
 ```
 
-That's it. No web server, no token endpoint, no frontend. The agent answers calls to `+13186330963`, runs in Spanish, and logs every call to `calls.jsonl`.
+That's it. No web server, no token endpoint, no frontend. The agent answers calls to `+13186330963`, runs in Spanish, and logs every call to `calls.jsonl`. When the LLM calls `openDoor`, the SDK validates the args with Zod and runs the execute function automatically.
 
 ## Adding more tools
 
-Add tools the same way — define them in the `tools` array, handle them in `llm.tool_call`. For multiple tools, use an object map:
+Just define more `tool()` objects and include them in the array:
 
 ```typescript
-const handlers = {
-  openDoor: async () => ({ opened: true }),
-  callResident: async ({ unit }) => {
+const callResident = tool({
+  name: "callResident",
+  description: "Llamar al residente de una unidad.",
+  schema: z.object({
+    unit: z.string().describe("Número de unidad, ej: 4B"),
+  }),
+  execute: async ({ unit }) => {
     // your logic — call the resident's phone, etc.
     return { called: true, unit };
   },
-};
+});
 
-julia.on("llm.tool_call", async (data, call) => {
-  const results = await Promise.all(
-    data.toolCalls.map(async (tc) => ({
-      toolCallId: tc.id,
-      result: await handlers[tc.name]?.(JSON.parse(tc.arguments))
-        ?? { error: `unknown: ${tc.name}` },
-    }))
-  );
-  call.toolResult(data.msgId, results);
+const julia = pc.deploy("julia", {
+  // ...same config
+  tools: [openDoor, callResident],
 });
 ```
 

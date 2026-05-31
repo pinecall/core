@@ -56,119 +56,61 @@ agent.on("call.started", (call) => {
 
 For outbound calls, set `greeting` in `agent.dial()` instead — the server speaks it as soon as the callee picks up. See [Outbound Calls](/guides/outbound-calls).
 
-## Handling tool calls
+## Adding tools
 
-If your agent has tools, handle them via the `llm.tool_call` event:
+Define tools with `tool()` and Zod schemas. The SDK auto-executes them when the LLM calls them:
 
 ```typescript
-const agent = pc.agent("receptionist", {
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
-  language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a receptionist. Look up orders when asked.",
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }) => {
+    const order = await db.orders.findOne(orderId);
+    return order ?? { error: "not_found" };
   },
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "lookupOrder",
-        description: "Look up an order by ID",
-        parameters: {
-          type: "object",
-          properties: { orderId: { type: "string" } },
-          required: ["orderId"],
-        },
-      },
-    },
-  ],
 });
 
-agent.on("llm.tool_call", async (data, call) => {
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    if (tc.name === "lookupOrder") {
-      const order = await db.orders.findOne(args.orderId);
-      results.push({ toolCallId: tc.id, result: order ?? { error: "not_found" } });
-    }
-  }
-  call.toolResult(data.msgId, results);
+const transferToHuman = tool({
+  name: "transferToHuman",
+  description: "Escalate to a human specialist.",
+  schema: z.object({}),
+  execute: async (_, call) => {
+    call.say("One moment, connecting you to a specialist.");
+    call.forward("+15558675309");
+    return { transferred: true };
+  },
 });
+
+const endCall = tool({
+  name: "endCall",
+  description: "End the call when the customer says goodbye.",
+  schema: z.object({}),
+  execute: async (_, call) => {
+    call.say("Have a great day. Goodbye!");
+    call.once("bot.finished", () => call.hangup());
+    return { ended: true };
+  },
+});
+
+const agent = pc.deploy("receptionist", {
+  prompt: "You are a receptionist. Look up orders when asked.",
+  model: "gpt-4.1-mini",
+  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  language: "en",
+  channels: ["+13186330963"],
+  tools: [lookupOrder, transferToHuman, endCall],
+});
+
+agent.on("call.started", (call) => call.say("Thanks for calling. How can I help?"));
 ```
 
 See [Tools and Functions](/guides/tools-and-functions) for the full pattern.
 
-## Personalizing the conversation per caller
-
-Load CRM data on `call.started` and inject it via prompt variables:
-
-```typescript
-const agent = pc.agent("support", {
-  voice: "elevenlabs:abc",
-  language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: `You are a support agent at {{company}}.
-Customer: {{name}} ({{tier}} tier).
-Account age: {{account_age}} years.`,
-  },
-});
-
-agent.on("call.started", async (call) => {
-  const customer = await crm.findByPhone(call.from);
-  if (customer) {
-    await call.setPromptVars({
-      company: "Acme",
-      name: customer.name,
-      tier: customer.tier,
-      account_age: String(customer.years),
-    });
-    call.say(`Hi ${customer.name}! How can I help today?`);
-  } else {
-    call.say("Hi! Thanks for calling Acme. Can I have your account number?");
-  }
-});
-```
-
-## Transferring the call
-
-When the agent decides to escalate, forward to another number:
-
-```typescript
-agent.on("llm.tool_call", async (data, call) => {
-  for (const tc of data.toolCalls) {
-    if (tc.name === "transferToHuman") {
-      call.say("One moment, connecting you to a specialist.");
-      call.forward("+15558675309");
-      return;
-    }
-  }
-});
-```
-
-## Ending the call
-
-The agent can hang up explicitly:
-
-```typescript
-agent.on("llm.tool_call", async (data, call) => {
-  for (const tc of data.toolCalls) {
-    if (tc.name === "endCall") {
-      call.say("Have a great day. Goodbye!");
-      // Wait for the goodbye to finish playing
-      call.once("bot.finished", () => call.hangup());
-      return;
-    }
-  }
-});
-```
-
-Calls also end automatically:
+## Automatic call endings
 
 - When the user hangs up — emits `call.ended` with reason `hangup`
 - After `max_duration_seconds` (default: 10 minutes) — reason `max_duration`

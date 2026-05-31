@@ -1,11 +1,12 @@
 /**
  * Pinecall Agent — boots on Vite dev server start.
  *
- * pc.deploy() + tool handlers. Tool results flow to the
- * browser via WebRTC DataChannel automatically.
+ * Uses tool() for declarative tool definitions with auto-execution.
+ * Tool results flow to the browser via WebRTC DataChannel automatically.
  */
 
-import { Pinecall } from "@pinecall/sdk";
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
 
 // ── Fake slots ──────────────────────────────────────────────────────
 
@@ -24,88 +25,77 @@ function getFakeSlots(date) {
 
 // ── Tool definitions ────────────────────────────────────────────────
 
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "getAvailableSlots",
-      description:
-        "Get available appointment slots for a date. Call when user wants to book.",
-      parameters: {
-        type: "object",
-        properties: {
-          date: { type: "string", description: "YYYY-MM-DD" },
-          service: { type: "string", description: "e.g. haircut, facial" },
-        },
-        required: ["date"],
-      },
-    },
+const getAvailableSlots = tool({
+  name: "getAvailableSlots",
+  description: "Get available appointment slots for a date. Call when user wants to book.",
+  schema: z.object({
+    date: z.string().describe("YYYY-MM-DD"),
+    service: z.string().optional().describe("e.g. haircut, facial"),
+  }),
+  execute: async ({ date, service }) => {
+    const d = date || new Date().toISOString().split("T")[0];
+    const slots = getFakeSlots(d);
+    console.log(`  📅 ${d} → ${slots.length} slots`);
+    return { date: d, service: service || "appointment", slots };
   },
-  {
-    type: "function",
-    function: {
-      name: "showContactForm",
-      description:
-        "Show a contact form on the user's screen to collect their details (name, email, phone). Call this AFTER the user picks a time slot. You can prefill fields if you already know them.",
-      parameters: {
-        type: "object",
-        properties: {
-          prefill: {
-            type: "object",
-            description: "Optional pre-filled values",
-            properties: {
-              name: { type: "string" },
-              email: { type: "string" },
-              phone: { type: "string" },
-            },
-          },
-        },
-      },
-    },
+});
+
+const showContactForm = tool({
+  name: "showContactForm",
+  description: "Show a contact form on the user's screen to collect their details (name, email, phone). Call this AFTER the user picks a time slot. You can prefill fields if you already know them.",
+  schema: z.object({
+    prefill: z.object({
+      name: z.string().optional(),
+      email: z.string().optional(),
+      phone: z.string().optional(),
+    }).optional().describe("Optional pre-filled values"),
+  }),
+  execute: async ({ prefill }) => {
+    console.log(`  📋 Contact form shown`);
+    return { fields: ["name", "email", "phone"], prefill: prefill || {} };
   },
-  {
-    type: "function",
-    function: {
-      name: "fillField",
-      description:
-        "Auto-fill a specific field in the contact form on screen. Use this when the user tells you a value verbally (e.g. 'my name is John').",
-      parameters: {
-        type: "object",
-        properties: {
-          field: { type: "string", enum: ["name", "email", "phone"], description: "Which form field to fill" },
-          value: { type: "string", description: "The value to put in the field" },
-        },
-        required: ["field", "value"],
-      },
-    },
+});
+
+const fillField = tool({
+  name: "fillField",
+  description: "Auto-fill a specific field in the contact form on screen. Use this when the user tells you a value verbally (e.g. 'my name is John').",
+  schema: z.object({
+    field: z.enum(["name", "email", "phone"]).describe("Which form field to fill"),
+    value: z.string().describe("The value to put in the field"),
+  }),
+  execute: async ({ field, value }) => {
+    console.log(`  ✏️  Auto-fill: ${field} = "${value}"`);
+    return { field, value };
   },
-  {
-    type: "function",
-    function: {
-      name: "submitForm",
-      description:
-        "Submit the contact form on the user's screen. Call when the user says submit, confirm, done, or similar. The form will be submitted with whatever values are currently filled.",
-      parameters: { type: "object", properties: {} },
-    },
+});
+
+const submitForm = tool({
+  name: "submitForm",
+  description: "Submit the contact form on the user's screen. Call when the user says submit, confirm, done, or similar.",
+  schema: z.object({}),
+  execute: async () => {
+    console.log(`  📨 Form submitted by voice command`);
+    return { submitted: true };
   },
-  {
-    type: "function",
-    function: {
-      name: "confirmBooking",
-      description: "Confirm a booking. Only call after the contact form has been submitted.",
-      parameters: {
-        type: "object",
-        properties: {
-          date: { type: "string" },
-          time: { type: "string" },
-          service: { type: "string" },
-          clientName: { type: "string" },
-        },
-        required: ["date", "time", "service", "clientName"],
-      },
-    },
+});
+
+const confirmBooking = tool({
+  name: "confirmBooking",
+  description: "Confirm a booking. Only call after the contact form has been submitted.",
+  schema: z.object({
+    date: z.string(),
+    time: z.string(),
+    service: z.string(),
+    clientName: z.string(),
+  }),
+  execute: async ({ date, time, service, clientName }) => {
+    const confirmationId = `BK-${Date.now().toString(36).toUpperCase()}`;
+    console.log(`  ✅ Booked: ${clientName} @ ${time}`);
+    return { confirmed: true, date, time, service, clientName, confirmationId };
   },
-];
+});
+
+const tools = [getAvailableSlots, showContactForm, fillField, submitForm, confirmBooking];
 
 // ── Start ───────────────────────────────────────────────────────────
 
@@ -157,48 +147,6 @@ VOICE: No markdown, no emojis, no bullets. Short responses (1-2 sentences).`,
 
   agent.on("call.ended", (call, reason) => {
     console.log(`📴 Call ended: ${call.id} — ${reason}`);
-  });
-
-  agent.on("llm.tool_call", async (data, call) => {
-    const results = [];
-
-    for (const tc of data.toolCalls) {
-      let result;
-      try {
-        const args = JSON.parse(tc.arguments || "{}");
-        switch (tc.name) {
-          case "getAvailableSlots": {
-            const date = args.date || new Date().toISOString().split("T")[0];
-            result = { date, service: args.service || "appointment", slots: getFakeSlots(date) };
-            console.log(`  📅 ${date} → ${result.slots.length} slots`);
-            break;
-          }
-          case "showContactForm":
-            result = { fields: ["name", "email", "phone"], prefill: args.prefill || {} };
-            console.log(`  📋 Contact form shown`);
-            break;
-          case "fillField":
-            result = { field: args.field, value: args.value };
-            console.log(`  ✏️  Auto-fill: ${args.field} = "${args.value}"`);
-            break;
-          case "submitForm":
-            result = { submitted: true };
-            console.log(`  📨 Form submitted by voice command`);
-            break;
-          case "confirmBooking":
-            result = { confirmed: true, ...args, confirmationId: `BK-${Date.now().toString(36).toUpperCase()}` };
-            console.log(`  ✅ Booked: ${args.clientName} @ ${args.time}`);
-            break;
-          default:
-            result = { error: `Unknown tool: ${tc.name}` };
-        }
-      } catch (err) {
-        result = { error: err.message };
-      }
-      results.push({ toolCallId: tc.id, result });
-    }
-
-    call.toolResult(data.msgId, results);
   });
 
   console.log("  🎙  Agent 'booking-demo' ready (WebRTC)");

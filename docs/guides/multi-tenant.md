@@ -122,24 +122,25 @@ app.get("/api/token", authMiddleware, async (req, res) => {
 
 ## Per-tenant tool isolation
 
-Tools also need to be tenant-aware. The cleanest way is to look up the tenant from the agent ID:
+Tools also need to be tenant-aware. Since `execute` receives the `call` object, you can look up the tenant from the agent ID:
 
 ```typescript
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
 function tenantForAgent(agentId) {
   return agentToTenant.get(agentId);
 }
 
-agent.on("llm.tool_call", async (data, call) => {
-  const tenantId = tenantForAgent(call.agentId);
-  const tenantDb = db.scope(tenantId); // your tenant-scoped DB connection
-
-  const results = [];
-  for (const tc of data.toolCalls) {
-    const args = JSON.parse(tc.arguments);
-    const result = await handleTool(tc.name, args, tenantDb);
-    results.push({ toolCallId: tc.id, result });
-  }
-  call.toolResult(data.msgId, results);
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID",
+  schema: z.object({ orderId: z.string() }),
+  execute: async ({ orderId }, call) => {
+    const tenantId = tenantForAgent(call.agentId);
+    const tenantDb = db.scope(tenantId);
+    return await tenantDb.orders.findOne(orderId);
+  },
 });
 ```
 

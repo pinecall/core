@@ -1,173 +1,210 @@
 ---
 title: "Example: Browser Widget"
-description: "Complete Next.js app with backend agent, token endpoint, and React VoiceWidget."
+description: "Express backend + React frontend with VoiceWidget. Click the orb, talk."
 ---
 
 # Example: Browser Widget
 
-A complete Next.js (App Router) example: backend agent, token endpoint, and React widget. Users land on the page, click the orb, and have a voice conversation with your agent — no phone number needed.
-
-## Project structure
-
-```
-my-app/
-├── app/
-│   ├── api/token/route.ts    # mints WebRTC tokens
-│   ├── page.tsx              # renders the widget
-│   └── layout.tsx
-├── lib/pinecall.ts           # singleton Pinecall + agent
-└── package.json
-```
+An Express backend + React frontend. Users click the orb, talk to your agent — no phone number needed.
 
 ## Install
 
 ```bash
-npm install @pinecall/sdk @pinecall/voice-widget
+npm install @pinecall/sdk @pinecall/voice-widget express
 ```
 
-## 1. Define the agent (`lib/pinecall.ts`)
-
-Singleton pattern — one `Pinecall` instance per Next.js process, reused across requests.
+## Backend — `server.js`
 
 ```typescript
-// lib/pinecall.ts
+import express from "express";
 import { Pinecall } from "@pinecall/sdk";
 
-declare global {
-  var __pinecall: Pinecall | undefined;
-}
+const app = express();
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 
-async function init() {
-  const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-  await pc.connect();
+const mara = pc.deploy("mara", {
+  prompt: `You are Mara, a friendly voice assistant.
+Be brief — 1-2 sentences per response.`,
+  model: "gpt-4.1-mini",
+  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  language: "en",
+  channels: ["webrtc"],
+  allowedOrigins: ["http://localhost:*"],
+});
 
-  const mara = pc.deploy("mara", {
-    prompt: `You are Mara, a friendly assistant for our app.
-Help users navigate features, answer questions about pricing,
-and escalate to human support when needed.
-Be brief. Keep responses under 2 sentences when possible.`,
-    model: "gpt-4.1-mini",
-    voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
-    language: "en",
-    channels: ["webrtc"],
-  });
+mara.on("call.started", (call) => {
+  call.say("Hi! I'm Mara. How can I help?");
+});
 
-  mara.on("call.started", (call) => {
-    call.say("Hi! I'm Mara. How can I help?");
-  });
+mara.on("call.ended", (call, reason) => {
+  console.log(`Call ended: ${call.id} — ${reason} (${call.duration}s)`);
+});
 
-  return pc;
-}
+// Token endpoint — add your own auth in production
+app.get("/api/token", async (req, res) => {
+  const token = await mara.createToken("webrtc");
+  res.json(token);
+});
 
-// Reuse across hot-reloads in dev
-export const pc = globalThis.__pinecall ?? (await init());
-if (process.env.NODE_ENV !== "production") globalThis.__pinecall = pc;
+// SSE event stream
+app.get("/events", (req, res) => mara.stream(res));
+
+await pc.connect();
+app.listen(3000, () => console.log("http://localhost:3000"));
 ```
 
-## 2. Token endpoint (`app/api/token/route.ts`)
-
-Behind your auth. Replace the session check with your real auth (NextAuth, Clerk, custom).
-
-```typescript
-// app/api/token/route.ts
-import { pc } from "@/lib/pinecall";
-import { cookies } from "next/headers";
-
-export async function GET() {
-  const session = cookies().get("session")?.value;
-  if (!session) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  const token = await pc.createToken("webrtc", "mara");
-  return Response.json(token);
-}
-```
-
-## 3. The page (`app/page.tsx`)
+## Frontend — React
 
 ```tsx
-// app/page.tsx
-"use client";
-
 import { VoiceWidget } from "@pinecall/voice-widget";
 
-export default function HomePage() {
+function App() {
   return (
-    <main className="min-h-screen flex items-center justify-center">
-      <div className="max-w-md w-full p-8 bg-white rounded-2xl shadow-sm">
-        <h1 className="text-2xl font-semibold mb-2">Need help?</h1>
-        <p className="text-gray-600 mb-6">
-          Click the orb below to talk to Mara, our AI assistant.
-        </p>
-
-        <VoiceWidget
-          agent="mara"
-          tokenProvider={async () => {
-            const res = await fetch("/api/token", { credentials: "include" });
-            if (!res.ok) throw new Error("Could not get token");
-            return res.json();
-          }}
-        />
-      </div>
-    </main>
+    <div>
+      <h1>Talk to Mara</h1>
+      <VoiceWidget
+        agent="mara"
+        tokenProvider={async () => {
+          const res = await fetch("/api/token");
+          return res.json();
+        }}
+      />
+    </div>
   );
 }
 ```
 
-## 4. Run it
+That's it. The `VoiceWidget` renders the orb, handles mic permissions, WebRTC connection, and audio streaming.
+
+## With `allowedOrigins` (simpler)
+
+For demos, skip the token endpoint entirely. The `allowedOrigins` config lets the widget auto-fetch tokens:
+
+```tsx
+// No tokenProvider needed — widget auto-fetches via allowedOrigins
+<VoiceWidget agent="mara" />
+```
+
+This works because `allowedOrigins: ["http://localhost:*"]` in the backend allows token requests from matching browser origins. For production, use the `tokenProvider` pattern with real auth.
+
+## Rendering tools in the UI
+
+The `VoiceWidget` supports **interactive tool UI** — the agent calls tools on the backend, and the results appear as clickable components in the browser.
+
+### Backend — add a tool
+
+```typescript
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const getSlots = tool({
+  name: "getSlots",
+  description: "Get available time slots for a date.",
+  schema: z.object({ date: z.string() }),
+  execute: async ({ date }) => ({
+    slots: ["10:00", "11:30", "14:00", "16:00"],
+  }),
+});
+
+const mara = pc.deploy("mara", {
+  // ...config from above...
+  tools: [getSlots],
+});
+```
+
+### Frontend — render the tool result
+
+Pass `trackedTools` to tell the widget which results to capture. Use `useVoice()` inside a child component to render them:
+
+```tsx
+import { VoiceWidget, useVoice } from "@pinecall/voice-widget";
+
+function SlotPicker() {
+  const { toolCalls, sendText, dismissTool } = useVoice();
+
+  const slots = toolCalls.find(tc => tc.name === "getSlots" && tc.result);
+  if (!slots) return null;
+
+  return (
+    <div className="slot-picker">
+      <h3>Pick a time</h3>
+      {slots.result.slots.map((slot) => (
+        <button
+          key={slot}
+          onClick={() => {
+            sendText(`I'll take the ${slot} slot`);
+            dismissTool(slots.toolCallId);
+          }}
+        >
+          {slot}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <VoiceWidget
+      agent="mara"
+      trackedTools={["getSlots"]}
+      tokenProvider={async () => {
+        const res = await fetch("/api/token");
+        return res.json();
+      }}
+    >
+      <SlotPicker />
+    </VoiceWidget>
+  );
+}
+```
+
+### API reference
+
+| API | What it does |
+|-----|-------------|
+| `trackedTools={["getSlots"]}` | Captures results for these tool names |
+| `useVoice()` | Hook — returns `toolCalls`, `sendText`, `dismissTool`, `setContext` |
+| `toolCalls` | Array of `{ name, toolCallId, result }` — live tool state |
+| `sendText(text)` | Injects text as if the user spoke it (click → voice) |
+| `dismissTool(id)` | Removes a tool from state after interaction |
+| `setContext(key, value)` | Injects context into the LLM prompt in real time |
+
+### Context injection
+
+Sync UI state back to the agent's prompt so it knows what the user sees:
+
+```tsx
+const { setContext } = useVoice();
+
+useEffect(() => {
+  setContext("form_state", `Name: ${name}, Email: ${email}`);
+  return () => setContext("form_state", null);
+}, [name, email]);
+```
+
+The server appends this as a `## UI Context` section in the system prompt.
+
+> For a full working example with slot picker, contact form with auto-fill, and confirmation card, see the [`booking-tools` example](https://github.com/pinecall/sdk/tree/master/examples/booking-tools).
+
+## Run it
 
 ```bash
-PINECALL_API_KEY=pk_... npm run dev
+PINECALL_API_KEY=pk_... node server.js
 ```
 
 Open `http://localhost:3000`. Click the orb. Talk.
 
-## Adding tools
-
-Add tools to the agent and handle them server-side. The widget just renders — tools execute on your backend:
-
-```typescript
-// In lib/pinecall.ts, add to the deploy config:
-const mara = pc.deploy("mara", {
-  // ...existing config...
-  tools: [
-    {
-      type: "function",
-      function: {
-        name: "getPricing",
-        description: "Return the current pricing tiers.",
-        parameters: { type: "object", properties: {} },
-      },
-    },
-  ],
-});
-
-// Handle tools
-mara.on("llm.tool_call", async (data, call) => {
-  const results = await Promise.all(
-    data.toolCalls.map(async (tc) => ({
-      toolCallId: tc.id,
-      result: tc.name === "getPricing"
-        ? { free: "$0/mo", pro: "$29/mo", team: "$99/mo" }
-        : { error: `unknown: ${tc.name}` },
-    }))
-  );
-  call.toolResult(data.msgId, results);
-});
-```
-
-For **interactive tools** that render UI in the browser (slot pickers, forms), see the [Tools API guide](/voice-widget/tools-api).
-
 ## Production checklist
 
-- [ ] **Auth on the token endpoint** — never expose `pc.createToken()` without a session check
+- [ ] **Auth on `/api/token`** — add session/JWT check, never expose without auth
 - [ ] **Rate limit** — cap tokens per user per hour
-- [ ] **Error UI** — show fallback when `tokenProvider` rejects
+- [ ] **Remove `allowedOrigins`** — use `tokenProvider` with your auth instead
 - [ ] **Mic permission UX** — explain why you need mic access before the click
 
 ## What's next
 
-- [Security](/security) — production auth model
-- [Tools API](/voice-widget/tools-api) — interactive tool UI in the browser
-- [Headless agent example](/examples/headless-agent) — for backend-only agents
+- [Security](/security) — production token auth
+- [Tools API](/voice-widget/tools-api) — full interactive tool UI reference
+- [Headless agent example](/examples/headless-agent) — backend-only agents
+

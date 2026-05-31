@@ -162,7 +162,7 @@ agent.on("llm.tool_call", (data: {
 }, call: Call) => { });
 ```
 
-The server-side LLM is requesting one or more tool calls. Handle them and respond with `call.toolResult(data.msgId, results)`.
+The server-side LLM is requesting one or more tool calls. If you defined tools with `tool()`, the SDK auto-executes them and sends results via `call.toolResult()`. This event still fires — use it for logging, metrics, or UI updates.
 
 See [Tools and Functions](/guides/tools-and-functions).
 
