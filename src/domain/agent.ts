@@ -323,6 +323,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
                     if (settled) return;
                     settled = true;
                     cleanup();
+                    if (options.greeting) call.greeting = options.greeting;
                     resolve(call);
                 }
             };

@@ -105,6 +105,9 @@ export class Call extends TypedEventBus<CallEvents> {
     /** End reason (e.g. "hangup", "timeout"). Populated on call.ended. */
     reason: string = "";
 
+    /** Outbound greeting (set by dial). Used by streamSSE to send the first transcript entry. */
+    greeting: string | null = null;
+
     /** Active ReplyStreams — aborted automatically on turn.continued. */
     #activeStreams = new Set<ReplyStream>();
 
@@ -427,7 +430,7 @@ export class Call extends TypedEventBus<CallEvents> {
      * ```
      */
     streamSSE(res: SSEResponse, opts?: StreamSSEOptions): void {
-        const greeting = opts?.greeting;
+        const greeting = opts?.greeting ?? this.greeting;
 
         // ── SSE headers ──
         if (typeof res.writeHead === "function") {

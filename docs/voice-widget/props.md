@@ -161,29 +161,28 @@ When `callMeEndpoint` is set AND `channels` includes `phone`, a "Call Me" option
 The SDK provides `call.streamSSE(res)` — it handles SSE headers, word-by-word buffering, keepalive pings, and cleanup automatically. Your endpoint is just a few lines:
 
 ```javascript
-const GREETING = "Hi! You asked me to call you. How can I help?";
-
 app.use(express.json());
 
 app.post("/api/call-me", async (req, res) => {
   const { phone } = req.body;
 
-  // Validate (E.164 format)
   if (!phone || !/^\+\d{10,15}$/.test(phone)) {
     return res.status(400).json({ error: "Invalid phone number" });
   }
 
-  // Dial and stream — that's it
   try {
-    const call = await florencia.dial({ to: phone, greeting: GREETING });
-    call.streamSSE(res, { greeting: GREETING });
+    const call = await florencia.dial({
+      to: phone,
+      greeting: "Hi! You asked me to call you. How can I help?",
+    });
+    call.streamSSE(res);  // reads call.greeting automatically
   } catch (err) {
     res.status(500).json({ error: "Could not place the call" });
   }
 });
 ```
 
-> `from` is auto-resolved from the agent's phone channel. Pass it explicitly only if the agent has multiple phone numbers.
+> `from` is auto-resolved from the agent's phone channel. The `greeting` is stored on the call by `dial()` and read by `streamSSE()` automatically — no need to pass it twice.
 
 `call.streamSSE(res)` does the following automatically:
 

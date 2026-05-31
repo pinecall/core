@@ -86,7 +86,7 @@ When `callMeEndpoint` is set and phone channels exist, users can enter their pho
 ```javascript
 app.post("/api/call-me", async (req, res) => {
   const call = await agent.dial({ to: req.body.phone, greeting: "Hi!" });
-  call.streamSSE(res, { greeting: "Hi!" });
+  call.streamSSE(res);  // greeting is read from call.greeting automatically
 });
 ```
 
