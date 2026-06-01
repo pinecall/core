@@ -444,8 +444,9 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         this.emit("disconnected", reason);
         this.#logger.info(`Disconnected: ${reason}`);
 
-        // Auto-reconnect unless intentional close
-        if (!this.#intentionalClose && this.#autoReconnect) {
+        // Auto-reconnect unless intentional close or displacement
+        const displaced = reason.includes("Displaced") || reason.includes("displaced");
+        if (!this.#intentionalClose && this.#autoReconnect && !displaced) {
             this.#reconnect();
         }
     }

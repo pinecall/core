@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.7] — 2026-06-01
+
+### Fixed
+
+- Auto-reconnect no longer triggers on displacement (close code 4001). Prevents infinite reconnection loop when two instances of the same agent compete for the same slot.
+
+---
+
 ## [0.2.3] — 2026-05-25
 
 ### Fixed
