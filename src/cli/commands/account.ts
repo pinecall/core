@@ -156,16 +156,24 @@ async function showTwilio(config: CliConfig): Promise<void> {
         console.log(`  ${c.dim("Verified:")} ${status}  ${c.dim("Phones:")} ${imported} imported / ${total} on Twilio`);
 
         if (a.availablePhones?.length > 0) {
-            console.log("");
-            table(
-                ["Number", "Name", "Type", "Status"],
-                a.availablePhones.map((p: any) => [
-                    p.number,
-                    p.name || c.dim("—"),
-                    c.dim(p.type),
-                    p.imported ? c.green("imported") : c.yellow("available"),
-                ]),
-            );
+            const importedPhones = a.availablePhones.filter((p: any) => p.imported);
+            const availablePhones = a.availablePhones.filter((p: any) => !p.imported);
+
+            if (importedPhones.length > 0) {
+                console.log(`\n  ${c.green("●")} ${c.bold("Imported")}`);
+                table(
+                    ["Number", "Name", "Type"],
+                    importedPhones.map((p: any) => [p.number, p.name || c.dim("—"), c.dim(p.type)]),
+                );
+            }
+
+            if (availablePhones.length > 0) {
+                console.log(`\n  ${c.yellow("○")} ${c.bold("Available")} ${c.dim("(not imported)")}`);
+                table(
+                    ["Number", "Name", "Type"],
+                    availablePhones.map((p: any) => [p.number, p.name || c.dim("—"), c.dim(p.type)]),
+                );
+            }
         }
     }
 
