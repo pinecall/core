@@ -136,7 +136,7 @@ async function createKey(config: CliConfig, name: string): Promise<void> {
 }
 
 async function showTwilio(config: CliConfig): Promise<void> {
-    const data = await pg(config, "/twilio");
+    const data = await pg(config, "/twilio?available=true");
     if (config.json) {
         console.log(JSON.stringify(data, null, 2));
         return;
@@ -145,16 +145,30 @@ async function showTwilio(config: CliConfig): Promise<void> {
         info("No Twilio accounts linked.");
         return;
     }
-    console.log("");
-    table(
-        ["Name", "SID", "Phones", "Verified"],
-        data.accounts.map((a: any) => [
-            a.friendlyName || "—",
-            c.dim(a.accountSid),
-            String(a.phoneCount),
-            a.verified ? c.green("✓") : c.red("✗"),
-        ]),
-    );
+
+    for (const a of data.accounts) {
+        const imported = a.importedCount ?? a.phoneCount ?? 0;
+        const total = a.totalOnTwilio ?? "?";
+        const status = a.verified ? c.green("✓") : c.red("✗");
+
+        console.log("");
+        console.log(`  ${c.bold(a.friendlyName || "Unnamed")} ${c.dim(`(${a.accountSid})`)}`);
+        console.log(`  ${c.dim("Verified:")} ${status}  ${c.dim("Phones:")} ${imported} imported / ${total} on Twilio`);
+
+        if (a.availablePhones?.length > 0) {
+            console.log("");
+            table(
+                ["Number", "Name", "Type", "Status"],
+                a.availablePhones.map((p: any) => [
+                    p.number,
+                    p.name || c.dim("—"),
+                    c.dim(p.type),
+                    p.imported ? c.green("imported") : c.yellow("available"),
+                ]),
+            );
+        }
+    }
+
     info(`${c.bold(String(data.accounts.length))} Twilio account${data.accounts.length !== 1 ? "s" : ""}`);
 }
 
