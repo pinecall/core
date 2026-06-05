@@ -301,34 +301,58 @@ async function showSession(config: CliConfig): Promise<void> {
     console.log("");
 }
 
-// ── Main ────────────────────────────────────────────────────────────────
+// ── Help texts ──────────────────────────────────────────────────────────
 
 const ACCOUNT_HELP = `
-  ${c.bold("pinecall account")} — Manage your Pinecall organization
+  ${c.purple("⚡")} ${c.bold("pinecall account")} — Org overview
 
   ${c.bold("Subcommands:")}
-    ${c.dim("(none)")}               Show full account overview
+    ${c.dim("(none)")}               Full account overview
     keys                   List API keys
     keys create [name]     Create a new API key
-    twilio                 List Twilio accounts + available phones
     phones                 List imported phone numbers
-    usage                  Show usage + billing
+    usage                  Usage + billing
     session                Debug session resolution
+
+  ${c.bold("Related:")}
+    ${c.cyan("pinecall twilio")}      Twilio accounts + phone import status
 
   ${c.bold("Examples:")}
     ${c.dim("$")} pinecall account
     ${c.dim("$")} pinecall account keys
     ${c.dim("$")} pinecall account keys create "Production"
-    ${c.dim("$")} pinecall account twilio
     ${c.dim("$")} pinecall account usage --json
 `;
+
+const TWILIO_HELP = `
+  ${c.purple("⚡")} ${c.bold("pinecall twilio")} — Twilio account management
+
+  Shows linked Twilio accounts with live balance, and lists
+  all phone numbers with their import status.
+
+  ${c.green("● Imported")}   ${c.dim("Phone is active in Pinecall")}
+  ${c.yellow("○ Available")}  ${c.dim("Phone exists on Twilio but not imported")}
+
+  ${c.bold("Examples:")}
+    ${c.dim("$")} pinecall twilio
+    ${c.dim("$")} pinecall twilio --json
+`;
+
+const SUBCOMMAND_HELP: Record<string, string> = {
+    twilio: TWILIO_HELP,
+};
+
+// ── Main ────────────────────────────────────────────────────────────────
 
 export async function accountCommand(config: CliConfig, args: string[]): Promise<void> {
     const positional = args.filter((a) => !a.startsWith("-") && a !== "account");
     const sub = positional[0];
+    const wantsHelp = args.includes("--help") || args.includes("-h");
 
-    if (args.includes("--help") || args.includes("-h")) {
-        console.log(ACCOUNT_HELP);
+    // Per-subcommand help
+    if (wantsHelp) {
+        const helpText = (sub && SUBCOMMAND_HELP[sub]) || ACCOUNT_HELP;
+        console.log(helpText);
         return;
     }
 
@@ -362,3 +386,4 @@ export async function accountCommand(config: CliConfig, args: string[]): Promise
             error(`Unknown subcommand: ${sub}\n\n  Run ${c.dim("pinecall account --help")} for usage.`);
     }
 }
+
