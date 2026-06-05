@@ -268,7 +268,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
      */
     deploy(id: string, config: DeployConfig = {}): Agent {
         // Extract deploy-specific fields from agent config
-        const { channels, model, prompt, ...agentConfig } = config;
+        const { channels, model, prompt, greeting, ...agentConfig } = config;
 
         // Build LLM config from model field
         if (model) {
@@ -306,6 +306,25 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
                     agent.addChannel(ch.type as any, ch.ref, ch.config);
                 }
             }
+        }
+
+        // Auto-register greeting handler
+        if (greeting) {
+            agent.on("call.started", async (call) => {
+                let text: string;
+                let addToHistory = true;
+
+                if (typeof greeting === "function") {
+                    text = await greeting(call);
+                } else if (typeof greeting === "object") {
+                    text = greeting.text;
+                    addToHistory = greeting.addToHistory ?? true;
+                } else {
+                    text = greeting;
+                }
+
+                call.say(text, { addToHistory });
+            });
         }
 
         return agent;

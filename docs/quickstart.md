@@ -36,7 +36,7 @@ await pc.connect();
 const mara = pc.deploy("mara", {
   prompt: "You are Mara, a friendly voice assistant. Be concise.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],
 });
@@ -65,7 +65,24 @@ That's a running voice agent. It's connected to Pinecall's voice server, it has 
 
 ## 5. Talk to it
 
-Connect from the browser using the [`@pinecall/voice-widget`](https://github.com/pinecall/voice-widget):
+The fastest way to test your agent — chat from the terminal:
+
+```bash
+pinecall chat mara
+```
+
+```
+  ⚡ Connected to mara
+
+  you › What can you help me with?
+  mara › I can help with all sorts of things! What do you need?
+```
+
+This uses the same LLM, prompt, and tools as a voice call — just over text.
+
+### From the browser
+
+For voice, connect from the browser using the [`@pinecall/voice-widget`](https://github.com/pinecall/voice-widget):
 
 ```bash
 npm install @pinecall/voice-widget
@@ -135,7 +152,7 @@ const lookupOrder = tool({
 const mara = pc.deploy("mara", {
   prompt: "You are Mara. Look up orders when asked.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],
   tools: [lookupOrder],

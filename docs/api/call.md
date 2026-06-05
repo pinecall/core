@@ -32,13 +32,24 @@ call.reason      // "hangup" | "timeout" | ...
 
 ## Speech
 
-### `say(text)`
+### `say(text, opts?)`
 
 Speak text immediately. Standalone — no `in_reply_to` tracking. Use for greetings and proactive announcements.
 
 ```typescript
 call.say("Hello! How can I help?");
 ```
+
+Pass `{ addToHistory: true }` to inject the text into the server-side LLM conversation history as an assistant message. This way the model knows what was said and won't repeat it.
+
+```typescript
+agent.on("call.started", async (call) => {
+  const customer = await db.findByPhone(call.from);
+  call.say(`Hi ${customer.name}! How can I help?`, { addToHistory: true });
+});
+```
+
+> **Tip:** The `greeting` field in `deploy()` is syntactic sugar for `call.say(text, { addToHistory })` inside a `call.started` handler. Use `greeting` for convenience, or `call.say()` directly for full control.
 
 ### `reply(text)`
 
@@ -145,7 +156,7 @@ call.unmute();
 Change voice, STT, or language. Takes effect on the next LLM turn or TTS output.
 
 ```typescript
-call.configure({ voice: "elevenlabs:spanishVoiceId", language: "es" });
+call.configure({ voice: "elevenlabs/valentina", language: "es" });
 ```
 
 ### `setPrompt(text)`

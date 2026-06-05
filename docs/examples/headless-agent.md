@@ -30,7 +30,7 @@ const openDoor = tool({
 });
 
 const julia = pc.deploy("julia", {
-  voice: "elevenlabs:JBFqnCBsd6RMkjVDRZzb",
+  voice: "elevenlabs/george",
   language: "es",
   model: "gpt-4.1-mini",
   prompt: `Eres Julia, la conserje virtual del edificio Mar Azul.

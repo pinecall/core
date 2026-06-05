@@ -45,7 +45,7 @@ const scheduleCallback = tool({
 const agent = pc.deploy("support", {
   prompt: "You are a helpful support agent. Use tools to look up information.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],
   tools: [lookupOrder, scheduleCallback],

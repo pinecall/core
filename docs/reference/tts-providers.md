@@ -5,25 +5,51 @@ description: "Text-to-speech providers, voices, and tuning parameters."
 
 # TTS Providers
 
-Pinecall supports multiple TTS providers. Voices accept either a string shortcut (`provider:voice_id`) or a full config object.
+Pinecall supports multiple TTS providers. Use the `provider/friendly-id` format (always lowercase) to specify a voice:
 
-## Quick reference
+## Voice format
 
 ```typescript
-{ voice: "elevenlabs:JBFqnCBsd6RMkjVDRZzb" }
-{ voice: "cartesia:a0e99841-438c-4a64-b679-ae501e7d6091" }
-{ voice: "polly:Joanna" }
+// Recommended: friendly alias (always lowercase)
+{ voice: "elevenlabs/sarah" }
+{ voice: "cartesia/yumiko" }
+{ voice: "polly/lucia" }
+
+// Full config object (for tuning parameters)
+{ voice: { provider: "elevenlabs", voice_id: "...", speed: 1.1 } }
 ```
+
+> The legacy `provider:rawId` format (e.g. `"elevenlabs:EXAVITQu4vr4xnSDxMaL"`) still works but is not recommended.
 
 ## Discovering voices
 
-Use the [`fetchVoices`](/reference/rest-api) REST helper to list voices on your account:
+Use the CLI to browse voices. Without flags, you get a catalog overview:
+
+```bash
+# Overview — shows providers, voice counts, languages
+pinecall voices
+
+# List voices for a provider + language
+pinecall voices --provider=elevenlabs --language=es
+
+# Preview a voice (plays audio in your terminal)
+pinecall voices play elevenlabs/sarah
+```
+
+Every voice gets a friendly alias auto-generated from its name — use it directly in your config:
+
+```typescript
+{ voice: "elevenlabs/sarah" }    // → Sarah - Mature, Reassuring
+{ voice: "elevenlabs/agustin" }  // → Agustin - Conversational & Relaxed
+```
+
+Or use the [`fetchVoices`](/reference/rest-api) REST helper:
 
 ```typescript
 import { fetchVoices } from "@pinecall/sdk";
 
 const voices = await fetchVoices({ provider: "elevenlabs", language: "es" });
-voices.forEach((v) => console.log(`${v.name} → ${v.provider}:${v.id}`));
+voices.forEach((v) => console.log(`${v.name} → ${v.provider}/${v.alias ?? v.id}`));
 ```
 
 ## ElevenLabs
@@ -41,7 +67,7 @@ voice: {
 }
 ```
 
-Shortcut: `"elevenlabs:JBFqnCBsd6RMkjVDRZzb"`
+Shortcut: `"elevenlabs/sarah"`
 
 **Tuning notes:**
 
@@ -64,7 +90,7 @@ voice: {
 }
 ```
 
-Shortcut: `"cartesia:a0e99841-438c-4a64-b679-ae501e7d6091"`
+Shortcut: `"cartesia/yumiko"`
 
 **Tuning notes:**
 
@@ -82,7 +108,7 @@ voice: {
 }
 ```
 
-Shortcut: `"polly:Joanna"`
+Shortcut: `"polly/joanna"`
 
 **Tuning notes:**
 
@@ -105,14 +131,14 @@ Voice can change at any time:
 
 ```typescript
 // Agent-wide
-agent.configure({ voice: "cartesia:newVoice" });
+agent.configure({ voice: "cartesia/blake" });
 
 // One call only
-call.configure({ voice: "elevenlabs:differentVoice" });
+call.configure({ voice: "elevenlabs/daniel" });
 
 // Per-channel override
 agent.addChannel("phone", "+34911234567", {
-  voice: "elevenlabs:spanishVoiceId",
+  voice: "elevenlabs/valentina",
 });
 ```
 

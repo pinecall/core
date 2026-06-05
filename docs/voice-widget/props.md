@@ -264,7 +264,7 @@ const app = express();
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 
 const florencia = pc.agent("florencia", {
-  voice: "elevenlabs:5vkxOzoz40FrElmLP4P7",
+  voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram-flux",
   llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
@@ -420,7 +420,7 @@ Pass session-level overrides to the agent:
 <VoiceWidget
   agent="mara"
   config={{
-    voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+    voice: "elevenlabs/sarah",
     stt: { provider: "deepgram-flux" },
     language: "es",
   }}
@@ -460,14 +460,14 @@ Enables a language pill bar that appears on hover and stays visible during calls
     en: {
       label: "English",
       flag: "🇬🇧",
-      voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+      voice: "elevenlabs/sarah",
       stt: "deepgram-flux",
       language: "en",
     },
     es: {
       label: "Español",
       flag: "🇪🇸",
-      voice: "elevenlabs:h2cd3gvcqTp3m65Dysk7",
+      voice: "elevenlabs/george",
       stt: "deepgram-flux",
       language: "es",
     },

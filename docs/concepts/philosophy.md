@@ -31,7 +31,7 @@ const lookupOrder = tool({
 const agent = pc.deploy("support", {
   prompt: "You are a support agent for Acme Corp.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   channels: ["+15551234567"],
   tools: [lookupOrder],
 });
@@ -85,7 +85,7 @@ There is no dashboard to configure. Agent config lives in your source code, vers
 const agent = pc.deploy("mara", {
   prompt: fs.readFileSync("./prompts/mara.md", "utf-8"),
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "es",
   stt: { provider: "deepgram-flux", keyterms: ["Cointel", "portero"] },
   channels: ["webrtc", "+13186330963"],

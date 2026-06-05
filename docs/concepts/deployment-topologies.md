@@ -101,7 +101,7 @@ await pc.connect();
 const julia = pc.deploy("julia", {
   prompt: "You are Julia, the intercom concierge...",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "es",
   channels: ["+13186330963"],
   tools: [openDoor, identifyVisitor],

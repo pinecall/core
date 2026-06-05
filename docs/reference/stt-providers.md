@@ -10,12 +10,17 @@ Pinecall supports multiple STT providers. You can use a short string shortcut or
 ## Quick reference
 
 ```typescript
-// Shortcuts
-{ stt: "deepgram-flux" }
-{ stt: "deepgram" }
-{ stt: "deepgram:nova-3:fr" }   // provider:model:language
-{ stt: "gladia" }
-{ stt: "transcribe" }
+// Shortcuts — "provider/model" format (recommended)
+{ stt: "deepgram/flux-en" }       // Flux English
+{ stt: "deepgram/flux-multi" }    // Flux multilingual (10 languages)
+{ stt: "deepgram/nova-3" }        // Nova-3
+{ stt: "gladia/solaria" }         // Gladia Solaria
+{ stt: "transcribe" }             // AWS Transcribe
+
+// Bare provider (uses default model)
+{ stt: "deepgram-flux" }          // same as "deepgram/flux-en"
+{ stt: "deepgram" }               // same as "deepgram/nova-3"
+{ stt: "gladia" }                 // same as "gladia/solaria"
 ```
 
 ## Naming convention
@@ -36,7 +41,7 @@ stt: {
 }
 ```
 
-Shortcut: `"deepgram-flux"`
+Shortcut: `"deepgram/flux-en"` or `"deepgram/flux-multi"` or `"deepgram-flux"`
 
 > **Auto-derived:** Flux → native turn detection + native VAD. No need to specify `turnDetection`.
 
@@ -59,7 +64,7 @@ stt: {
 }
 ```
 
-Shortcut: `"deepgram"` or `"deepgram:nova-3"` or `"deepgram:nova-3:es"`
+Shortcut: `"deepgram/nova-3"` or `"deepgram"`
 
 ## Gladia
 
@@ -75,7 +80,7 @@ stt: {
 }
 ```
 
-Shortcut: `"gladia"`
+Shortcut: `"gladia/solaria"` or `"gladia"`
 
 ## AWS Transcribe
 

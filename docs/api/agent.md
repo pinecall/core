@@ -11,7 +11,7 @@ Created via `pc.agent(id, config?)` or `pc.deploy(id, config)`. Owns channels, r
 
 ```typescript
 const agent = pc.agent("my-agent", {
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram-flux",
   llm: {
@@ -52,7 +52,7 @@ agent.addChannel("chat");
 
 // Per-channel config overrides
 agent.addChannel("phone", "+34911234567", {
-  voice: "elevenlabs:spanishVoiceId",
+  voice: "elevenlabs/valentina",
   language: "es",
 });
 
@@ -72,7 +72,7 @@ See [WhatsApp guide](/guides/whatsapp) for WhatsApp channel config.
 Update a specific channel's config at runtime.
 
 ```typescript
-agent.configureChannel("+34911234567", { voice: "cartesia:newVoice" });
+agent.configureChannel("+34911234567", { voice: "cartesia/blake" });
 ```
 
 ### `removeChannel(ref)`
@@ -90,7 +90,7 @@ agent.removeChannel("+34911234567");
 Hot-reload the agent's defaults. Affects all **future** calls — existing calls keep their current config.
 
 ```typescript
-agent.configure({ voice: "elevenlabs:frenchVoiceId", language: "fr" });
+agent.configure({ voice: "elevenlabs/claire", language: "fr" });
 agent.configure({ stt: "gladia" });
 agent.configure({
   llm: { provider: "openai", model: "gpt-4.1", enabled: true, prompt: "..." },
@@ -125,7 +125,7 @@ const call = await agent.dial({
   from: "+13186330963",
   greeting: "Hi! This is a follow-up call.",
   metadata: { appointmentId: "appt_001" },
-  config: { voice: "cartesia:uuid", language: "ar" },
+  config: { voice: "cartesia/yumiko", language: "ar" },
 });
 ```
 

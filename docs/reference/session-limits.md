@@ -20,7 +20,7 @@ Calls have built-in safety limits to prevent runaway sessions: max call duration
 
 ```typescript
 const agent = pc.agent("receptionist", {
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   stt: "deepgram-flux",
   llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
   sessionLimits: {

@@ -85,7 +85,7 @@ const call = await agent.dial({
   from: "+13186330963",
   greeting: "¡Hola! Te llamo para confirmar tu cita.",
   config: {
-    voice: "elevenlabs:spanishVoiceId",
+    voice: "elevenlabs/valentina",
     language: "es",
   },
 });

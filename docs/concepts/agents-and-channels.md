@@ -36,7 +36,7 @@ A configured assistant. Has a name (the agent ID), a voice, an STT provider, an 
 
 ```typescript
 const agent = pc.agent("support", {
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "en",
   llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
 });
@@ -85,7 +85,7 @@ Combines agent creation, LLM config, and channel registration in one call. Best 
 const mara = pc.deploy("mara", {
   prompt: "You are Mara. Be concise.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "es",
   channels: ["webrtc", "+13186330963"],
 });
@@ -97,7 +97,7 @@ More verbose, more control. Use this when you need to set advanced provider conf
 
 ```typescript
 const mara = pc.agent("mara", {
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram-flux",
   llm: {
@@ -110,7 +110,7 @@ const mara = pc.agent("mara", {
 
 mara.addChannel("webrtc");
 mara.addChannel("phone", "+13186330963", {
-  voice: "elevenlabs:differentVoiceForPhone",
+  voice: "elevenlabs/daniel",
 });
 ```
 
@@ -122,12 +122,12 @@ The agent has defaults. Each channel can override them. This is how you give the
 
 ```typescript
 agent.addChannel("phone", "+34911234567", {
-  voice: "elevenlabs:spanishVoiceId",
+  voice: "elevenlabs/valentina",
   language: "es",
 });
 
 agent.addChannel("phone", "+33145678901", {
-  voice: "elevenlabs:frenchVoiceId",
+  voice: "elevenlabs/claire",
   language: "fr",
 });
 ```

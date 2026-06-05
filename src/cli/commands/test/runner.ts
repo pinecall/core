@@ -1,0 +1,313 @@
+/**
+ * pinecall test — Spec Runner
+ *
+ * Core execution engine:
+ *   1. Load YAML spec
+ *   2. Connect to agent via ChatClient
+ *   3. Run judge LLM loop:
+ *      - Judge generates text → sent to agent
+ *      - Agent responds → fed back to judge as "user" message
+ *      - Judge evaluates → generates next message or calls test_passed/test_failed
+ */
+
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { Spec, JudgeConfig, JudgeMessage, SpecResult, TurnRecord, ToolCallInfo } from "./types.js";
+import { ChatClient } from "./chat-client.js";
+import { callJudge, DEFAULT_JUDGE, type JudgeResponse } from "./judge.js";
+
+// ── YAML parser (minimal, no deps) ──────────────────────
+
+export function parseSpec(content: string): Spec {
+    // Simple YAML parser for our flat schema + multiline workflow block
+    const lines = content.split("\n");
+    const spec: Record<string, any> = {};
+    let inBlock: string | null = null;
+    let blockIndent = 0;
+    let blockLines: string[] = [];
+    let judgeBlock: Record<string, any> = {};
+    let inJudge = false;
+
+    for (const line of lines) {
+        // Skip comments and empty
+        if (line.trimStart().startsWith("#") || line.trim() === "") {
+            if (inBlock) blockLines.push("");
+            continue;
+        }
+
+        // Check for multiline block continuation
+        if (inBlock) {
+            const indent = line.length - line.trimStart().length;
+            if (indent >= blockIndent && line.trim() !== "") {
+                blockLines.push(line.slice(blockIndent));
+                continue;
+            } else {
+                // Block ended
+                spec[inBlock] = blockLines.join("\n").trim();
+                inBlock = null;
+                blockLines = [];
+            }
+        }
+
+        // Top-level key: value
+        const match = line.match(/^(\w+):\s*(.*)/);
+        if (!match) continue;
+
+        const [, key, rawVal] = match;
+        const val = rawVal.trim();
+
+        if (key === "judge") {
+            inJudge = true;
+            judgeBlock = {};
+            continue;
+        }
+
+        if (inJudge && line.startsWith("  ")) {
+            const subMatch = line.trim().match(/^(\w+):\s*(.*)/);
+            if (subMatch) {
+                const [, sk, sv] = subMatch;
+                judgeBlock[sk] = isNaN(Number(sv)) ? sv : Number(sv);
+            }
+            continue;
+        } else if (inJudge) {
+            spec.judge = judgeBlock;
+            inJudge = false;
+        }
+
+        // Multiline block (workflow: |)
+        if (val === "|") {
+            inBlock = key;
+            // Detect indent of next non-empty line
+            const nextIdx = lines.indexOf(line) + 1;
+            for (let i = nextIdx; i < lines.length; i++) {
+                if (lines[i].trim()) {
+                    blockIndent = lines[i].length - lines[i].trimStart().length;
+                    break;
+                }
+            }
+            continue;
+        }
+
+        // Quoted or unquoted string
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            spec[key] = val.slice(1, -1);
+        } else if (val.endsWith("s") && !isNaN(Number(val.slice(0, -1)))) {
+            // Duration like "30s" → ms
+            spec[key] = Number(val.slice(0, -1)) * 1000;
+        } else if (!isNaN(Number(val))) {
+            spec[key] = Number(val);
+        } else {
+            spec[key] = val;
+        }
+    }
+
+    // Flush remaining block
+    if (inBlock) {
+        spec[inBlock] = blockLines.join("\n").trim();
+    }
+    if (inJudge) {
+        spec.judge = judgeBlock;
+    }
+
+    if (!spec.agent) throw new Error("Spec missing required 'agent' field");
+    if (!spec.workflow) throw new Error("Spec missing required 'workflow' field");
+
+    return spec as Spec;
+}
+
+export function loadSpec(filePath: string): Spec {
+    const content = fs.readFileSync(filePath, "utf-8");
+    const spec = parseSpec(content);
+    spec._file = filePath;
+    return spec;
+}
+
+export function discoverSpecs(dirOrFile: string): string[] {
+    const stat = fs.statSync(dirOrFile);
+    if (stat.isFile()) return [dirOrFile];
+    const files: string[] = [];
+    for (const entry of fs.readdirSync(dirOrFile)) {
+        if (entry.endsWith(".spec.yaml") || entry.endsWith(".spec.yml")) {
+            files.push(path.join(dirOrFile, entry));
+        }
+    }
+    return files.sort();
+}
+
+// ── System prompt for the judge ─────────────────────────
+
+function buildSystemPrompt(spec: Spec): string {
+    const today = new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    });
+
+    return [
+        `You are a QA tester evaluating the AI agent "${spec.agent}".`,
+        `Today is ${today}.`,
+        "",
+        "## Your role",
+        "You will have a conversation with the agent by sending messages as a user would.",
+        "Each message you write will be sent directly to the agent.",
+        "The agent's response (including any tool calls it made) will be shown to you.",
+        "",
+        "## How to report results",
+        "You have two tools:",
+        "- `test_passed(summary)` — call when the workflow test PASSES",
+        "- `test_failed(reason)` — call when something goes WRONG",
+        "",
+        "## Rules",
+        "- Follow the workflow steps in order",
+        "- Write natural, realistic user messages (not robotic test commands)",
+        "- Evaluate EACH agent response before continuing",
+        "- If the agent says something incorrect, call test_failed immediately",
+        "- If all steps pass, call test_passed with a summary",
+        "- Keep messages SHORT. You are a customer, not a tester.",
+        "- Write in the same language the agent uses",
+        "",
+        "## Workflow to test",
+        spec.workflow,
+    ].join("\n");
+}
+
+// ── Format agent response for the judge ─────────────────
+
+function formatAgentResponse(text: string, toolCalls: ToolCallInfo[]): string {
+    let msg = `[Agent responded]:\n${text}`;
+    if (toolCalls.length > 0) {
+        msg += "\n\n[Agent tool calls]:";
+        for (const tc of toolCalls) {
+            msg += `\n- ${tc.name}(${tc.arguments})`;
+        }
+    }
+    return msg;
+}
+
+// ── Run a single spec ───────────────────────────────────
+
+export interface RunOptions {
+    apiKey: string;
+    server?: string;
+    verbose?: boolean;
+    /** Override agent name from CLI */
+    agentOverride?: string;
+    /** Override judge config from CLI */
+    judgeOverride?: JudgeConfig;
+    /** Per-turn timeout ms */
+    timeout?: number;
+    /** Log callback for real-time output */
+    log?: (msg: string) => void;
+}
+
+export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult> {
+    const log = opts.log ?? (() => {});
+    const agentId = opts.agentOverride ?? spec.agent;
+    const judgeConfig: JudgeConfig = { ...DEFAULT_JUDGE, ...spec.judge, ...opts.judgeOverride };
+    const maxTurns = judgeConfig.maxTurns ?? 20;
+    const timeout = opts.timeout ?? spec.timeout ?? 30000;
+    const startTime = Date.now();
+    const turns: TurnRecord[] = [];
+
+    // Connect to agent
+    const client = new ChatClient({
+        apiKey: opts.apiKey,
+        agentId,
+        server: opts.server,
+    });
+
+    try {
+        await client.connect();
+    } catch (err: any) {
+        return {
+            file: spec._file ?? "unknown",
+            agent: agentId,
+            description: spec.description ?? "",
+            passed: false,
+            summary: "",
+            turns: [],
+            durationMs: Date.now() - startTime,
+            error: `Connection failed: ${err.message}`,
+        };
+    }
+
+    // Build judge conversation
+    const messages: JudgeMessage[] = [
+        { role: "system", content: buildSystemPrompt(spec) },
+        { role: "user", content: "Begin the workflow test now. Send your first message to the agent." },
+    ];
+
+    let result: { passed: boolean; summary: string } | null = null;
+
+    try {
+        for (let turn = 0; turn < maxTurns; turn++) {
+            // 1. Ask judge for next message
+            const judgeRes: JudgeResponse = await callJudge(messages, judgeConfig);
+
+            // 2. Check if judge called a tool (test done)
+            if (judgeRes.toolCall) {
+                const { name, args } = judgeRes.toolCall;
+                if (name === "test_passed") {
+                    result = { passed: true, summary: args.summary ?? "" };
+                } else if (name === "test_failed") {
+                    result = { passed: false, summary: args.reason ?? "" };
+                }
+                break;
+            }
+
+            // 3. Judge sent a text message → send to agent
+            const testerMsg = judgeRes.text;
+            if (!testerMsg) {
+                result = { passed: false, summary: "Judge produced empty response" };
+                break;
+            }
+
+            log(`  Turn ${turn + 1}: "${testerMsg}"`);
+            messages.push({ role: "assistant", content: testerMsg });
+
+            // 4. Send to agent and wait for response
+            client.sendMessage(testerMsg);
+            const agentRes = await client.waitForResponse(timeout);
+
+            const preview = agentRes.text.length > 200 ? agentRes.text.slice(0, 200) + "…" : agentRes.text;
+            log(`    Bot: ${preview}`);
+            if (agentRes.toolCalls.length > 0) {
+                for (const tc of agentRes.toolCalls) {
+                    const argsPreview = tc.arguments.length > 80 ? tc.arguments.slice(0, 80) + "…" : tc.arguments;
+                    log(`    🔧 ${tc.name}(${argsPreview})`);
+                }
+            }
+
+            turns.push({
+                testerMessage: testerMsg,
+                agentResponse: agentRes.text,
+                agentToolCalls: agentRes.toolCalls,
+            });
+
+            // 5. Feed agent response back to judge
+            messages.push({
+                role: "user",
+                content: formatAgentResponse(agentRes.text, agentRes.toolCalls),
+            });
+        }
+
+        if (!result) {
+            result = { passed: false, summary: `Max turns (${maxTurns}) reached without result` };
+        }
+    } catch (err: any) {
+        result = { passed: false, summary: `Error: ${err.message}` };
+    } finally {
+        client.close();
+    }
+
+    return {
+        file: spec._file ?? "unknown",
+        agent: agentId,
+        description: spec.description ?? "",
+        passed: result.passed,
+        summary: result.summary,
+        turns,
+        durationMs: Date.now() - startTime,
+    };
+}

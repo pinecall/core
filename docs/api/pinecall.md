@@ -52,7 +52,7 @@ Create or retrieve an agent. If an agent with this ID already exists, returns it
 
 ```typescript
 const agent = pc.agent("support", {
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "en",
   llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
 });
@@ -68,10 +68,26 @@ Shortcut for `agent() + addChannel()`. Combines agent creation, LLM config, and 
 const mara = pc.deploy("mara", {
   prompt: "You are Mara. Be concise.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
+  greeting: "Hi! How can I help you today?",
   language: "es",
   channels: ["webrtc", "+13186330963"],
 });
+```
+
+Dynamic greetings with a function:
+
+```typescript
+greeting: async (call) => {
+  const customer = await db.findByPhone(call.from);
+  return `Hi ${customer.name}! How can I help?`;
+},
+```
+
+Greeting without LLM history (e.g. a standalone announcement):
+
+```typescript
+greeting: { text: "Welcome! Please hold.", addToHistory: false },
 ```
 
 **`DeployConfig` fields:**
@@ -80,9 +96,10 @@ const mara = pc.deploy("mara", {
 |---|---|---|
 | `prompt` | `string` | System prompt for the LLM |
 | `model` | `string` | LLM model (default: `gpt-4.1-mini`) |
-| `voice` | `string` | TTS voice shortcut (e.g. `elevenlabs:voiceId`) |
+| `voice` | `string` | TTS voice shortcut (e.g. `elevenlabs/sarah`) |
+| `stt` | `string` | STT shortcut (e.g. `deepgram/flux-en`) |
+| `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
 | `language` | `string` | BCP-47 language code |
-| `stt` | `string` | STT provider (default: `deepgram-flux`) |
 | `tools` | `array` | OpenAI function-calling tool definitions |
 | `channels` | `string[]` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
 | `sessionLimits` | `object` | Session timeout config (see [Session Limits](/reference/session-limits)) |

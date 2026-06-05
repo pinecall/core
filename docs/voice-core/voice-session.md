@@ -26,7 +26,7 @@ The constructor does **not** open a connection. Call `connect()` when you want t
 const session = new VoiceSession({
   agent: "mara",
   config: {
-    voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+    voice: "elevenlabs/sarah",
     stt: { provider: "deepgram", model: "nova-3", language: "es" },
     language: "es",
     greeting: "¡Hola! ¿En qué puedo ayudarte?",
@@ -112,7 +112,7 @@ Sends a mid-call configuration update over the DataChannel. The server hot-swaps
 
 ```typescript
 session.configure({
-  voice: "elevenlabs:h2cd3gvcqTp3m65Dysk7",
+  voice: "elevenlabs/george",
   stt: { provider: "deepgram", model: "nova-3", language: "es" },
   language: "es",
 });
@@ -127,7 +127,7 @@ Updates options **before** the next `connect()` call. No effect on an already-co
 ```typescript
 session.updateOptions({
   config: {
-    voice: "elevenlabs:spanishVoiceId",
+    voice: "elevenlabs/valentina",
     language: "es",
     greeting: "¡Hola!",
   },

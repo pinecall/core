@@ -29,11 +29,11 @@ const voices = await fetchVoices();
 // Spanish Cartesia voices only
 const es = await fetchVoices({ provider: "cartesia", language: "es" });
 
-voices.forEach((v) => console.log(`${v.name} (${v.provider}:${v.id})`));
-// → "Rachel (elevenlabs:21m00Tcm4TlvDq8ikWAM)"
+voices.forEach((v) => console.log(`${v.name} (${v.provider}/${v.alias ?? v.id})`));
+// → "Sarah (elevenlabs/sarah)"
 ```
 
-**Returns:** `Voice[]` — each voice has `id`, `name`, `provider`, `gender`, `style`, `languages[]`, `previewUrl`.
+**Returns:** `Voice[]` — each voice has `id`, `name`, `alias`, `provider`, `gender`, `style`, `languages[]`, `previewUrl`.
 
 | Option | Type | Description |
 |---|---|---|

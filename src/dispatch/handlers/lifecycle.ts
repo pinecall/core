@@ -13,12 +13,13 @@
 import type { EventHandler, DispatchContext } from "../handler.js";
 import type { WireEvent } from "../../protocol/wire.js";
 import { Call } from "../../domain/call.js";
+import { RingingCall } from "../../domain/ringing-call.js";
 import { decodeEvent } from "../../protocol/codec.js";
 import { forwardCallEvents } from "../proxy.js";
 import type { CallStartedEvent, CallEndedEvent } from "../../protocol/events.js";
 
 export class LifecycleHandler implements EventHandler {
-    readonly events = ["call.started", "call.ended", "call.dialing", "call.error", "call.forwarded", "call.dtmf_sent"] as const;
+    readonly events = ["call.started", "call.ended", "call.dialing", "call.error", "call.forwarded", "call.dtmf_sent", "call.ringing", "call.rejected"] as const;
 
     handle(wire: WireEvent, ctx: DispatchContext): boolean {
         const agentId = wire.agent_id;
@@ -143,6 +144,33 @@ export class LifecycleHandler implements EventHandler {
                 if (call) {
                     call._emitWire("call.dtmf_sent" as any, decodeEvent(wire));
                 }
+                return true;
+            }
+
+            case "call.ringing": {
+                const ringingCall = new RingingCall(
+                    {
+                        callId: (wire.call_id ?? "") as string,
+                        from: (wire.from ?? "") as string,
+                        to: (wire.to ?? "") as string,
+                        agentId: agent.id,
+                    },
+                    (data) => agent.send(data),
+                );
+
+                agent._emitWire("call.ringing", ringingCall);
+
+                ctx.logger.info(`Call ringing: ${wire.call_id} from ${wire.from}`, {
+                    agent: agent.id,
+                });
+
+                return true;
+            }
+
+            case "call.rejected": {
+                ctx.logger.info(`Call rejected: ${wire.call_id} (${wire.reason})`, {
+                    agent: agent.id,
+                });
                 return true;
             }
 

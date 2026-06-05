@@ -112,7 +112,7 @@ The same agent can serve WhatsApp **and** phone calls. The LLM config, tools, an
 
 ```typescript
 const support = pc.agent("support", {
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "en",
   llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
   tools: [lookupOrder],

@@ -11,6 +11,7 @@
 
 import { TypedEventBus } from "../kernel/event-bus.js";
 import { Call } from "./call.js";
+import { RingingCall } from "./ringing-call.js";
 import { buildShortcutPayload } from "../protocol/shortcuts.js";
 import { createAgentStream } from "../sse/stream.js";
 import type { ServerResponse } from "node:http";
@@ -49,6 +50,7 @@ export interface AgentEvents {
     ready: () => void;
     "call.started": (call: Call) => void;
     "call.ended": (call: Call, reason: string) => void;
+    "call.ringing": (call: RingingCall) => void;
 
     // Speech events
     "speech.started": (event: SpeechStartedEvent, call: Call) => void;
@@ -206,6 +208,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
             type,
             ...(typeof ref === "string" && ref ? { ref } : {}),
             ...buildShortcutPayload(config),
+            ...(config?.ringing ? { ringing: true } : {}),
         };
         this._send(msg);
     }
@@ -428,6 +431,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
                     type: ch.type,
                     ...(ch.ref ? { ref: ch.ref } : {}),
                     ...buildShortcutPayload(ch.config),
+                    ...(ch.config?.ringing ? { ringing: true } : {}),
                 };
                 this.#sendRaw(msg);
             }

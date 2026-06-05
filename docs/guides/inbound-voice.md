@@ -24,7 +24,7 @@ await pc.connect();
 const receptionist = pc.deploy("receptionist", {
   prompt: "You are the receptionist for Acme Corp. Be brief and warm.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "en",
   channels: ["+13186330963"],
 });
@@ -99,7 +99,7 @@ const endCall = tool({
 const agent = pc.deploy("receptionist", {
   prompt: "You are a receptionist. Look up orders when asked.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "en",
   channels: ["+13186330963"],
   tools: [lookupOrder, transferToHuman, endCall],

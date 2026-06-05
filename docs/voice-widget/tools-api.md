@@ -212,7 +212,7 @@ const agent = pc.deploy("booking-demo", {
 - The form state is in "## UI Context" — you can see what they've typed.
 - When the form is submitted, call confirmBooking.`,
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   tools: [getAvailableSlots, showContactForm, fillField, confirmBooking],
   channels: ["webrtc"],
 });

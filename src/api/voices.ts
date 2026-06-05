@@ -7,6 +7,8 @@ import { DEFAULT_API_URL } from "./http.js";
 export interface Voice {
     id: string;
     name: string;
+    /** Friendly alias for use in `voice` config, e.g. "sarah" → `"elevenlabs/sarah"` */
+    alias?: string;
     provider: string;
     gender?: string;
     style?: string;
@@ -64,6 +66,7 @@ function mapVoice(provider: string): (raw: Record<string, unknown>) => Voice {
     return (v) => ({
         id: (v.id ?? v.voice_id ?? "") as string,
         name: (v.name ?? "Unknown") as string,
+        alias: v.alias as string | undefined,
         provider,
         gender: v.gender as string | undefined,
         style: v.style as string | undefined,

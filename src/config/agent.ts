@@ -9,7 +9,19 @@ import type { Tool } from "../tool.js";
 
 // ─── Shortcut types ──────────────────────────────────────────────────────
 
-/** Voice shortcut: "elevenlabs:voiceId" or full config object. */
+/**
+ * Voice configuration.
+ *
+ * Use the `provider/friendly-id` format (always lowercase):
+ *
+ * @example
+ * voice: "elevenlabs/sarah"     // ElevenLabs voice
+ * voice: "cartesia/yumiko"      // Cartesia voice
+ * voice: "polly/lucia"          // AWS Polly voice
+ *
+ * // Full config object for advanced settings:
+ * voice: { provider: "elevenlabs", voice_id: "...", speed: 1.1 }
+ */
 export type VoiceShortcut = string | Record<string, unknown>;
 
 /** STT shortcut: "deepgram" or full config object. */
@@ -55,6 +67,16 @@ export interface ChannelConfig {
     /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
     llm?: string | Record<string, unknown>;
     config?: Partial<SessionConfig>;
+    /**
+     * Enable call.ringing for this channel (phone only).
+     *
+     * When true, inbound calls emit `call.ringing` instead of auto-accepting.
+     * The SDK must call `accept()` or `reject()` on the RingingCall.
+     * If neither is called within 5 seconds, the call is auto-accepted.
+     *
+     * Default: false (auto-accept, zero latency impact).
+     */
+    ringing?: boolean;
 }
 
 /** WhatsApp channel config — credentials for Meta Cloud API. */
@@ -83,6 +105,22 @@ export interface DeployConfig extends AgentConfig {
     model?: string;
     /** System prompt for the LLM. */
     prompt?: string;
+    /**
+     * Greeting spoken on every inbound `call.started`.
+     * Added to LLM history by default so the model knows what was said.
+     *
+     * - **String**: static greeting, `addToHistory` defaults to `true`.
+     * - **Object**: `{ text, addToHistory? }` for explicit control.
+     * - **Function**: `(call) => string` for dynamic greetings, `addToHistory` defaults to `true`.
+     *
+     * @example "Hi! How can I help?"
+     * @example { text: "Hi!", addToHistory: false }
+     * @example async (call) => `Hello ${(await db.findByPhone(call.from)).name}!`
+     */
+    greeting?:
+        | string
+        | { text: string; addToHistory?: boolean }
+        | ((call: import("../domain/call.js").Call) => string | Promise<string>);
     /**
      * Channels to register (sugar for addChannel).
      * Strings: "webrtc", "mic", "chat", or a phone number.

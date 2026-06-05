@@ -26,7 +26,7 @@ This isn't a power-user feature you'll use rarely. It's the foundation of how Pi
 
 ```typescript
 // Switch the default voice to French
-agent.configure({ voice: "elevenlabs:frenchVoiceId", language: "fr" });
+agent.configure({ voice: "elevenlabs/claire", language: "fr" });
 
 // Upgrade to a bigger model
 agent.configure({
@@ -45,7 +45,7 @@ No REST call needed. `agent.configure()` uses the existing WebSocket — changes
 
 ```typescript
 // User asks for Spanish mid-conversation
-call.configure({ voice: "elevenlabs:spanishVoiceId", language: "es" });
+call.configure({ voice: "elevenlabs/valentina", language: "es" });
 call.reply("¡Claro! Ahora hablo en español.");
 ```
 

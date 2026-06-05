@@ -75,7 +75,7 @@ const endConversation = tool({
 
 // ---- The agent ----
 const support = pc.agent("acme-support", {
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "en",
   llm: {
     provider: "openai",

@@ -42,7 +42,8 @@
           "guides/tools-and-functions",
           "guides/multi-tenant",
           "guides/sse-streaming",
-          "guides/dev-mode"
+          "guides/dev-mode",
+          "guides/call-ringing"
         ]
       },
       {
@@ -92,6 +93,7 @@
       {
         "group": "Reference",
         "pages": [
+          "reference/cli",
           "reference/events",
           "reference/stt-providers",
           "reference/tts-providers",

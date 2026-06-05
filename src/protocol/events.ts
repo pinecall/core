@@ -17,6 +17,20 @@ export interface CallStartedEvent {
     metadata?: Record<string, unknown>;
 }
 
+export interface CallRingingEvent {
+    event: "call.ringing";
+    callId: string;
+    from: string;
+    to: string;
+    direction: "inbound";
+}
+
+export interface CallRejectedEvent {
+    event: "call.rejected";
+    callId: string;
+    reason: string;
+}
+
 export interface CallEndedEvent {
     event: "call.ended";
     callId: string;
@@ -347,4 +361,6 @@ export type ServerEvent =
     | CallHeldEvent
     | CallUnheldEvent
     | CallMutedEvent
-    | CallUnmutedEvent;
+    | CallUnmutedEvent
+    | CallRingingEvent
+    | CallRejectedEvent;

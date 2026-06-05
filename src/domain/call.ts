@@ -152,15 +152,21 @@ export class Call extends TypedEventBus<CallEvents> {
 
     // ── High-level reply methods ─────────────────────────────────────────
 
-    /** Send a greeting or standalone message (no in_reply_to required). */
-    say(text: string, messageId?: string): void {
-        const id = messageId ?? generateId("msg");
+    /**
+     * Send a greeting or standalone message (no in_reply_to required).
+     *
+     * Pass `{ addToHistory: true }` to inject this text into the server-side
+     * LLM conversation history as an assistant message, so the model knows
+     * what was said and won't repeat it.
+     */
+    say(text: string, opts?: { addToHistory?: boolean }): void {
         this.#send({
             event: "bot.reply",
             call_id: this.id,
-            message_id: id,
+            message_id: generateId("msg"),
             text,
             in_reply_to: "",
+            ...(opts?.addToHistory ? { add_to_history: true } : {}),
         });
     }
 

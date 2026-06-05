@@ -29,7 +29,7 @@ await pc.connect();
 const mara = pc.deploy("mara", {
   prompt: "You are Mara. Be concise and warm.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "es",
   channels: ["webrtc"],
 });

@@ -47,7 +47,7 @@ await pc.connect();
 const agent = pc.deploy(agentId, {
   prompt: "...",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   channels: ["+13186330963"], // shared with prod!
 });
 ```

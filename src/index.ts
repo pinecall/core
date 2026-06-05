@@ -54,6 +54,8 @@ export type {
 export { Call } from "./domain/call.js";
 export type { CallEvents, ReplyOptions, ForwardOptions, SSEResponse, StreamSSEOptions } from "./domain/call.js";
 
+export { RingingCall } from "./domain/ringing-call.js";
+
 // Re-export Turn from domain
 export type { Turn } from "./domain/turn.js";
 
@@ -109,6 +111,8 @@ export type {
     SessionTimeoutEvent,
     ToolCallEvent,
     ToolCallItem,
+    CallRingingEvent,
+    CallRejectedEvent,
 } from "./protocol/events.js";
 
 // Command types

@@ -27,7 +27,7 @@ const lookupCustomer = tool({
 const agent = pc.deploy("receptionist", {
   prompt: "You are a helpful receptionist. Be concise.",
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "en",
   tools: [lookupCustomer],
 });
@@ -43,7 +43,7 @@ You run the LLM yourself. The server handles STT → text and text → TTS. You 
 import OpenAI from "openai";
 const openai = new OpenAI();
 
-const agent = pc.agent("my-bot", { voice: "cartesia:abc", language: "en" });
+const agent = pc.agent("my-bot", { voice: "cartesia/yumiko", language: "en" });
 
 agent.on("turn.end", async (turn, call) => {
   const stream = call.replyStream(turn);
@@ -93,7 +93,7 @@ support.addChannel("whatsapp", { /* config */ });
 support.addChannel("phone", "+13186330963");
 
 // Client-side agent using Anthropic for a specialized use case
-const research = pc.agent("research", { voice: "elevenlabs:xyz", language: "en" });
+const research = pc.agent("research", { voice: "elevenlabs/george", language: "en" });
 research.addChannel("webrtc");
 research.on("turn.end", async (turn, call) => {
   /* call Anthropic, stream back */

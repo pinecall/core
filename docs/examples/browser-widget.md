@@ -26,7 +26,7 @@ const mara = pc.deploy("mara", {
   prompt: `You are Mara, a friendly voice assistant.
 Be brief — 1-2 sentences per response.`,
   model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],
   allowedOrigins: ["http://localhost:*"],

@@ -60,7 +60,7 @@ The shortcut is convenient but leaves the prompt empty. You'll typically want th
 ```typescript
 // Server-side off — bring your own LLM
 const agent = pc.agent("my-bot", {
-  voice: "elevenlabs:abc",
+  voice: "elevenlabs/sarah",
   language: "en",
   // no llm field — or llm: { provider: "openai", enabled: false }
 });
