@@ -34,6 +34,7 @@ const HELP = `
     chat [agent]           ${c.dim("Chat with a connected agent")}
     test <path>            ${c.dim("Run agent specs (YAML test files)")}
     balance                ${c.dim("Show Twilio account balance")}
+    account [sub]          ${c.dim("Manage org, keys, twilio, phones, usage")}
 
   ${c.bold("Options:")}
     --api-key=pk_...       ${c.dim("Override PINECALL_API_KEY env var")}
@@ -49,6 +50,7 @@ const HELP = `
   ${c.bold("Environment:")}
     PINECALL_API_KEY       ${c.dim("Your Pinecall API key")}
     PINECALL_URL           ${c.dim("Custom server URL")}
+    PINECALL_PLAYGROUND_URL ${c.dim("Custom playground URL")}
 
   ${c.bold("Examples:")}
     ${c.dim("$")} pinecall agents
@@ -56,6 +58,9 @@ const HELP = `
     ${c.dim("$")} pinecall voices --provider=elevenlabs --language=es
     ${c.dim("$")} pinecall chat mara
     ${c.dim("$")} pinecall balance --json
+    ${c.dim("$")} pinecall account
+    ${c.dim("$")} pinecall account keys
+    ${c.dim("$")} pinecall account usage
 `;
 
 async function main(): Promise<void> {
@@ -109,6 +114,11 @@ async function main(): Promise<void> {
         case "test": {
             const { testCommand } = await import("./cli/commands/test.js");
             await testCommand(config, args);
+            break;
+        }
+        case "account": {
+            const { accountCommand } = await import("./cli/commands/account.js");
+            await accountCommand(config, args);
             break;
         }
         default:
