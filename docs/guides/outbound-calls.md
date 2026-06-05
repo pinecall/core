@@ -42,10 +42,12 @@ After the greeting, the conversation continues normally — `turn.end`, `llm.too
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `to` | `string` | ✅ | Destination number in E.164 format |
-| `from` | `string` | ✅ | Caller ID — must be a number registered to your Pinecall account |
+| `from` | `string` | — | Caller ID — auto-resolved if agent has one phone channel. Required when multiple. |
 | `greeting` | `string` | — | Text the server speaks when the callee picks up |
 | `metadata` | `object` | — | Custom data attached to the call (visible on the `Call` object) |
 | `config` | `object` | — | Per-call config override (voice, STT, language) |
+
+> **Tip:** If your agent has exactly one phone channel, you can omit `from` — the SDK auto-resolves it. Only pass `from` explicitly when the agent has multiple phone numbers.
 
 ## Attaching metadata
 

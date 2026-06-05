@@ -99,7 +99,7 @@ const BLACKLIST = new Set(["+15551234567", "+15559876543"]);
 const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   language: "en",
-  stt: "deepgram-flux",
+  stt: "deepgram/flux-en",
   llm: {
     provider: "openai",
     model: "gpt-4.1-mini",

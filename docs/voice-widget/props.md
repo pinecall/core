@@ -266,8 +266,8 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 const florencia = pc.agent("florencia", {
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: "deepgram-flux",
-  llm: { engine: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  stt: "deepgram/flux-en",
+  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
 });
 
 florencia.addChannel("webrtc");
@@ -421,7 +421,7 @@ Pass session-level overrides to the agent:
   agent="mara"
   config={{
     voice: "elevenlabs/sarah",
-    stt: { provider: "deepgram-flux" },
+    stt: "deepgram/flux-en",
     language: "es",
   }}
 />
@@ -461,14 +461,14 @@ Enables a language pill bar that appears on hover and stays visible during calls
       label: "English",
       flag: "🇬🇧",
       voice: "elevenlabs/sarah",
-      stt: "deepgram-flux",
+      stt: "deepgram/flux-en",
       language: "en",
     },
     es: {
       label: "Español",
       flag: "🇪🇸",
       voice: "elevenlabs/george",
-      stt: "deepgram-flux",
+      stt: "deepgram/flux-en",
       language: "es",
     },
   }}
@@ -483,7 +483,7 @@ Enables a language pill bar that appears on hover and stays visible during calls
 | `label` | `string` | Display name (e.g. `"Español"`) |
 | `flag` | `string` | Flag emoji (e.g. `"🇪🇸"`) |
 | `voice` | `string` | Voice ID in `provider:id` format |
-| `stt` | `string \| object` | STT shortcut (`"deepgram-flux"`) or full config |
+| `stt` | `string \| object` | STT shortcut (`"deepgram/flux-en"`) or full config |
 | `language` | `string` | Language code for STT (`"es"`, `"en"`, etc.) |
 
 ### Behavior

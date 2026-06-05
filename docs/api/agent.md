@@ -13,7 +13,7 @@ Created via `pc.agent(id, config?)` or `pc.deploy(id, config)`. Owns channels, r
 const agent = pc.agent("my-agent", {
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: "deepgram-flux",
+  stt: "deepgram/flux-en",
   llm: {
     provider: "openai",
     model: "gpt-4.1-mini",
@@ -132,7 +132,7 @@ const call = await agent.dial({
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `to` | `string` | ✅ | Destination number (E.164) |
-| `from` | `string` | ✅ | Caller ID — must be a registered number |
+| `from` | `string` | — | Caller ID — auto-resolved if agent has one phone channel. Required when multiple. |
 | `greeting` | `string` | — | Text the server speaks when callee picks up |
 | `metadata` | `object` | — | Custom data attached to the call |
 | `config` | `object` | — | Per-call config override (voice, STT, language) |

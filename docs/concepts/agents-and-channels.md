@@ -99,7 +99,7 @@ More verbose, more control. Use this when you need to set advanced provider conf
 const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: "deepgram-flux",
+  stt: "deepgram/flux-en",
   llm: {
     provider: "openai",
     model: "gpt-4.1-mini",

@@ -89,7 +89,7 @@ const agent = pc.deploy("mara", {
   language: "es",
   stt: { provider: "deepgram-flux", keyterms: ["Cointel", "portero"] },
   channels: ["webrtc", "+13186330963"],
-  session_limits: { idle_timeout_seconds: 30, idle_warning_seconds: 10 },
+  sessionLimits: { idle_timeout_seconds: 30, idle_warning_seconds: 10 },
 });
 ```
 

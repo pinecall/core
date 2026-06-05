@@ -149,6 +149,28 @@ call.mute();
 call.unmute();
 ```
 
+### `streamSSE(res, opts?)`
+
+Stream call events as Server-Sent Events to an HTTP response. Used for "Call Me" flows where the browser needs a live transcript of an outbound call.
+
+```typescript
+app.post("/api/call-me", async (req, res) => {
+  const call = await agent.dial({
+    to: req.body.phone,
+    greeting: "Hi! You asked me to call you.",
+  });
+  call.streamSSE(res);
+});
+```
+
+Sets SSE headers automatically. Streams: `call.started`, `bot.word`, `bot.confirmed`, `user.speaking`, `user.message`, `tool.call`, `call.ended`. Sends `:ping` keepalives every 25s. Cleans up listeners on client disconnect.
+
+| Option | Type | Description |
+|---|---|---|
+| `greeting` | `string` | Override the greeting text sent as first `bot.confirmed`. Defaults to `call.greeting` (set by `dial()`). |
+
+See [Voice Widget → Call Me](/voice-widget/props#callmeendpoint--outbound-calls) for the full pattern.
+
 ## Mid-call configuration
 
 ### `configure(opts)`
