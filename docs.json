@@ -43,7 +43,8 @@
           "guides/multi-tenant",
           "guides/sse-streaming",
           "guides/dev-mode",
-          "guides/call-ringing"
+          "guides/call-ringing",
+          "guides/testing-agents"
         ]
       },
       {
