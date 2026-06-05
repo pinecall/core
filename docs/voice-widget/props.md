@@ -1,6 +1,6 @@
 ---
 title: "Props"
-description: "Every prop the VoiceWidget accepts — including channels, chat, Call Me, token security, and localization."
+description: "Every prop the VoiceWidget accepts — including token security, tools, theming, and multi-language."
 ---
 
 # Props
@@ -13,9 +13,8 @@ Full reference for `<VoiceWidget />`.
 |---|---|---|---|
 | `agent` | `string` | **required** | Agent ID to connect to |
 | `server` | `string` | `"https://voice.pinecall.io"` | Pinecall API base URL (override for self-hosted) |
-| `name` | `string` | `"Agent"` | Display name shown in status label and ContactHub header |
+| `name` | `string` | `"Agent"` | Display name shown in status label |
 | `label` | `string` | `"Talk to {name}"` | Tooltip shown on hover when idle |
-| `avatar` | `string` | — | Emoji or short text displayed in the ContactHub header (e.g. `"🌸"`) |
 | `preset` | `VoiceWidgetPreset` | `"dark"` | Theme preset (`dark`, `midnight`, `aurora`, `sunset`, `light`) |
 | `theme` | `Partial<VoiceWidgetTheme>` | — | Custom theme overrides, merged on top of `preset` |
 | `config` | `Record<string, unknown>` | — | Session config overrides (voice, STT, language) |
@@ -23,242 +22,22 @@ Full reference for `<VoiceWidget />`.
 | `languages` | `Record<string, LanguagePreset>` | — | Multi-language presets (see below) |
 | `defaultLanguage` | `string` | first key | Initial language selection |
 | `onLanguageChange` | `(lang, preset) => void` | — | Called when the user picks a language |
-| `channels` | `AgentChannel[]` | — | Channel list — enables the ContactHub popover (see below) |
-| `chat` | `ChatConfig` | — | Chat configuration for the embedded LLM chat view |
-| `callMeEndpoint` | `string` | — | URL endpoint for "Call Me" outbound calls |
 | `tokenProvider` | `() => Promise<{token, server}>` | — | Custom token provider for WebRTC (keeps API keys server-side) |
-| `locale` | `"en" \| "es" \| "de" \| "pt"` | `"en"` | Locale for built-in UI strings |
-| `labels` | `Partial<LocaleStrings>` | — | Override individual locale strings |
 | `trackedTools` | `string[]` | — | Tool names to track in widget state for UI rendering |
 | `tools` | `Record<string, ToolRenderer>` | — | Map of tool names → render functions for inline tool UI |
-| `onIdleClick` | `() => void` | — | Intercept idle orb click (overrides ContactHub) |
 | `onStatusChange` | `(status) => void` | — | Called when connection status changes |
 | `className` | `string` | — | Extra CSS class on the root wrapper |
 
-## `channels` — multi-channel ContactHub
-
-When you provide ≥2 channels (or 1 channel + `callMeEndpoint`, or any WhatsApp channel), clicking the idle orb opens a **ContactHub popover** instead of connecting directly.
-
-```tsx
-<VoiceWidget
-  agent="florencia"
-  name="Florencia"
-  avatar="🌸"
-  locale="es"
-  channels={[
-    { type: "webrtc" },
-    { type: "chat" },
-    { type: "whatsapp", phone: "+51987654321" },
-    { type: "phone", numbers: ["+13186330963"] },
-  ]}
-  callMeEndpoint="/api/call-me"
-/>
-```
-
-### `AgentChannel` shape
-
-| Field | Type | Description |
-|---|---|---|
-| `type` | `"webrtc" \| "chat" \| "whatsapp" \| "phone"` | Channel type |
-| `phone` | `string` | WhatsApp phone number (for `type: "whatsapp"`) |
-| `numbers` | `string[]` | Phone numbers (for `type: "phone"`) |
-
-### What each channel does
-
-| Channel | ContactHub behavior |
-|---|---|
-| `webrtc` | "Hablar por voz" — starts a WebRTC voice call |
-| `chat` | "Chat por texto" — opens embedded LLM chat (requires `chat` prop) |
-| `whatsapp` | "WhatsApp" — opens `wa.me/{phone}` in new tab |
-| `phone` + `callMeEndpoint` | "Que me llamen" — shows phone input, agent calls the user |
-
-## `chat` — embedded LLM chat
-
-Enables the built-in text chat view inside the ContactHub. Requires `{ type: "chat" }` in `channels`.
-
-```tsx
-<VoiceWidget
-  agent="florencia"
-  channels={[{ type: "webrtc" }, { type: "chat" }]}
-  chat={{
-    greeting: "¡Hola! 💅 Soy **Florencia**. ¿En qué puedo ayudarte?",
-    quickOptions: [
-      { label: "💇 Servicios y precios", query: "¿Qué servicios ofrecen?" },
-      { label: "📅 Reservar cita", query: "Quiero reservar una cita" },
-      { label: "💅 Recomendame algo", query: "Recomendame un servicio" },
-    ],
-    tokenProvider: async () => {
-      const res = await fetch("/api/chat-token");
-      return res.json();
-    },
-  }}
-/>
-```
-
-### `ChatConfig` shape
-
-| Field | Type | Description |
-|---|---|---|
-| `greeting` | `string` | Initial greeting (supports markdown). Shown before first message. |
-| `quickOptions` | `ChatQuickOption[]` | Quick-reply buttons shown initially |
-| `tokenProvider` | `() => Promise<{token, server}>` | Token provider for chat WebSocket (falls back to widget-level if not set) |
-
-### `ChatQuickOption` shape
-
-| Field | Type | Description |
-|---|---|---|
-| `label` | `string` | Button text (e.g. `"💇 Servicios"`) |
-| `query` | `string` | Message sent when clicked |
-
-### Chat features
-
-- **Streaming markdown** — responses stream character-by-character via `requestAnimationFrame`
-- **Typing indicator** — animated dots while the agent is thinking
-- **Fullscreen on mobile** — takes over the entire viewport (≤640px)
-- **No iOS zoom** — input uses ≥16px font to prevent Safari auto-zoom
-- **Dark theme** — matches the widget's theme variables
-
-## `callMeEndpoint` — outbound calls
-
-### Why Call Me?
-
-Not every user wants to talk through their browser. Some are on a phone without headphones, on a noisy connection, or simply prefer a real phone call. "Call Me" lets the user enter their phone number and the **agent calls them** — same AI, same tools, same prompt, but over a regular phone call via Twilio.
-
-The widget handles the UI (phone input, dialing animation, live transcript). You provide the backend endpoint that dials and streams events.
-
-### How it works
-
-```
-User enters phone → widget POSTs { phone } to your endpoint
-                          ↓
-              Your backend calls agent.dial()
-                          ↓
-              call.streamSSE(res) streams events as SSE
-                          ↓
-              Widget renders a live transcript
-```
-
-### Widget setup
-
-When `callMeEndpoint` is set AND `channels` includes `phone`, a "Call Me" option appears in the ContactHub:
-
-```tsx
-<VoiceWidget
-  agent="florencia"
-  name="Florencia"
-  locale="es"
-  channels={[
-    { type: "webrtc" },
-    { type: "chat" },
-    { type: "phone", numbers: ["+13186330963"] },
-  ]}
-  callMeEndpoint="/api/call-me"
-/>
-```
-
-### Backend: `call.streamSSE(res)`
-
-The SDK provides `call.streamSSE(res)` — it handles SSE headers, word-by-word buffering, keepalive pings, and cleanup automatically. Your endpoint is just a few lines:
-
-```javascript
-app.use(express.json());
-
-app.post("/api/call-me", async (req, res) => {
-  const { phone } = req.body;
-
-  if (!phone || !/^\+\d{10,15}$/.test(phone)) {
-    return res.status(400).json({ error: "Invalid phone number" });
-  }
-
-  try {
-    const call = await florencia.dial({
-      to: phone,
-      greeting: "Hi! You asked me to call you. How can I help?",
-    });
-    call.streamSSE(res);  // reads call.greeting automatically
-  } catch (err) {
-    res.status(500).json({ error: "Could not place the call" });
-  }
-});
-```
-
-> `from` is auto-resolved from the agent's phone channel. The `greeting` is stored on the call by `dial()` and read by `streamSSE()` automatically — no need to pass it twice.
-
-`call.streamSSE(res)` does the following automatically:
-
-1. Sets SSE headers (`Content-Type: text/event-stream`, etc.)
-2. Sends `call.started` with the call ID
-3. Sends the greeting as the first `bot.confirmed` message
-4. Streams `bot.word` events (progressive word-by-word agent speech)
-5. Sends `bot.confirmed` when agent finishes a complete message
-6. Streams `user.speaking` (interim) and `user.message` (final) for user speech
-7. Streams `tool.call` for tool invocations
-8. Sends `call.ended` with reason and duration, then closes the stream
-9. Sends `:ping` keepalives every 25s to prevent proxy timeouts
-10. Cleans up listeners when the client disconnects
-
-### `agent.dial()` — outbound call API
-
-`agent.dial()` places an outbound phone call via Twilio. The agent must have a phone channel configured:
-
-```typescript
-// Simplest — from is auto-resolved from the agent's phone channel
-const call = await agent.dial({ to: "+51987654321", greeting: "Hello!" });
-
-// Explicit from — required only when the agent has multiple phone numbers
-const call = await agent.dial({
-  to: "+51987654321",
-  from: "+13186330963",
-  greeting: "Hello!",
-});
-```
-
-| Option | Type | Required | Description |
-|---|---|---|---|
-| `to` | `string` | ✅ | Destination phone number (E.164) |
-| `from` | `string` | Auto | Caller ID — auto-resolved if agent has one phone channel |
-| `greeting` | `string` | No | TTS greeting spoken when user picks up |
-| `metadata` | `object` | No | Metadata passed to the call |
-| `config` | `object` | No | Session config overrides |
-
-> **Note:** For outbound calls, the server speaks the greeting via TTS automatically. This is different from inbound calls, where you use `call.say()` in the `call.started` handler.
-
-### SSE event protocol
-
-The widget expects these events from `streamSSE`:
-
-| Event | Data | Description |
-|---|---|---|
-| `call.started` | `{ callId }` | Call connected |
-| `bot.word` | `{ text, messageId }` | Agent speaking (progressive, accumulated) |
-| `bot.confirmed` | `{ text, messageId }` | Final agent message (replaces words) |
-| `user.speaking` | `{ text, messageId }` | User speaking (interim transcript) |
-| `user.message` | `{ text, messageId }` | Final user message |
-| `tool.call` | `{ name, args }` | Tool invocation |
-| `call.ended` | `{ reason, duration }` | Call finished (stream closes) |
-
-### Production considerations
-
-- **Rate limiting** — cap outbound calls per IP or globally (e.g. 3 per 20 min)
-- **Phone validation** — normalize numbers before dialing (handle local formats)
-- **Auth** — protect your endpoint (session, JWT, etc.) so anyone can't trigger calls
-
 ## `tokenProvider` — token security
 
-Browser connections (WebRTC and chat) require **short-lived tokens**. Your backend generates them using `@pinecall/sdk`, and the widget fetches them via the `tokenProvider` callback. This keeps your API key server-side.
+Browser connections require **short-lived tokens**. Your backend generates them using `@pinecall/sdk`, and the widget fetches them via the `tokenProvider` callback. This keeps your API key server-side.
 
 ### Backend setup
-
-You need two things on your backend:
-
-1. A Pinecall client connected to the voice server
-2. An HTTP endpoint that generates tokens for the frontend
 
 ```typescript
 // server.js
 import express from "express";
-import { Pinecall, tool } from "@pinecall/sdk";
-import { z } from "zod";
+import { Pinecall } from "@pinecall/sdk";
 
 const app = express();
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
@@ -271,15 +50,11 @@ const florencia = pc.agent("florencia", {
 });
 
 florencia.addChannel("webrtc");
-florencia.addChannel("chat");
-
 florencia.on("call.started", (call) => call.say("¡Hola!"));
 
-// ── Token endpoint ──────────────────────────────────────────
-// Protect this with YOUR auth (session, JWT, OAuth, etc.)
+// Token endpoint — add your own auth in production
 app.get("/api/token", authMiddleware, async (req, res) => {
-  const channel = (req.query.channel as string) || "webrtc";
-  const token = await florencia.createToken(channel);
+  const token = await florencia.createToken("webrtc");
   res.json(token);
 });
 
@@ -308,7 +83,7 @@ Both return the same shape:
 { "token": "tok_...", "server": "wss://voice.pinecall.io", "expires_in": 60 }
 ```
 
-### Frontend: single-channel (WebRTC only)
+### Frontend
 
 ```tsx
 <VoiceWidget
@@ -323,47 +98,69 @@ Both return the same shape:
 />
 ```
 
-### Frontend: multi-channel (WebRTC + chat)
+### `allowedOrigins` + `tokenProvider` — recommended combo
 
-When using `channels` with both `webrtc` and `chat`, the widget needs tokens for each channel. Use `tokenProvider` for WebRTC and `chat.tokenProvider` for chat:
+Use **both** for the best experience:
 
-```tsx
-<VoiceWidget
-  agent="florencia"
-  channels={[{ type: "webrtc" }, { type: "chat" }]}
-  tokenProvider={async () => {
-    const res = await fetch("/api/token?channel=webrtc", { credentials: "include" });
-    return res.json();
-  }}
-  chat={{
-    greeting: "¡Hola! ¿En qué puedo ayudarte?",
-    tokenProvider: async () => {
-      const res = await fetch("/api/token?channel=chat", { credentials: "include" });
-      return res.json();
-    },
-  }}
-/>
-```
-
-> If you omit `chat.tokenProvider`, the widget falls back to the top-level `tokenProvider` — which works if your backend endpoint accepts `?channel=chat`.
-
-### Alternative: `allowedOrigins` (demos only)
-
-For demos without a backend, skip the token endpoint. The agent auto-generates tokens for matching browser origins:
+- `allowedOrigins` lets the widget auto-fetch tokens during **local development** (where your backend might not be running)
+- `tokenProvider` provides **production security** — tokens go through your backend with your auth
 
 ```typescript
-// Backend
-const agent = pc.agent("demo", {
+// Backend — agent config
+const florencia = pc.agent("florencia", {
+  // Dev fallback — widget can auto-fetch tokens from matching origins
   allowedOrigins: ["https://mysite.com", "http://localhost:*"],
+  // ...
 });
 ```
 
 ```tsx
-// Frontend — no tokenProvider needed
-<VoiceWidget agent="demo" />
+// Frontend — tokenProvider for production
+<VoiceWidget
+  agent="florencia"
+  tokenProvider={async () => {
+    const res = await fetch("/api/token");
+    if (!res.ok) throw new Error(`Token failed: ${res.status}`);
+    return res.json();
+  }}
+/>
 ```
 
-> **⚠️ Warning:** `allowedOrigins` is origin-header based. Real browsers can't spoof it, but scripts/curl can. For production with real users, always use `tokenProvider`.
+When `tokenProvider` is set, the widget uses it. When it's not set (or fails), `voice-core` falls back to fetching directly from the server using `allowedOrigins`.
+
+> **Security note:** `allowedOrigins` alone is origin-header based — real browsers can't spoof it, but scripts/curl can. Always pair it with `tokenProvider` in production.
+
+### How the token is used
+
+The token is consumed **once** during the WebRTC handshake. Here's the full flow:
+
+```
+1. Widget calls tokenProvider()
+   → returns { token: "tok_...", server: "wss://voice.pinecall.io" }
+
+2. Widget fetches ICE config
+   → GET {server}/webrtc/ice-servers → STUN/TURN servers
+
+3. Browser requests mic access
+   → navigator.mediaDevices.getUserMedia()
+
+4. Widget creates a WebRTC offer
+   → new RTCPeerConnection → addTrack(mic) → createOffer()
+
+5. Widget sends the offer + token to the server
+   → POST {server}/webrtc/offer
+     { sdp: "...", type: "offer", token: "tok_...", config, metadata }
+                                   ▲
+                                   └── token goes here, consumed on use
+
+6. Server validates the token, creates a session, returns the SDP answer
+   → { sdp: "...", type: "answer" }
+
+7. WebRTC connection established — audio flows peer-to-peer
+   → token is discarded, all communication is via PeerConnection
+```
+
+After step 5, the token is gone. It can't be reused, replayed, or shared. The WebRTC connection is secured by the PeerConnection itself.
 
 ### Token properties
 
@@ -374,43 +171,6 @@ const agent = pc.agent("demo", {
 | Scoped | Locked to agent + org | Can't be used elsewhere |
 
 > **Never** store API keys in frontend code. See [Security](/security) for the full token model.
-
-## `locale` and `labels` — localization
-
-Built-in strings are available in `en`, `es`, `de`, and `pt`.
-
-```tsx
-<VoiceWidget
-  agent="florencia"
-  locale="es"
-  labels={{
-    "callMe.formNote": '<a href="tel:+13186330963">+1 (318) 633-0963</a>',
-  }}
-/>
-```
-
-### All locale string keys
-
-| Key | Default (en) |
-|---|---|
-| `hub.title` | `"Contact {name}"` |
-| `hub.subtitle` | `"Choose how you'd like to connect"` |
-| `hub.voice` | `"Voice call"` |
-| `hub.voiceDesc` | `"Talk in real time"` |
-| `hub.chat` | `"Text chat"` |
-| `hub.chatDesc` | `"Chat with {name}"` |
-| `hub.whatsapp` | `"WhatsApp"` |
-| `hub.whatsappDesc` | `"Message on WhatsApp"` |
-| `hub.callMe` | `"Call me"` |
-| `hub.callMeDesc` | `"We'll call your phone"` |
-| `callMe.title` | `"We'll call you"` |
-| `callMe.placeholder` | `"Your phone number"` |
-| `callMe.submit` | `"Call me now"` |
-| `callMe.formNote` | — |
-| `callMe.calling` | `"Calling..."` |
-| `callMe.ended` | `"Call ended"` |
-| `callMe.error` | `"Error"` |
-| `callMe.back` | `"Back"` |
 
 ## `config` — session overrides
 

@@ -394,6 +394,6 @@ The agent doesn't need different code paths for "voice user" vs "GUI user" — i
 
 ## What's next
 
-- [Props reference](/voice-widget/props) — `tools`, `trackedTools`, `channels`, `chat`, and more
+- [Props reference](/voice-widget/props) — `tools`, `trackedTools`, `tokenProvider`, and more
 - [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — for non-tool custom UIs
 - [Tools and functions guide](/guides/tools-and-functions) — server-side tool definition
