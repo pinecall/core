@@ -66,11 +66,12 @@ async function showAccount(config: CliConfig): Promise<void> {
     if (twilioData.accounts.length > 0) {
         section("Twilio", twilioData.accounts.length);
         table(
-            ["Account", "SID", "Imported", "Status"],
+            ["Account", "SID", "Imported", "Balance", "Status"],
             twilioData.accounts.map((a: any) => [
                 c.bold(a.friendlyName || "—"),
                 c.dim(a.accountSid.slice(0, 14) + "…"),
                 c.cyan(String(a.phoneCount) + " phones"),
+                a.balance && a.balance !== "?" ? c.green("$" + Number(a.balance).toFixed(2)) : c.dim("—"),
                 a.verified ? c.green("verified") : c.red("unverified"),
             ]),
             4,
@@ -91,6 +92,9 @@ async function showAccount(config: CliConfig): Promise<void> {
         );
     }
 
+    console.log("");
+    console.log(`  ${c.dim("Run")} ${c.cyan("pinecall twilio")} ${c.dim("for phone import details")}`);
+    console.log(`  ${c.dim("Run")} ${c.cyan("pinecall account keys")}${c.dim(",")} ${c.cyan("usage")}${c.dim(",")} ${c.cyan("session")} ${c.dim("for more")}`);
     console.log("");
 }
 
@@ -157,6 +161,9 @@ async function showTwilio(config: CliConfig): Promise<void> {
         section(a.friendlyName || "Unnamed");
         kv("SID", c.dim(a.accountSid));
         kv("Status", status);
+        if (a.balance && a.balance !== "?") {
+            kv("Balance", c.green("$" + Number(a.balance).toFixed(2)));
+        }
         kv("Phones", `${c.green(String(imported))} imported  ${c.dim("/")}  ${c.yellow(String(total))} on Twilio`);
 
         if (a.availablePhones?.length > 0) {

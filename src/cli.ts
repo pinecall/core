@@ -10,6 +10,8 @@
  *   pinecall voices [--provider] [--language]  List TTS voices
  *   pinecall chat [agent]               Chat with a connected agent
  *   pinecall balance                    Show Twilio balance
+ *   pinecall account                    Org overview (keys, twilio, phones)
+ *   pinecall twilio                     Twilio accounts + phone import status
  *
  * Options:
  *   --api-key=pk_...   Override PINECALL_API_KEY
@@ -20,60 +22,57 @@
  */
 
 import { resolveConfig } from "./cli/config.js";
-import { banner, c, error } from "./cli/ui.js";
+import { c, error } from "./cli/ui.js";
 
 const VERSION = "0.2.7";
 
 const HELP = `
   ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${VERSION}`)}
 
-  ${c.bold("Commands:")}
+  ${c.bold("Voice Server")}
     agents                 ${c.dim("List connected agents + phones")}
     phones                 ${c.dim("List phone numbers (with agent assignment)")}
     voices                 ${c.dim("List available TTS voices")}
     chat [agent]           ${c.dim("Chat with a connected agent")}
     test <path>            ${c.dim("Run agent specs (YAML test files)")}
     balance                ${c.dim("Show Twilio account balance")}
-    account [sub]          ${c.dim("Manage org, keys, twilio, phones, usage")}
 
-  ${c.bold("Options:")}
+  ${c.bold("Account Management")}
+    account                ${c.dim("Org overview (keys, twilio, phones)")}
+    account keys           ${c.dim("List / create API keys")}
+    account usage          ${c.dim("Usage + billing")}
+    account session        ${c.dim("Debug session resolution")}
+    twilio                 ${c.dim("Twilio accounts + phone import status")}
+
+  ${c.bold("Options")}
     --api-key=pk_...       ${c.dim("Override PINECALL_API_KEY env var")}
-    --server=URL           ${c.dim("Override server URL")}
+    --server=URL           ${c.dim("Override voice server URL")}
+    --playground=URL       ${c.dim("Override playground URL")}
     --json                 ${c.dim("Output raw JSON")}
-    -h, --help             ${c.dim("Show this help")}
-    -v, --version          ${c.dim("Show version")}
 
-  ${c.bold("Voices options:")}
-    --provider=NAME        ${c.dim("Filter by provider (elevenlabs, cartesia)")}
-    --language=CODE        ${c.dim("Filter by language code (en, es, ...)")}
-
-  ${c.bold("Environment:")}
+  ${c.bold("Environment")}
     PINECALL_API_KEY       ${c.dim("Your Pinecall API key")}
-    PINECALL_URL           ${c.dim("Custom server URL")}
-    PINECALL_PLAYGROUND_URL ${c.dim("Custom playground URL")}
-
-  ${c.bold("Examples:")}
-    ${c.dim("$")} pinecall agents
-    ${c.dim("$")} pinecall phones
-    ${c.dim("$")} pinecall voices --provider=elevenlabs --language=es
-    ${c.dim("$")} pinecall chat mara
-    ${c.dim("$")} pinecall balance --json
-    ${c.dim("$")} pinecall account
-    ${c.dim("$")} pinecall account keys
-    ${c.dim("$")} pinecall account usage
+    PINECALL_URL           ${c.dim("Voice server URL")}
+    PINECALL_PLAYGROUND_URL ${c.dim("Playground API URL")}
 `;
+
+// Commands that handle their own --help
+const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
     const command = args.find((a) => !a.startsWith("-"));
 
-    // Help / version
-    if (args.includes("--help") || args.includes("-h") || args.length === 0) {
-        console.log(HELP);
-        return;
-    }
+    // Version
     if (args.includes("--version") || args.includes("-v")) {
         console.log(VERSION);
+        return;
+    }
+
+    // Global help — only if no command or command doesn't handle its own help
+    const wantsHelp = args.includes("--help") || args.includes("-h");
+    if (args.length === 0 || (wantsHelp && (!command || !SELF_HELP_COMMANDS.has(command)))) {
+        console.log(HELP);
         return;
     }
 
@@ -119,6 +118,12 @@ async function main(): Promise<void> {
         case "account": {
             const { accountCommand } = await import("./cli/commands/account.js");
             await accountCommand(config, args);
+            break;
+        }
+        case "twilio": {
+            // Top-level alias → delegates to account twilio
+            const { accountCommand } = await import("./cli/commands/account.js");
+            await accountCommand(config, ["account", "twilio", ...args.filter(a => a !== "twilio")]);
             break;
         }
         default:
