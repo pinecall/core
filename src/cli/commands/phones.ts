@@ -1,23 +1,22 @@
 /**
  * CLI — `pinecall phones`
  *
- * Lists phone numbers for the org with agent assignment info.
- * Uses GET /api/sdk/phone-numbers + GET /api/sdk/agents for cross-reference.
+ * Lists phone numbers from the org's Twilio account + connected agents.
+ * Twilio phones come from GET /api/sdk/phone-numbers (Twilio API).
+ * Agent assignment comes from GET /api/sdk/agents.
  */
 
 import type { CliConfig } from "../config.js";
-import { c, table, info, error } from "../ui.js";
+import { c, table, info, warn, error } from "../ui.js";
 
-interface PhoneEntry {
+interface TwilioPhone {
     number: string;
     name: string;
-    sid: string;
-    isSdk: boolean;
 }
 
 interface PhonesResponse {
     success: boolean;
-    phones: PhoneEntry[];
+    phones: TwilioPhone[];
     total: number;
 }
 
@@ -29,7 +28,6 @@ interface AgentsResponse {
 export async function phonesCommand(config: CliConfig): Promise<void> {
     const headers = { Authorization: `Bearer ${config.apiKey}` };
 
-    // Fetch phones + agents in parallel
     let phonesRes: Response;
     let agentsRes: Response;
 
@@ -42,36 +40,37 @@ export async function phonesCommand(config: CliConfig): Promise<void> {
         error(`Cannot reach server at ${config.server}`);
     }
 
-    if (!phonesRes!.ok) {
-        error(`Failed to fetch phones: ${phonesRes!.status}`);
-    }
-
-    const phonesData: PhonesResponse = await phonesRes!.json();
+    // Agent phone map (always needed)
     let phoneMap: Record<string, string> = {};
-
     if (agentsRes!.ok) {
         const agentsData: AgentsResponse = await agentsRes!.json();
         phoneMap = agentsData.phone_map ?? {};
     }
 
-    // Merge: start with DB phones, then add any agent phones not in DB
-    const seen = new Set<string>();
-    const merged: { number: string; name: string; agent?: string; source: "db" | "agent" }[] = [];
+    // Twilio phones (may fail if no Twilio creds)
+    let twilioPhones: TwilioPhone[] = [];
+    if (phonesRes!.ok) {
+        const phonesData: PhonesResponse = await phonesRes!.json();
+        twilioPhones = phonesData.phones ?? [];
+    }
 
-    for (const p of phonesData.phones) {
+    // Merge: start with Twilio phones, then add agent-only phones
+    const seen = new Set<string>();
+    const merged: { number: string; name: string; agent?: string }[] = [];
+
+    for (const p of twilioPhones) {
         seen.add(p.number);
         merged.push({
             number: p.number,
             name: p.name !== p.number ? p.name : "",
             agent: phoneMap[p.number],
-            source: "db",
         });
     }
 
-    // Add phones from connected agents that aren't in the DB
+    // Add phones from connected agents that aren't in Twilio
     for (const [phone, agent] of Object.entries(phoneMap)) {
         if (!seen.has(phone)) {
-            merged.push({ number: phone, name: "", agent, source: "agent" });
+            merged.push({ number: phone, name: "", agent });
         }
     }
 
@@ -85,22 +84,18 @@ export async function phonesCommand(config: CliConfig): Promise<void> {
         return;
     }
 
-    const tableHeaders = ["Phone", "Name", "Agent", "Source"];
+    const tableHeaders = ["Phone", "Name", "Agent"];
     const rows = merged.map((p) => {
         const agentCol = p.agent ? c.purple(p.agent) : c.dim("— (available)");
         const name = p.name || c.dim("—");
-        const source = p.source === "db" ? c.dim("db") : c.yellow("live");
-        return [p.number, name, agentCol, source];
+        return [p.number, name, agentCol];
     });
 
     console.log("");
     table(tableHeaders, rows);
 
     const available = merged.filter((p) => !p.agent).length;
-    const fromDb = merged.filter((p) => p.source === "db").length;
-    const fromAgent = merged.filter((p) => p.source === "agent").length;
     const summary = `${c.bold(String(merged.length))} phone number${merged.length !== 1 ? "s" : ""}`;
-    const sources = fromAgent > 0 ? ` ${c.dim(`(${fromDb} db, ${fromAgent} live)`)}` : "";
     const avail = available > 0 ? `, ${c.green(String(available))} available` : "";
-    info(`${summary}${sources}${avail}`);
+    info(`${summary}${avail}`);
 }

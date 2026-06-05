@@ -217,10 +217,13 @@ agent.on("whatsapp.message", (event: {
   type: "text" | "audio" | "image" | "video" | "document";
   text: string;
   messageId: string;
+  paused: boolean;  // true when agent is paused (human-in-the-loop)
 }) => { });
 ```
 
 Incoming WhatsApp message. For voice notes (`type: "audio"`), `text` is the transcript.
+
+When `paused` is `true`, the AI did not respond — a human should handle this message via `agent.sendMessage()`.
 
 ### `whatsapp.response`
 
@@ -229,10 +232,11 @@ agent.on("whatsapp.response", (event: {
   sessionId: string;
   to: string;
   text: string;
+  source?: "human";  // present when sent by human via agent.sendMessage()
 }) => { });
 ```
 
-The agent sent a WhatsApp response.
+The agent sent a WhatsApp response. When `source` is `"human"`, the message was sent by a human operator (not the AI).
 
 ### `whatsapp.status`
 
@@ -245,6 +249,31 @@ agent.on("whatsapp.status", (event: {
 ```
 
 Delivery status update from Meta.
+
+## Human-in-the-loop events
+
+### `session.paused`
+
+```typescript
+agent.on("session.paused", (event: {
+  sessionId?: string;   // set for session-level pause
+  contact?: string;     // set for contact-level pause
+  // both undefined = global pause
+}) => { });
+```
+
+Confirmation that the agent was paused. Fires after `agent.pause()`.
+
+### `session.resumed`
+
+```typescript
+agent.on("session.resumed", (event: {
+  sessionId?: string;
+  contact?: string;
+}) => { });
+```
+
+Confirmation that the agent was resumed. Fires after `agent.resume()`.
 
 ## Audio metrics
 

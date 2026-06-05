@@ -152,6 +152,50 @@ Meta enforces a **24-hour service window** for free-form messaging:
 
 The SDK tracks the window automatically. If you try to send when it's closed, the server logs a warning. Template message support is on the roadmap.
 
+## Human takeover (pause/resume)
+
+Sometimes a human needs to step in. `agent.pause()` stops the AI from responding while keeping messages flowing to the SDK. The human sends replies via `agent.sendMessage()`, and when done, `agent.resume()` hands control back to the AI — with full conversation context preserved.
+
+```typescript
+// A dashboard UI triggers this when a human wants to take over
+support.on("whatsapp.message", (event) => {
+  if (event.paused) {
+    // AI is paused — show this message to the human operator
+    dashboard.showMessage(event);
+    return;
+  }
+  // Normal flow — AI handles automatically
+});
+
+// Pause a specific WhatsApp session
+support.pause("wa-abc123");
+
+// Human sends a message through WhatsApp
+support.sendMessage({
+  sessionId: "wa-abc123",
+  text: "Hi! A human agent here. Let me help you with that.",
+});
+
+// Resume AI when the human is done
+support.resume("wa-abc123");
+```
+
+**Granularity options:**
+
+| Method | What it pauses |
+|--------|---------------|
+| `agent.pause("wa-abc123")` | One specific session |
+| `agent.pause({ contact: "+34612..." })` | All sessions with this contact |
+| `agent.pause()` | Entire agent (all sessions) |
+
+While paused:
+- Messages are still forwarded to the SDK (with `paused: true`)
+- Voice notes are still transcribed
+- Human messages are added to LLM history (context preserved on resume)
+- No typing indicator is shown (unless the human sends a message)
+
+See the full [Human Takeover guide](/guides/human-takeover) for advanced patterns.
+
 ## Environment variables
 
 Set these on the voice server (`sdk-server`):

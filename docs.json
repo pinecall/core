@@ -38,6 +38,7 @@
           "guides/inbound-voice",
           "guides/outbound-calls",
           "guides/whatsapp",
+          "guides/human-takeover",
           "guides/webrtc-browser",
           "guides/tools-and-functions",
           "guides/multi-tenant",

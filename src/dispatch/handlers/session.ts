@@ -1,7 +1,8 @@
 /**
- * Session handler — session lifecycle and config events.
+ * Session handler — session lifecycle, config, and human-in-the-loop events.
  *
  * Handles: session.idle_warning, session.timeout, session.configured,
+ *          session.paused, session.resumed,
  *          session_config_updated, config_updated, phone_added, phone_removed
  */
 
@@ -15,6 +16,9 @@ export class SessionHandler implements EventHandler {
         "session.idle_warning",
         "session.timeout",
         "session.configured",
+        "session.paused",
+        "session.resumed",
+        "session.sent",
         "session_config_updated",
         "config_updated",
         "phone_added",
@@ -49,12 +53,31 @@ export class SessionHandler implements EventHandler {
             }
 
             case "session.configured":
+            case "session.sent":
             case "session_config_updated":
             case "config_updated":
             case "phone_added":
             case "phone_removed":
                 // Acknowledgments — no action needed
                 return true;
+
+            case "session.paused": {
+                if (!agent) return false;
+                agent._emitWire("session.paused", {
+                    sessionId: (wire.session_id as string) || undefined,
+                    contact: (wire.contact as string) || undefined,
+                });
+                return true;
+            }
+
+            case "session.resumed": {
+                if (!agent) return false;
+                agent._emitWire("session.resumed", {
+                    sessionId: (wire.session_id as string) || undefined,
+                    contact: (wire.contact as string) || undefined,
+                });
+                return true;
+            }
 
             default:
                 return false;

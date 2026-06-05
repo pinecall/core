@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Human-in-the-loop**: `agent.pause()`, `agent.resume()`, `agent.sendMessage()` — pause the AI so a human can take over conversations. Works on WhatsApp (voice/chat planned). Messages continue flowing to the SDK while paused; human messages are recorded in LLM history for seamless resume.
+- New events: `session.paused`, `session.resumed`.
+- `whatsapp.message` event now includes `paused: boolean` field.
+- `whatsapp.response` event now includes `source?: "human"` field.
+- New guide: [Human Takeover](/guides/human-takeover).
+
+---
+
 ## [0.2.7] — 2026-06-01
 
 ### Fixed

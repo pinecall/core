@@ -95,6 +95,10 @@ export interface AgentEvents {
     "whatsapp.response": (event: Record<string, unknown>) => void;
     "whatsapp.status": (event: Record<string, unknown>) => void;
     "whatsapp.session_started": (event: Record<string, unknown>) => void;
+
+    // Human-in-the-loop
+    "session.paused": (event: { sessionId?: string; contact?: string }) => void;
+    "session.resumed": (event: { sessionId?: string; contact?: string }) => void;
 }
 
 // ─── Agent class ─────────────────────────────────────────────────────────
@@ -355,6 +359,59 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 cleanup();
                 reject(new Error("Dial timeout"));
             }, 30000);
+        });
+    }
+
+    // ── Human-in-the-loop ─────────────────────────────────────────────────
+
+    /**
+     * Pause the AI agent. While paused, incoming messages are forwarded to
+     * the SDK but the LLM does not generate responses — a human takes over.
+     *
+     * @param target - Session ID, `{ contact: "+34..." }`, or omit for global pause.
+     */
+    pause(target?: string | { contact: string }): void {
+        const msg: Record<string, unknown> = {
+            event: "session.pause",
+            agent_id: this.id,
+        };
+        if (typeof target === "string") {
+            msg.session_id = target;
+        } else if (target && "contact" in target) {
+            msg.contact = target.contact;
+        }
+        this.send(msg);
+    }
+
+    /**
+     * Resume the AI agent after a pause.
+     *
+     * @param target - Session ID, `{ contact: "+34..." }`, or omit for global resume.
+     */
+    resume(target?: string | { contact: string }): void {
+        const msg: Record<string, unknown> = {
+            event: "session.resume",
+            agent_id: this.id,
+        };
+        if (typeof target === "string") {
+            msg.session_id = target;
+        } else if (target && "contact" in target) {
+            msg.contact = target.contact;
+        }
+        this.send(msg);
+    }
+
+    /**
+     * Send a message as the human operator (not AI-generated).
+     * Works while the session is paused — the message is sent through the
+     * channel (WhatsApp, etc.) and added to LLM history for context.
+     */
+    sendMessage(opts: { sessionId: string; text: string }): void {
+        this.send({
+            event: "session.send",
+            agent_id: this.id,
+            session_id: opts.sessionId,
+            text: opts.text,
         });
     }
 

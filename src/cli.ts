@@ -38,12 +38,15 @@ const HELP = `
     balance                ${c.dim("Show Twilio account balance")}
 
   ${c.bold("Account Management")}
+    signup                 ${c.dim("Create a new organization")}
     account                ${c.dim("Org overview (keys, twilio, phones)")}
     account keys           ${c.dim("List / create API keys")}
     account usage          ${c.dim("Usage + billing")}
     twilio                 ${c.dim("List Twilio accounts + phone status")}
     twilio link            ${c.dim("Link a Twilio account")}
     twilio import          ${c.dim("Import a phone number")}
+    phone request          ${c.dim("Get a managed number from Pinecall")}
+    phone search           ${c.dim("Search available numbers")}
 
   ${c.bold("Options")}
     --api-key=pk_...       ${c.dim("Override PINECALL_API_KEY env var")}
@@ -58,7 +61,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat"]);
+const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -79,6 +82,20 @@ async function main(): Promise<void> {
 
     if (!command) {
         console.log(HELP);
+        return;
+    }
+
+    // Signup doesn't need API key — handle before resolveConfig
+    if (command === "signup") {
+        const { resolveConfig: rc } = await import("./cli/config.js");
+        // Build a config without requiring API key
+        const playgroundArg = args.find(a => a.startsWith("--playground="));
+        const playground = playgroundArg
+            ? playgroundArg.slice("--playground=".length)
+            : process.env.PINECALL_PLAYGROUND_URL ?? "http://localhost:4000";
+        const config = { apiKey: "", server: "", playground: playground.replace(/\/+$/, ""), json: args.includes("--json") };
+        const { signupCommand } = await import("./cli/commands/signup.js");
+        await signupCommand(config, args);
         return;
     }
 
@@ -125,6 +142,11 @@ async function main(): Promise<void> {
             // Top-level alias → delegates to account twilio
             const { accountCommand } = await import("./cli/commands/account.js");
             await accountCommand(config, ["account", "twilio", ...args.filter(a => a !== "twilio")]);
+            break;
+        }
+        case "phone": {
+            const { phoneCommand } = await import("./cli/commands/phone.js");
+            await phoneCommand(config, args);
             break;
         }
         default:

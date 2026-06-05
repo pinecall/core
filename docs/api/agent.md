@@ -162,6 +162,53 @@ agent.routeCallers(["+34607827824", "+34612345678"]);
 
 See [Dev mode guide](/guides/dev-mode).
 
+## Human-in-the-loop
+
+Pause the AI so a human can take over the conversation. Works on WhatsApp and (soon) voice/chat channels.
+
+### `pause(target?)`
+
+Pause the agent. While paused, incoming messages are forwarded to the SDK but the LLM doesn't respond.
+
+```typescript
+// Pause a specific session
+agent.pause("wa-abc123");
+
+// Pause all sessions with a contact
+agent.pause({ contact: "+34612345678" });
+
+// Pause the entire agent
+agent.pause();
+```
+
+### `resume(target?)`
+
+Resume the AI after a pause. Global resume clears all session and contact pauses.
+
+```typescript
+agent.resume("wa-abc123");
+agent.resume({ contact: "+34612345678" });
+agent.resume();
+```
+
+### `sendMessage(opts)`
+
+Send a message as the human operator. The message is delivered through the channel (e.g. WhatsApp) and added to LLM history so the AI has context when resumed.
+
+```typescript
+agent.sendMessage({
+  sessionId: "wa-abc123",
+  text: "Hi, I'm taking over this conversation.",
+});
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sessionId` | `string` | ✅ | Target session ID (e.g. `wa-abc123`) |
+| `text` | `string` | ✅ | Message body |
+
+See [Human Takeover guide](/guides/human-takeover) for the full pattern.
+
 ## Calls
 
 ### `call(callId)`
@@ -239,6 +286,15 @@ Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` 
 | `whatsapp.status` | `(event)` | Message delivery status |
 
 See [Events reference](/reference/events) for full event data shapes.
+
+### Human-in-the-loop
+
+| Event | Signature | When |
+|---|---|---|
+| `session.paused` | `(event)` | AI paused for a session, contact, or globally |
+| `session.resumed` | `(event)` | AI resumed |
+
+See [Human Takeover guide](/guides/human-takeover).
 
 ## Escape hatch
 
