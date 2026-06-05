@@ -15,6 +15,7 @@ import * as path from "node:path";
 import type { Spec, JudgeConfig, JudgeMessage, SpecResult, TurnRecord, ToolCallInfo } from "./types.js";
 import { ChatClient } from "./chat-client.js";
 import { callJudge, DEFAULT_JUDGE, type JudgeResponse } from "./judge.js";
+import { c } from "../../ui.js";
 
 // ── YAML parser (minimal, no deps) ──────────────────────
 
@@ -49,6 +50,20 @@ export function parseSpec(content: string): Spec {
             }
         }
 
+        // Judge sub-keys (indented) — must check BEFORE the top-level regex
+        // because `  provider: anthropic` won't match ^(\w+) due to leading spaces.
+        if (inJudge && line.startsWith("  ")) {
+            const subMatch = line.trim().match(/^(\w+):\s*(.*)/);
+            if (subMatch) {
+                const [, sk, sv] = subMatch;
+                judgeBlock[sk] = isNaN(Number(sv)) ? sv : Number(sv);
+            }
+            continue;
+        } else if (inJudge) {
+            spec.judge = judgeBlock;
+            inJudge = false;
+        }
+
         // Top-level key: value
         const match = line.match(/^(\w+):\s*(.*)/);
         if (!match) continue;
@@ -60,18 +75,6 @@ export function parseSpec(content: string): Spec {
             inJudge = true;
             judgeBlock = {};
             continue;
-        }
-
-        if (inJudge && line.startsWith("  ")) {
-            const subMatch = line.trim().match(/^(\w+):\s*(.*)/);
-            if (subMatch) {
-                const [, sk, sv] = subMatch;
-                judgeBlock[sk] = isNaN(Number(sv)) ? sv : Number(sv);
-            }
-            continue;
-        } else if (inJudge) {
-            spec.judge = judgeBlock;
-            inJudge = false;
         }
 
         // Multiline block (workflow: |)
@@ -263,21 +266,39 @@ export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult>
                 break;
             }
 
-            log(`  Turn ${turn + 1}: "${testerMsg}"`);
+            // ── Tester message ──
+            log(``);
+            log(`    ${c.cyan(`┌ Tester [${turn + 1}]`)}`);
+            // Judge writes internal notes then the user message, separated by \n\n.
+            // Display only the last paragraph (the actual message to the agent).
+            const paragraphs = testerMsg.split("\n\n").filter(p => p.trim());
+            const userMsg = paragraphs[paragraphs.length - 1]?.trim() ?? testerMsg;
+            const displayMsg = userMsg.length > 160 ? userMsg.slice(0, 160) + "…" : userMsg;
+            for (const ml of displayMsg.split("\n")) {
+                log(`    ${c.cyan("│")} ${c.dim(ml)}`);
+            }
+            log(`    ${c.cyan("└")}`);
+
             messages.push({ role: "assistant", content: testerMsg });
 
             // 4. Send to agent and wait for response
             client.sendMessage(testerMsg);
             const agentRes = await client.waitForResponse(timeout);
 
+            // ── Agent response ──
             const preview = agentRes.text.length > 200 ? agentRes.text.slice(0, 200) + "…" : agentRes.text;
-            log(`    Bot: ${preview}`);
+            log(`    ${c.purple("┌ Agent")}`);
+            for (const responseLine of preview.split("\n").slice(0, 8)) {
+                log(`    ${c.purple("│")} ${responseLine}`);
+            }
             if (agentRes.toolCalls.length > 0) {
+                log(`    ${c.purple("│")}`);
                 for (const tc of agentRes.toolCalls) {
                     const argsPreview = tc.arguments.length > 80 ? tc.arguments.slice(0, 80) + "…" : tc.arguments;
-                    log(`    🔧 ${tc.name}(${argsPreview})`);
+                    log(`    ${c.purple("│")} ${c.yellow(`⚡ ${tc.name}`)}${c.dim(`(${argsPreview})`)}`);
                 }
             }
+            log(`    ${c.purple("└")}`);
 
             turns.push({
                 testerMessage: testerMsg,

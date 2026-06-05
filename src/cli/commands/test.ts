@@ -138,7 +138,7 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
     // Banner
     const judgeName = judgeOverride
         ? judgeOverride
-        : filtered[0].judge
+        : (filtered[0].judge?.provider)
             ? `${filtered[0].judge.provider}:${filtered[0].judge.model}`
             : "anthropic:claude-haiku-4-5";
     if (!json) {
