@@ -149,7 +149,10 @@ async function showTwilio(config: CliConfig): Promise<void> {
         return;
     }
     if (data.accounts.length === 0) {
-        info("No Twilio accounts linked.");
+        console.log("");
+        console.log(`  ${c.dim("No Twilio accounts linked.")}`)
+        console.log(`  ${c.dim("Link one with:")} ${c.cyan("pinecall twilio link <SID> <AuthToken>")}`);
+        console.log("");
         return;
     }
 
@@ -184,7 +187,7 @@ async function showTwilio(config: CliConfig): Promise<void> {
             }
 
             if (availablePhones.length > 0) {
-                console.log(`\n    ${c.yellow("○")} ${c.dim("Available")} ${c.dim("— not imported, run")} ${c.cyan("pinecall account phones import")}`);
+                console.log(`\n    ${c.yellow("○")} ${c.dim("Available")} ${c.dim("— import with")} ${c.cyan("pinecall twilio import <number>")}`);
                 table(
                     ["Number", "Name", "Type"],
                     availablePhones.map((p: any) => [
@@ -197,6 +200,7 @@ async function showTwilio(config: CliConfig): Promise<void> {
             }
         }
     }
+
 
     console.log("");
 }
@@ -301,6 +305,127 @@ async function showSession(config: CliConfig): Promise<void> {
     console.log("");
 }
 
+// ── Twilio write operations ─────────────────────────────────────────────
+
+async function linkTwilio(config: CliConfig, accountSid: string, authToken: string, name?: string): Promise<void> {
+    const body: any = { accountSid, authToken };
+    if (name) body.friendlyName = name;
+
+    const data = await pg(config, "/twilio", {
+        method: "POST",
+        body: JSON.stringify(body),
+    });
+
+    if (config.json) {
+        console.log(JSON.stringify(data, null, 2));
+        return;
+    }
+
+    console.log("");
+    console.log(`  ${c.green("✓")} Linked ${c.bold(data.friendlyName || data.accountSid)}`);
+    kv("SID", c.dim(data.accountSid));
+    kv("Verified", data.verified ? c.green("yes") : c.red("no"));
+
+    if (data.availablePhones?.length > 0) {
+        console.log(`\n  ${c.bold("Available phones")} ${c.dim(`(${data.availablePhones.length})`)}`);
+        table(
+            ["Number", "Name", "Type"],
+            data.availablePhones.map((p: any) => [
+                c.yellow(p.number),
+                p.name || c.dim("—"),
+                c.dim(p.type),
+            ]),
+            4,
+        );
+        console.log(`\n  ${c.dim("Import with:")} ${c.cyan("pinecall twilio import <number>")}`);
+    }
+
+    console.log("");
+}
+
+async function importPhone(config: CliConfig, number: string): Promise<void> {
+    // Find the phone in available phones across all Twilio accounts
+    const data = await pg(config, "/twilio?available=true");
+
+    let targetPhone: any = null;
+    let targetAccount: any = null;
+
+    for (const a of data.accounts) {
+        if (!a.availablePhones) continue;
+        const phone = a.availablePhones.find((p: any) =>
+            p.number === number || p.number.endsWith(number),
+        );
+        if (phone) {
+            targetPhone = phone;
+            targetAccount = a;
+            break;
+        }
+    }
+
+    if (!targetPhone) {
+        error(`Phone ${number} not found in any linked Twilio account.\n\n  Run ${c.dim("pinecall twilio")} to see available phones.`);
+    }
+
+    if (targetPhone.imported) {
+        info(`${c.green(targetPhone.number)} is already imported.`);
+        return;
+    }
+
+    const result = await pg(config, "/phones/import", {
+        method: "POST",
+        body: JSON.stringify({
+            twilioAccountId: targetAccount.id,
+            phones: [{
+                number: targetPhone.number,
+                sid: targetPhone.sid,
+                type: targetPhone.type,
+                friendlyName: targetPhone.name,
+                ...(targetPhone.sipDomainSid && { sipDomainSid: targetPhone.sipDomainSid }),
+                ...(targetPhone.sipDomainName && { sipDomainName: targetPhone.sipDomainName }),
+            }],
+            configureWebhooks: true,
+        }),
+    });
+
+    if (config.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+
+    console.log("");
+    console.log(`  ${c.green("✓")} Imported ${c.green(targetPhone.number)}`);
+    kv("Name", targetPhone.name || "—");
+    kv("Account", targetAccount.friendlyName || targetAccount.accountSid);
+    kv("Webhook", result.imported?.[0]?.webhookConfigured ? c.green("configured") : c.yellow("skipped"));
+    console.log("");
+}
+
+async function unlinkTwilio(config: CliConfig, accountId: string): Promise<void> {
+    // Find account by SID or ID
+    const data = await pg(config, "/twilio");
+    const account = data.accounts.find((a: any) =>
+        a.id === accountId || a.accountSid === accountId || a.accountSid.startsWith(accountId),
+    );
+
+    if (!account) {
+        error(`Twilio account ${accountId} not found.\n\n  Run ${c.dim("pinecall twilio")} to see linked accounts.`);
+    }
+
+    const result = await pg(config, `/twilio/${account.id}`, { method: "DELETE" });
+
+    if (config.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+
+    console.log("");
+    console.log(`  ${c.green("✓")} Unlinked ${c.bold(account.friendlyName || account.accountSid)}`);
+    if (result.phonesRemoved > 0) {
+        console.log(`  ${c.dim(`Removed ${result.phonesRemoved} imported phone(s)`)}`);
+    }
+    console.log("");
+}
+
 // ── Help texts ──────────────────────────────────────────────────────────
 
 const ACCOUNT_HELP = `
@@ -315,7 +440,7 @@ const ACCOUNT_HELP = `
     session                Debug session resolution
 
   ${c.bold("Related:")}
-    ${c.cyan("pinecall twilio")}      Twilio accounts + phone import status
+    ${c.cyan("pinecall twilio")}      Twilio accounts + phone management
 
   ${c.bold("Examples:")}
     ${c.dim("$")} pinecall account
@@ -327,15 +452,28 @@ const ACCOUNT_HELP = `
 const TWILIO_HELP = `
   ${c.purple("⚡")} ${c.bold("pinecall twilio")} — Twilio account management
 
-  Shows linked Twilio accounts with live balance, and lists
-  all phone numbers with their import status.
+  ${c.bold("Subcommands:")}
+    ${c.dim("(none)")}               List accounts + imported/available phones
+    link <SID> <Token>     Link a Twilio account
+    import <number>        Import an available phone number
+    unlink <SID>           Unlink a Twilio account
 
-  ${c.green("● Imported")}   ${c.dim("Phone is active in Pinecall")}
-  ${c.yellow("○ Available")}  ${c.dim("Phone exists on Twilio but not imported")}
+  ${c.bold("Getting Started:")}
+    ${c.dim("1.")} Link your Twilio account:
+       ${c.dim("$")} pinecall twilio link AC1234... your_auth_token
 
-  ${c.bold("Examples:")}
-    ${c.dim("$")} pinecall twilio
-    ${c.dim("$")} pinecall twilio --json
+    ${c.dim("2.")} See available phone numbers:
+       ${c.dim("$")} pinecall twilio
+
+    ${c.dim("3.")} Import the ones you want to use:
+       ${c.dim("$")} pinecall twilio import +1234567890
+
+  ${c.bold("Legend:")}
+    ${c.green("● Imported")}   Phone is active in Pinecall
+    ${c.yellow("○ Available")}  Phone exists on Twilio but not yet imported
+
+  ${c.bold("No Twilio account?")}
+    ${c.dim("Pinecall can provision a shared number for you.")} ${c.dim("(coming soon)")}
 `;
 
 const SUBCOMMAND_HELP: Record<string, string> = {
@@ -370,9 +508,26 @@ export async function accountCommand(config: CliConfig, args: string[]): Promise
             }
             break;
         }
-        case "twilio":
-            await showTwilio(config);
+        case "twilio": {
+            const sub2 = positional[1];
+            if (sub2 === "link") {
+                const sid = positional[2];
+                const token = positional[3];
+                if (!sid || !token) error(`Usage: pinecall twilio link <AccountSID> <AuthToken> [name]`);
+                await linkTwilio(config, sid, token, positional[4]);
+            } else if (sub2 === "import") {
+                const num = positional[2];
+                if (!num) error(`Usage: pinecall twilio import <phone_number>`);
+                await importPhone(config, num);
+            } else if (sub2 === "unlink") {
+                const sid = positional[2];
+                if (!sid) error(`Usage: pinecall twilio unlink <AccountSID>`);
+                await unlinkTwilio(config, sid);
+            } else {
+                await showTwilio(config);
+            }
             break;
+        }
         case "phones":
             await showPhones(config);
             break;
@@ -386,4 +541,3 @@ export async function accountCommand(config: CliConfig, args: string[]): Promise
             error(`Unknown subcommand: ${sub}\n\n  Run ${c.dim("pinecall account --help")} for usage.`);
     }
 }
-

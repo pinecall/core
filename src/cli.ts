@@ -41,8 +41,9 @@ const HELP = `
     account                ${c.dim("Org overview (keys, twilio, phones)")}
     account keys           ${c.dim("List / create API keys")}
     account usage          ${c.dim("Usage + billing")}
-    account session        ${c.dim("Debug session resolution")}
-    twilio                 ${c.dim("Twilio accounts + phone import status")}
+    twilio                 ${c.dim("List Twilio accounts + phone status")}
+    twilio link            ${c.dim("Link a Twilio account")}
+    twilio import          ${c.dim("Import a phone number")}
 
   ${c.bold("Options")}
     --api-key=pk_...       ${c.dim("Override PINECALL_API_KEY env var")}
