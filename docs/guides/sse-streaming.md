@@ -55,7 +55,7 @@ app.get("/events/mara", () => mara.stream());
 If you have multiple agents but only want events from specific ones:
 
 ```typescript
-app.get("/events", (req, res) => pc.stream(res, { agents: ["mara", "julia"] }));
+app.get("/events", (req, res) => pc.stream(res, { agents: ["mara", "support"] }));
 ```
 
 ## Event format

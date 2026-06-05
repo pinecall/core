@@ -98,17 +98,17 @@ import { Pinecall } from "@pinecall/sdk";
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 await pc.connect();
 
-const julia = pc.deploy("julia", {
-  prompt: "You are Julia, the intercom concierge...",
+const agent = pc.deploy("support", {
+  prompt: "You are a support agent for an online store...",
   model: "gpt-4.1-mini",
   voice: "elevenlabs/sarah",
-  language: "es",
+  language: "en",
   channels: ["+13186330963"],
-  tools: [openDoor, identifyVisitor],
+  tools: [lookupOrder, processReturn],
 });
 
-julia.on("call.started", (call) => call.say("¿Quién es?"));
-console.log("Julia is live. Ctrl+C to stop.");
+agent.on("call.started", (call) => call.say("Hi! How can I help?"));
+console.log("Support agent is live. Ctrl+C to stop.");
 ```
 
 **Pros:**

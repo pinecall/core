@@ -87,7 +87,7 @@ const agent = pc.deploy("mara", {
   model: "gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: { provider: "deepgram-flux", keyterms: ["Cointel", "portero"] },
+  stt: { provider: "deepgram-flux", keyterms: ["Acme", "checkout"] },
   channels: ["webrtc", "+13186330963"],
   sessionLimits: { idle_timeout_seconds: 30, idle_warning_seconds: 10 },
 });

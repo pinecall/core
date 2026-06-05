@@ -144,7 +144,7 @@ app.get("/events", () => pc.stream());
 app.get("/events", (req, res) => pc.stream(res));
 
 // Filtered to specific agents
-app.get("/events", () => pc.stream({ agents: ["mara", "julia"] }));
+app.get("/events", () => pc.stream({ agents: ["mara", "support"] }));
 app.get("/events", (req, res) => pc.stream(res, { agents: ["mara"] }));
 ```
 
