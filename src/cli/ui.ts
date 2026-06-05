@@ -85,3 +85,20 @@ export function banner(): void {
     const version = "0.2.7";
     console.log(`\n  ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${version}`)}\n`);
 }
+
+// ── Section headers ──────────────────────────────────────────────────────
+
+export function section(title: string, count?: number | string): void {
+    const countStr = count !== undefined ? ` ${c.dim(`(${count})`)}` : "";
+    console.log(`\n  ${c.cyan("▸")} ${c.bold(title)}${countStr}`);
+}
+
+export function kv(label: string, value: string, indent = 4): void {
+    console.log(`${" ".repeat(indent)}${c.dim(label + ":")} ${value}`);
+}
+
+export function badge(text: string, color: "green" | "yellow" | "red" | "cyan" | "purple"): string {
+    const fn = c[color];
+    return fn(`[${text}]`);
+}
+
