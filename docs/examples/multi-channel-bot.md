@@ -77,11 +77,8 @@ const endConversation = tool({
 const support = pc.agent("acme-support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: `You are Nova, a support agent at Acme Corp.
+  llm: "openai/gpt-4.1-mini",
+  prompt: `You are Nova, a support agent at Acme Corp.
 
 You can:
 - Look up order status with lookupOrder
@@ -90,7 +87,6 @@ You can:
 
 Be concise. On voice, keep responses to 1-2 sentences.
 On WhatsApp, you can be slightly longer but still brief.`,
-  },
   tools: [lookupOrder, transferToHuman, endConversation],
 });
 

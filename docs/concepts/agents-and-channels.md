@@ -38,7 +38,8 @@ A configured assistant. Has a name (the agent ID), a voice, an STT provider, an 
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "...",
 });
 ```
 
@@ -99,13 +100,9 @@ More verbose, more control. Use this when you need to set advanced provider conf
 const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: "deepgram/flux-en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are Mara. Be concise.",
-  },
+  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are Mara. Be concise.",
 });
 
 mara.addChannel("webrtc");

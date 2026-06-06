@@ -54,7 +54,8 @@ Create or retrieve an agent. If an agent with this ID already exists, returns it
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "...",
 });
 ```
 

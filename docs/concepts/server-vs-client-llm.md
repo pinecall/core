@@ -87,7 +87,8 @@ A single `Pinecall` instance can host multiple agents, each with a different LLM
 ```typescript
 // Server-side agent for WhatsApp + phone
 const support = pc.agent("support", {
-  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "...",
 });
 support.addChannel("whatsapp", { /* config */ });
 support.addChannel("phone", "+13186330963");

@@ -49,12 +49,8 @@ await pc.connect();
 
 const support = pc.agent("support", {
   language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a helpful support agent on WhatsApp. Be concise.",
-  },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are a helpful support agent on WhatsApp. Be concise.",
 });
 
 support.addChannel("whatsapp", {
@@ -96,12 +92,8 @@ const lookupOrder = tool({
 });
 
 const support = pc.agent("support", {
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "...",
-  },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "...",
   tools: [lookupOrder],
 });
 ```
@@ -114,7 +106,8 @@ The same agent can serve WhatsApp **and** phone calls. The LLM config, tools, an
 const support = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "...",
   tools: [lookupOrder],
 });
 

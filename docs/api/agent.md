@@ -13,13 +13,9 @@ Created via `pc.agent(id, config?)` or `pc.deploy(id, config)`. Owns channels, r
 const agent = pc.agent("my-agent", {
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: "deepgram/flux-en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "System prompt with {{template_vars}}.",
-  },
+  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
+  prompt: "System prompt with {{template_vars}}.",
   tools: [/* OpenAI function-calling format */],
 });
 ```
@@ -92,9 +88,7 @@ Hot-reload the agent's defaults. Affects all **future** calls — existing calls
 ```typescript
 agent.configure({ voice: "elevenlabs/claire", language: "fr" });
 agent.configure({ stt: "gladia" });
-agent.configure({
-  llm: { provider: "openai", model: "gpt-4.1", enabled: true, prompt: "..." },
-});
+agent.configure({ llm: "openai/gpt-4.1", prompt: "..." });
 ```
 
 ### `configureSession(callId, opts)`

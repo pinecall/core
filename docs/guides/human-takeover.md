@@ -41,12 +41,8 @@ await pc.connect();
 
 const support = pc.agent("support", {
   language: "en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a helpful support agent.",
-  },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are a helpful support agent.",
 });
 
 support.addChannel("whatsapp", {

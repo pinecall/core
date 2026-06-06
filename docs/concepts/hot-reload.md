@@ -29,9 +29,7 @@ This isn't a power-user feature you'll use rarely. It's the foundation of how Pi
 agent.configure({ voice: "elevenlabs/claire", language: "fr" });
 
 // Upgrade to a bigger model
-agent.configure({
-  llm: { provider: "openai", model: "gpt-4.1", enabled: true, prompt: "..." },
-});
+agent.configure({ llm: "openai/gpt-4.1", prompt: "..." });
 
 // Swap STT providers
 agent.configure({ stt: "gladia" });
@@ -57,14 +55,10 @@ Define a prompt with `{{placeholders}}`. The server resolves them before each LL
 
 ```typescript
 const agent = pc.agent("support", {
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: `You are {{agent_name}}, support agent at {{company}}.
+  llm: "openai/gpt-4.1-mini",
+  prompt: `You are {{agent_name}}, support agent at {{company}}.
 Today is {{date}}, {{time}}.
 Customer: {{customer_name}} ({{tier}} tier).`,
-  },
 });
 
 agent.on("call.started", async (call) => {

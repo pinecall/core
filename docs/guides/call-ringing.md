@@ -99,13 +99,9 @@ const BLACKLIST = new Set(["+15551234567", "+15559876543"]);
 const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   language: "en",
-  stt: "deepgram/flux-en",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a receptionist. Be brief and helpful.",
-  },
+  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are a receptionist. Be brief and helpful.",
 });
 
 // Enable ringing on the phone channel

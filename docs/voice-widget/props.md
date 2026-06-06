@@ -46,7 +46,8 @@ const florencia = pc.agent("florencia", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram/flux-en",
-  llm: { provider: "openai", model: "gpt-4.1-mini", enabled: true, prompt: "..." },
+  llm: "openai/gpt-4.1-mini",
+  prompt: "...",
 });
 
 florencia.addChannel("webrtc");
