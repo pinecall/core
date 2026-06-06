@@ -79,7 +79,7 @@ Created automatically when someone connects on a channel. You receive a `Call` o
 
 - Speak (`call.say`, `call.reply`, `call.replyStream`)
 - Control the call (`call.hangup`, `call.forward`, `call.hold`)
-- Configure mid-call (`call.configure`, `call.setPrompt`, `call.addContext`)
+- Update mid-call (`call.update`, `call.setPrompt`, `call.addContext`)
 - Read state (`call.transcript`, `call.from`, `call.duration`)
 
 ## Creating an agent

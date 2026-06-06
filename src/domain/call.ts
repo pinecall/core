@@ -261,7 +261,7 @@ export class Call extends TypedEventBus<CallEvents> {
     }
 
     /** Update config for this call (mid-call). */
-    configure(opts: Record<string, unknown>): void {
+    update(opts: Record<string, unknown>): void {
         this.#send({
             event: "session.configure",
             session_id: this.id,
@@ -269,9 +269,14 @@ export class Call extends TypedEventBus<CallEvents> {
         });
     }
 
-    /** @deprecated Use `call.configure()` instead. */
+    /** @deprecated Use `call.update()` instead. */
+    configure(opts: Record<string, unknown>): void {
+        this.update(opts);
+    }
+
+    /** @deprecated Use `call.update()` instead. */
     updateConfig(config: Partial<SessionConfig>): void {
-        this.configure({ config });
+        this.update({ config });
     }
 
     // ── Hold / Mute ────────────────────────────────────────────────────

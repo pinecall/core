@@ -1,11 +1,11 @@
 ---
 title: "Call"
-description: "Per-session handle. Speak, control, configure, read state."
+description: "Per-session handle. Speak, control, update, read state."
 ---
 
 # Call
 
-A live call session. Created automatically and passed to your `call.started` handler. Use it to speak, control the call, configure it mid-flight, and read its state.
+A live call session. Created automatically and passed to your `call.started` handler. Use it to speak, control the call, update it mid-flight, and read its state.
 
 ```typescript
 agent.on("call.started", (call) => {
@@ -173,12 +173,12 @@ See [Voice Widget → Call Me](/voice-widget/props#callmeendpoint--outbound-call
 
 ## Mid-call configuration
 
-### `configure(opts)`
+### `update(opts)`
 
 Change voice, STT, or language. Takes effect on the next LLM turn or TTS output.
 
 ```typescript
-call.configure({ voice: "elevenlabs/valentina", language: "es" });
+call.update({ voice: "elevenlabs/valentina", language: "es" });
 ```
 
 ### `setPrompt(text)`
@@ -310,4 +310,4 @@ const transferToHuman = tool({
 
 - [`ReplyStream`](/api/reply-stream) — for client-side LLMs
 - [Events reference](/reference/events) — all events the call emits
-- [Hot-reload](/concepts/hot-reload) — `configure`, `setPrompt`, `addContext` patterns
+- [Hot-reload](/concepts/hot-reload) — `update`, `setPrompt`, `addContext` patterns

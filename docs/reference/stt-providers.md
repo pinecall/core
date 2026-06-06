@@ -125,10 +125,10 @@ You can swap STT providers at runtime:
 
 ```typescript
 // Agent-wide (all future calls)
-agent.configure({ stt: "gladia/solaria" });
+agent.update({ stt: "gladia/solaria" });
 
 // One call only
-call.configure({ stt: "deepgram/nova-3" });
+call.update({ stt: "deepgram/nova-3" });
 ```
 
 ## What's next

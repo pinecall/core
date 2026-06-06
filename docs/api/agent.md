@@ -89,19 +89,19 @@ agent.removeWhatsapp("123456789012345");
 
 ## Config & hot-reload
 
-### `configure(opts)`
+### `update(opts)`
 
 Hot-reload the agent's defaults. Affects all **future** calls — existing calls keep their current config.
 
 ```typescript
-agent.configure({ voice: "elevenlabs/claire", language: "fr" });
-agent.configure({ stt: "gladia" });
-agent.configure({ llm: "openai/gpt-4.1", prompt: "..." });
+agent.update({ voice: "elevenlabs/claire", language: "fr" });
+agent.update({ stt: "gladia" });
+agent.update({ llm: "openai/gpt-4.1", prompt: "..." });
 ```
 
 ### `configureSession(callId, opts)`
 
-Update config for a live call (equivalent to `call.configure()`).
+Update config for a live call (equivalent to `call.update()`).
 
 ```typescript
 agent.configureSession("CA7ec...", { language: "es" });

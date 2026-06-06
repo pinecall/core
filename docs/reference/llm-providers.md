@@ -193,10 +193,10 @@ Swap models or providers at runtime:
 
 ```typescript
 // Agent-wide (all future calls)
-agent.configure({ llm: "openai/gpt-4.1" });
+agent.update({ llm: "openai/gpt-4.1" });
 
 // One call only
-call.configure({ llm: "mistral/mistral-medium" });
+call.update({ llm: "mistral/mistral-medium" });
 ```
 
 This is useful for A/B testing different models, or upgrading the model for VIP callers without redeploying.

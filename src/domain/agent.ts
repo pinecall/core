@@ -285,13 +285,18 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     // ── Agent configuration ──────────────────────────────────────────────
 
-    configure(opts: AgentConfig): void {
+    update(opts: AgentConfig): void {
         this.#config = { ...this.#config, ...opts };
         this._send({
             event: "agent.configure",
             agent_id: this.id,
             ...buildShortcutPayload(opts),
         });
+    }
+
+    /** @deprecated Use `agent.update()` instead. */
+    configure(opts: AgentConfig): void {
+        this.update(opts);
     }
 
     configureSession(sessionId: string, opts: ChannelConfig): void {

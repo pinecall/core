@@ -14,36 +14,36 @@ This isn't a power-user feature you'll use rarely. It's the foundation of how Pi
 | Scope | Method | Affects |
 |---|---|---|
 | Agent defaults | `pc.agent("id", config)` | All future calls |
-| Agent hot-reload | `agent.configure(updates)` | Updates defaults, future calls |
-| Session (mid-call) | `call.configure(opts)` | This call only |
+| Agent hot-reload | `agent.update(updates)` | Updates defaults, future calls |
+| Session (mid-call) | `call.update(opts)` | This call only |
 | Prompt (mid-call) | `call.setPrompt(text)` | This call's system prompt |
 | Template vars | `call.setPromptVars(vars)` | This call's `{{var}}` values |
 | Context | `call.addContext(text)` | Appended after prompt |
 
 ## Updating the agent's defaults
 
-`agent.configure()` updates the agent's defaults at runtime. Changes take effect on **all future calls** — existing calls keep their current config.
+`agent.update()` updates the agent's defaults at runtime. Changes take effect on **all future calls** — existing calls keep their current config.
 
 ```typescript
 // Switch the default voice to French
-agent.configure({ voice: "elevenlabs/claire", language: "fr" });
+agent.update({ voice: "elevenlabs/claire", language: "fr" });
 
 // Upgrade to a bigger model
-agent.configure({ llm: "openai/gpt-4.1", prompt: "..." });
+agent.update({ llm: "openai/gpt-4.1", prompt: "..." });
 
 // Swap STT providers
-agent.configure({ stt: "gladia" });
+agent.update({ stt: "gladia" });
 ```
 
-No REST call needed. `agent.configure()` uses the existing WebSocket — changes propagate to the server instantly.
+No REST call needed. `agent.update()` uses the existing WebSocket — changes propagate to the server instantly.
 
 ## Changing a live call
 
-`call.configure()` changes the active call only. Other calls on the same agent are unaffected.
+`call.update()` changes the active call only. Other calls on the same agent are unaffected.
 
 ```typescript
 // User asks for Spanish mid-conversation
-call.configure({ voice: "elevenlabs/valentina", language: "es" });
+call.update({ voice: "elevenlabs/valentina", language: "es" });
 call.reply("¡Claro! Ahora hablo en español.");
 ```
 
@@ -111,7 +111,7 @@ Pinecall treats the agent as **live state inside your process**. That changes wh
 - **Personalize every call** — load CRM data on `call.started`, set prompt vars, the LLM knows about the customer from word one
 - **Multi-language by default** — detect language from the first user message, switch voice + STT accordingly
 - **Phase transitions** — `setPrompt` when the conversation enters a new mode (qualification → demo → close)
-- **Live A/B testing** — `agent.configure` to flip the model or voice based on traffic without redeploying
+- **Live A/B testing** — `agent.update` to flip the model or voice based on traffic without redeploying
 
 ## What's next
 

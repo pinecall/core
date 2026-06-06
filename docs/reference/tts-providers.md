@@ -131,10 +131,10 @@ Voice can change at any time:
 
 ```typescript
 // Agent-wide
-agent.configure({ voice: "cartesia/blake" });
+agent.update({ voice: "cartesia/blake" });
 
 // One call only
-call.configure({ voice: "elevenlabs/daniel" });
+call.update({ voice: "elevenlabs/daniel" });
 
 // Per-channel override
 agent.addPhoneNumber("+34911234567", {
