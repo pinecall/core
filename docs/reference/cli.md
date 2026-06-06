@@ -201,7 +201,7 @@ pinecall test agent/specs/
 pinecall test agent/specs/date-handling.spec.yaml
 
 # Override the judge model
-pinecall test agent/specs/ --judge openai:gpt-4.1-nano
+pinecall test agent/specs/ --judge openai/gpt-4.1-nano
 
 # List specs without running
 pinecall test agent/specs/ --list
@@ -211,7 +211,7 @@ pinecall test agent/specs/ --list
   ⚡ pinecall test
 
   Agent:  florencia
-  Judge:  openai:gpt-4.1-nano
+  Judge:  openai/gpt-4.1-nano
   Specs:  2 file(s)
   Server: wss://voice.pinecall.io
 
@@ -258,7 +258,7 @@ workflow: |
 
 #### Judge providers
 
-The judge is the LLM that evaluates your agent. Override with `--judge provider:model`:
+The judge is the LLM that evaluates your agent. Override with `--judge provider/model`:
 
 | Provider | Model | Cost (in/out per 1M) | Notes |
 |----------|-------|---------------------|-------|
@@ -273,7 +273,7 @@ The judge is the LLM that evaluates your agent. Override with `--judge provider:
 
 | Option | Description |
 |--------|-------------|
-| `--judge provider:model` | Override judge LLM (e.g. `openai:gpt-4.1-nano`) |
+| `--judge provider/model` | Override judge LLM (e.g. `openai/gpt-4.1-nano`) |
 | `--agent <id>` | Override agent name from spec |
 | `--grep <pattern>` | Run only specs matching pattern |
 | `--verbose` | Show full agent responses |

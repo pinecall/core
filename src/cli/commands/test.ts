@@ -29,7 +29,7 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
     pinecall test <path> --verbose    ${c.dim("Show full responses")}
     pinecall test <path> --grep <p>   ${c.dim("Filter specs by name")}
     pinecall test <path> --agent <id> ${c.dim("Override agent name")}
-    pinecall test <path> --judge <p:m>${c.dim("Override judge (e.g. openai:gpt-4.1-nano)")}
+    pinecall test <path> --judge <p/m>${c.dim("Override judge (e.g. openai/gpt-4.1-nano)")}
     pinecall test <path> --list       ${c.dim("List specs without running")}
     pinecall test <path> --json       ${c.dim("JSON output for CI")}
 
@@ -44,12 +44,12 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
     ${c.dim("  3. Ask to book for tomorrow")}
 
   ${c.bold("Judge providers:")}
-    anthropic:claude-haiku-4-5-20251001  ${c.dim("(default)")}
-    openai:gpt-4.1-nano
-    openai:gpt-5.4-nano
-    google:gemini-2.5-flash
-    deepseek:deepseek-v4-flash
-    ollama:<model>                       ${c.dim("(local)")}
+    anthropic/claude-haiku-4-5-20251001  ${c.dim("(default)")}
+    openai/gpt-4.1-nano
+    openai/gpt-5.4-nano
+    google/gemini-2.5-flash
+    deepseek/deepseek-v4-flash
+    ollama/<model>                       ${c.dim("(local)")}
 
   ${c.bold("Environment:")}
     ANTHROPIC_API_KEY    ${c.dim("For Anthropic judge")}
@@ -127,11 +127,12 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
         return;
     }
 
-    // Parse judge override (format: provider:model)
+    // Parse judge override (format: provider/model or legacy provider:model)
     let judgeConfig: import("./test/types.js").JudgeConfig | undefined;
     if (judgeOverride) {
-        const [provider, ...modelParts] = judgeOverride.split(":");
-        const model = modelParts.join(":") || undefined;
+        const sep = judgeOverride.includes("/") ? "/" : ":";
+        const [provider, ...modelParts] = judgeOverride.split(sep);
+        const model = modelParts.join(sep) || undefined;
         judgeConfig = { provider: provider as any, model: model ?? "" };
     }
 
@@ -139,8 +140,8 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
     const judgeName = judgeOverride
         ? judgeOverride
         : (filtered[0].judge?.provider)
-            ? `${filtered[0].judge.provider}:${filtered[0].judge.model}`
-            : "anthropic:claude-haiku-4-5";
+            ? `${filtered[0].judge.provider}/${filtered[0].judge.model}`
+            : "anthropic/claude-haiku-4-5";
     if (!json) {
         console.log(`\n  ${c.purple("⚡")} ${c.bold("pinecall test")}\n`);
         console.log(`  ${c.dim("Agent:")}  ${c.bold(agentOverride ?? filtered[0].agent)}`);

@@ -58,7 +58,6 @@ voices.forEach((v) => console.log(`${v.name} → ${v.provider}/${v.alias ?? v.id
 voice: {
   provider: "elevenlabs",
   voice_id: "JBFqnCBsd6RMkjVDRZzb",
-  model: "eleven_flash_v2_5",
   speed: 1.0,
   stability: 0.5,
   similarity_boost: 0.75,
@@ -69,12 +68,13 @@ voice: {
 
 Shortcut: `"elevenlabs/sarah"`
 
+The server always uses `eleven_flash_v2_5` (the fastest model, optimized for real-time streaming). This is not configurable.
+
 **Tuning notes:**
 
-- `model: "eleven_flash_v2_5"` — fastest, best for real-time
 - `stability` higher = more consistent, less expressive
 - `similarity_boost` higher = closer to the cloned voice
-- `style` 0–1, only on `eleven_multilingual_v2`
+- `style` 0–1, adds expressiveness (slight latency cost)
 
 ## Cartesia
 

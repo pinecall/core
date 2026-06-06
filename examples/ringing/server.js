@@ -1,14 +1,14 @@
 /**
  * Pinecall — Ringing Example
  *
- * Tests the call.ringing → accept/reject flow.
+ * Demonstrates the call.ringing -> accept/reject flow.
  *
- * The agent registers a phone channel with `ringing: true`.
- * When a call comes in, `call.ringing` fires before the call is answered.
- * The SDK can then accept or reject the call based on caller info.
+ * When `ringing: true` is set on a phone channel, inbound calls
+ * emit `call.ringing` instead of being auto-accepted. Your code
+ * can inspect the caller and decide to accept() or reject().
  *
  * Usage:
- *   PINECALL_API_KEY=pk_... PHONE=+14258423349 node server.js
+ *   PINECALL_API_KEY=pk_... PHONE=+1... node server.js
  *
  * Environment:
  *   PINECALL_API_KEY  — your API key
@@ -22,11 +22,11 @@ const API_KEY = process.env.PINECALL_API_KEY;
 const PHONE = process.env.PHONE;
 
 if (!API_KEY) {
-  console.error("❌ Missing PINECALL_API_KEY");
+  console.error("Missing PINECALL_API_KEY");
   process.exit(1);
 }
 if (!PHONE) {
-  console.error("❌ Missing PHONE (e.g. +14258423349)");
+  console.error("Missing PHONE (e.g. PHONE=+15551234567)");
   process.exit(1);
 }
 
@@ -40,68 +40,55 @@ const BLACKLIST = new Set(
 const pc = new Pinecall({ apiKey: API_KEY });
 await pc.connect();
 
-const agent = pc.agent("ringing-test", {
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+const agent = pc.agent("ringing-example", {
+  voice: "elevenlabs/sarah",
   language: "en",
-  stt: "deepgram-flux",
-  llm: {
-    provider: "openai",
-    model: "gpt-4.1-mini",
-    enabled: true,
-    prompt: "You are a test assistant. Say hello and ask how you can help. Keep it short.",
-  },
+  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
+  prompt:
+    "You are a friendly assistant. Keep your responses short (1-2 sentences) since this is a voice call.",
 });
 
-// Register phone with ringing enabled
+// Register phone with ringing enabled — calls go through call.ringing first
 agent.addChannel("phone", PHONE, { ringing: true });
-
-// Dev callers — only route dev calls from this number
-agent.routeCallers(["+34607827824"]);
 
 // ── Ringing handler ──────────────────────────────────────────────────────
 
 agent.on("call.ringing", (call) => {
-  console.log(`\n🔔 RINGING: ${call.callId}`);
-  console.log(`   From: ${call.from}`);
-  console.log(`   To:   ${call.to}`);
+  console.log(`\nRinging: ${call.from} -> ${call.to}`);
 
   // Check blacklist
   if (BLACKLIST.has(call.from)) {
-    console.log(`   ❌ REJECTED (blacklisted)`);
+    console.log(`  REJECTED (blacklisted)`);
     call.reject("busy");
     return;
   }
 
   // Accept the call
-  console.log(`   ✅ ACCEPTED`);
+  console.log(`  ACCEPTED`);
   call.accept();
 });
 
 // ── Call lifecycle ───────────────────────────────────────────────────────
 
 agent.on("call.started", (call) => {
-  console.log(`📞 Call started: ${call.id} (${call.from} → ${call.to})`);
+  console.log(`Call started: ${call.from} -> ${call.to}`);
   call.say("Hello! This call was accepted through the ringing flow. How can I help?");
 });
 
 agent.on("call.ended", (call, reason) => {
-  console.log(`📴 Call ended: ${call.id} — ${reason} (${Math.round(call.duration)}s)`);
+  console.log(`\nCall ended: ${reason} (${Math.round(call.duration)}s)\n`);
 });
 
 // ── Ready ────────────────────────────────────────────────────────────────
 
 console.log(`
-  🔔 Pinecall Ringing Example
-  ────────────────────────────
+  Pinecall Ringing Example
+  ------------------------
   Phone:     ${PHONE}
   Ringing:   enabled
   Blacklist: ${BLACKLIST.size > 0 ? [...BLACKLIST].join(", ") : "(none)"}
-  Dev caller: +34607827824
 
   Call ${PHONE} to test.
-  The agent will log RINGING → ACCEPTED/REJECTED → STARTED.
-
-  Available test numbers:
-    +13049709763  Support Bot (multi-agent test)
-    +13149473426  Sales Agent (multi-agent test)
+  The agent will log RINGING -> ACCEPTED/REJECTED -> STARTED.
 `);

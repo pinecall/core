@@ -42,19 +42,54 @@ receptionist.on("call.ended", (call, reason) => {
 
 That's a working phone agent. The server handles audio transport, STT, the LLM, TTS, and turn detection.
 
-## Greeting on `call.started`
+## Greeting
 
-Always greet on `call.started`. For inbound calls, `call.say()` is the right tool:
+There are two ways to greet inbound callers:
+
+### Option 1: `greeting` in `deploy()` (declarative)
+
+If you use `pc.deploy()`, the `greeting` field handles everything — no event handler needed:
 
 ```typescript
-agent.on("call.started", (call) => {
-  if (call.direction === "inbound") {
-    call.say("Hello! How can I help you today?");
-  }
+const agent = pc.deploy("receptionist", {
+  voice: "elevenlabs/sarah",
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are a receptionist for Acme Corp.",
+  channels: ["+13186330963"],
+
+  // Static
+  greeting: "Thanks for calling Acme. How can I help?",
 });
 ```
 
-For outbound calls, set `greeting` in `agent.dial()` instead — the server speaks it as soon as the callee picks up. See [Outbound Calls](/guides/outbound-calls).
+The greeting is added to LLM history by default, so the model knows what was said. You can disable that:
+
+```typescript
+greeting: { text: "Welcome to Acme.", addToHistory: false }
+```
+
+Or make it dynamic per-call:
+
+```typescript
+greeting: async (call) => {
+  const customer = await db.findByPhone(call.from);
+  return customer ? `Hi ${customer.name}!` : "Hi! How can I help?";
+}
+```
+
+### Option 2: `call.say()` in `call.started` (programmatic)
+
+If you use `pc.agent()`, handle the greeting yourself:
+
+```typescript
+agent.on("call.started", (call) => {
+  call.say("Hello! How can I help you today?");
+});
+```
+
+Use this when you need logic beyond what `greeting` supports — multiple says, conditional behavior, loading data before speaking, etc.
+
+> **Outbound calls** use a different mechanism: pass `greeting` in `agent.dial()`. The server speaks it as soon as the callee picks up. See [Outbound Calls](/guides/outbound-calls).
 
 ## Adding tools
 

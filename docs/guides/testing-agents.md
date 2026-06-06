@@ -146,7 +146,7 @@ Set the judge in the spec file or override with CLI:
 
 ```bash
 # Override all specs to use OpenAI
-pinecall test agent/specs/ --judge openai:gpt-4.1-nano
+pinecall test agent/specs/ --judge openai/gpt-4.1-nano
 ```
 
 ### Environment variables
@@ -170,7 +170,7 @@ pinecall test agent/specs/
 pinecall test agent/specs/date-handling.spec.yaml
 
 # Override judge model
-pinecall test agent/specs/ --judge openai:gpt-4.1-nano
+pinecall test agent/specs/ --judge openai/gpt-4.1-nano
 
 # Override agent name
 pinecall test agent/specs/ --agent dev-berna-florencia
@@ -197,7 +197,7 @@ pinecall test agent/specs/ --verbose
 export PINECALL_API_KEY="pk_..."
 export OPENAI_API_KEY="sk-..."
 
-pinecall test agent/specs/ --judge openai:gpt-4.1-nano --json
+pinecall test agent/specs/ --judge openai/gpt-4.1-nano --json
 ```
 
 JSON output structure:

@@ -5,22 +5,25 @@ description: "Speech-to-text providers, models, and tuning parameters."
 
 # STT Providers
 
-Pinecall supports multiple STT providers. You can use a short string shortcut or a full config object.
+Pinecall supports multiple STT providers. Use the `provider/model` format or a full config object.
 
 ## Quick reference
 
 ```typescript
-// Shortcuts — "provider/model" format (recommended)
-{ stt: "deepgram/flux-en" }       // Flux English
-{ stt: "deepgram/flux-multi" }    // Flux multilingual (10 languages)
-{ stt: "deepgram/nova-3" }        // Nova-3
-{ stt: "gladia/solaria" }         // Gladia Solaria
-{ stt: "transcribe" }             // AWS Transcribe
+// Deepgram Flux (recommended for real-time voice)
+{ stt: "deepgram/flux" }             // auto-selects en/multi based on language
+{ stt: "deepgram/flux-en" }          // force English-only model
+{ stt: "deepgram/flux-multi" }       // force multilingual model
 
-// Bare provider (uses default model)
-{ stt: "deepgram-flux" }          // same as "deepgram/flux-en"
-{ stt: "deepgram" }               // same as "deepgram/nova-3"
-{ stt: "gladia" }                 // same as "gladia/solaria"
+// Deepgram Nova
+{ stt: "deepgram/nova-3" }
+{ stt: "deepgram/nova-2" }
+
+// Gladia
+{ stt: "gladia/solaria" }
+
+// AWS Transcribe
+{ stt: "transcribe" }
 ```
 
 ## Naming convention
@@ -32,6 +35,12 @@ Configuration objects that pass through to providers keep **snake_case** to mirr
 Best for real-time voice agents. Turn detection and VAD are **auto-derived** — no configuration needed.
 
 ```typescript
+stt: "deepgram/flux"
+```
+
+Or with tuning:
+
+```typescript
 stt: {
   provider: "deepgram-flux",
   keyterms: ["pinecall"],      // boost recognition for specific terms
@@ -41,13 +50,19 @@ stt: {
 }
 ```
 
-Shortcut: `"deepgram/flux-en"` or `"deepgram/flux-multi"` or `"deepgram-flux"`
-
 > **Auto-derived:** Flux → native turn detection + native VAD. No need to specify `turnDetection`.
+
+> **Language auto-select:** `"deepgram/flux"` picks `flux-general-en` when `language: "en"` and `flux-general-multi` otherwise. Use `"deepgram/flux-en"` or `"deepgram/flux-multi"` to force a specific model.
 
 ## Deepgram Nova
 
 Classic STT. Turn detection and VAD auto-derived (smart_turn + silero).
+
+```typescript
+stt: "deepgram/nova-3"
+```
+
+Or with tuning:
 
 ```typescript
 stt: {
@@ -64,14 +79,18 @@ stt: {
 }
 ```
 
-Shortcut: `"deepgram/nova-3"` or `"deepgram"`
-
 ## Gladia
+
+```typescript
+stt: "gladia/solaria"
+```
+
+Or with tuning:
 
 ```typescript
 stt: {
   provider: "gladia",
-  model: "accurate",
+  model: "solaria-1",
   language: "en",
   endpointing: 300,
   speech_threshold: 0.8,
@@ -79,8 +98,6 @@ stt: {
   audio_enhancer: true,
 }
 ```
-
-Shortcut: `"gladia/solaria"` or `"gladia"`
 
 ## AWS Transcribe
 
@@ -91,18 +108,16 @@ stt: {
 }
 ```
 
-Shortcut: `"transcribe"`
-
 ## Which to choose
 
 | Provider | Best for | Trade-off |
 |---|---|---|
-| `deepgram-flux` | Real-time voice agents | Lowest latency, fewer languages |
-| `deepgram` (nova-3) | Wide language support | Slightly higher latency than Flux |
-| `gladia` | Code-switching, multilingual | Higher latency than Deepgram |
+| `deepgram/flux` | Real-time voice agents | Lowest latency, fewer languages |
+| `deepgram/nova-3` | Wide language support | Slightly higher latency than Flux |
+| `gladia/solaria` | Code-switching, multilingual | Higher latency than Deepgram |
 | `transcribe` | AWS-native deployments | AWS pricing model |
 
-For most agents, start with `deepgram-flux`. Switch only if you need a language Flux doesn't support, or if you have specific accuracy requirements.
+For most agents, start with `deepgram/flux`. Switch only if you need a language Flux doesn't support, or if you have specific accuracy requirements.
 
 ## Hot-reloading STT
 
@@ -110,10 +125,10 @@ You can swap STT providers at runtime:
 
 ```typescript
 // Agent-wide (all future calls)
-agent.configure({ stt: "gladia" });
+agent.configure({ stt: "gladia/solaria" });
 
 // One call only
-call.configure({ stt: "deepgram" });
+call.configure({ stt: "deepgram/nova-3" });
 ```
 
 ## What's next

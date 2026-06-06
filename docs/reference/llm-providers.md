@@ -5,20 +5,74 @@ description: "Server-side LLM providers and configuration."
 
 # LLM Providers
 
-When using server-side LLM (the recommended path for most agents), the server runs the LLM and handles STT/TTS. Configure it via the `llm` field on the agent.
+When using server-side LLM (the recommended path for most agents), the server runs the LLM and streams responses directly through TTS. Configure it via the `llm` and `prompt` fields on the agent.
 
 For client-side LLMs, see [ReplyStream](/api/reply-stream).
+
+## Quick start
+
+```typescript
+const agent = pc.agent("my-bot", {
+  voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are a friendly assistant. Keep responses short.",
+});
+```
+
+The `llm` shortcut takes the `provider/model` format. `prompt` is a top-level field — no need to nest it inside an object.
+
+## Shortcut format
+
+```typescript
+// Recommended: provider/model
+llm: "openai/gpt-4.1-mini"
+
+// Bare model name (assumes OpenAI)
+llm: "gpt-4.1-mini"
+
+// Both expand to:
+// { provider: "openai", model: "gpt-4.1-mini", enabled: true }
+```
+
+> The legacy `provider:model` format (e.g. `"openai:gpt-4.1-mini"`) still works but is not recommended.
+
+## Tuning with a full config object
+
+For `temperature`, `max_tokens`, and other tuning parameters, use the full config object:
+
+```typescript
+const agent = pc.agent("my-bot", {
+  voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
+  llm: {
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    enabled: true,
+    temperature: 0.3,      // 0-2. Lower = more deterministic
+    max_tokens: 256,        // caps response length
+  },
+  prompt: "You are a customer support agent. Be concise.",
+});
+```
+
+> **Tip:** `prompt` stays top-level even when using the full `llm` object. The server merges them. You can also put `prompt` inside the `llm` object — both work.
 
 ## OpenAI
 
 ```typescript
+llm: "openai/gpt-4.1-mini"
+```
+
+Or with tuning:
+
+```typescript
 llm: {
   provider: "openai",
-  model: "gpt-4.1-mini",       // or "gpt-4.1", "gpt-4.1-nano"
+  model: "gpt-4.1-mini",
   enabled: true,
-  prompt: "System prompt here.",
   temperature: 0.7,
-  max_tokens: 1024,
+  max_tokens: 512,
 }
 ```
 
@@ -33,29 +87,24 @@ llm: {
 ## Mistral
 
 ```typescript
+llm: "mistral/mistral-medium"
+```
+
+Or with tuning:
+
+```typescript
 llm: {
   provider: "mistral",
   model: "mistral-medium",
   enabled: true,
-  prompt: "System prompt here.",
   temperature: 0.7,
-  max_tokens: 1024,
+  max_tokens: 512,
 }
 ```
 
-## Shortcuts
-
-```typescript
-llm: "openai:gpt-4.1-mini"
-// expands to:
-// { provider: "openai", model: "gpt-4.1-mini", enabled: true }
-```
-
-The shortcut is convenient but leaves the prompt empty. You'll typically want the full object form when shipping.
-
 ## The `enabled` field
 
-`enabled: false` disables server-side LLM for this agent. The server still does STT and TTS, but it won't generate responses — you have to handle every `turn.end` yourself with a client-side LLM.
+`enabled: false` disables server-side LLM for this agent. The server still does STT and TTS, but it won't generate responses — you handle every `turn.end` yourself with a client-side LLM.
 
 ```typescript
 // Server-side off — bring your own LLM
@@ -76,13 +125,13 @@ agent.on("turn.end", async (turn, call) => {
 Define a prompt with `{{placeholders}}`. The server resolves them before each LLM request. Built-in: `{{date}}`, `{{time}}`.
 
 ```typescript
-llm: {
-  provider: "openai",
-  model: "gpt-4.1-mini",
-  enabled: true,
+const agent = pc.agent("support-bot", {
+  voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
   prompt: `You are {{agent_name}}, support agent at {{company}}.
 Today is {{date}}. Customer: {{customer_name}}.`,
-}
+});
 ```
 
 Set values per-call:
@@ -101,10 +150,21 @@ See [Hot-Reload](/concepts/hot-reload) for the full pattern.
 
 ## Temperature & max_tokens
 
-Standard OpenAI parameters:
+Standard parameters supported by all providers:
 
 - `temperature` — 0–2. Lower = more deterministic. For voice agents, `0.3–0.7` is typical.
-- `max_tokens` — caps response length. For voice, keep responses short — `512` or less is common to avoid long monologues.
+- `max_tokens` — caps response length. For voice, keep it short — `256–512` is common to avoid long monologues.
+
+```typescript
+// Short, deterministic answers (IVR, routing)
+llm: { provider: "openai", model: "gpt-4.1-nano", temperature: 0.2, max_tokens: 128 }
+
+// Natural conversation
+llm: { provider: "openai", model: "gpt-4.1-mini", temperature: 0.7, max_tokens: 512 }
+
+// Creative, open-ended
+llm: { provider: "openai", model: "gpt-4.1", temperature: 1.0, max_tokens: 1024 }
+```
 
 ## Tools
 
@@ -133,9 +193,10 @@ Swap models or providers at runtime:
 
 ```typescript
 // Agent-wide (all future calls)
-agent.configure({
-  llm: { provider: "openai", model: "gpt-4.1", enabled: true, prompt: "..." },
-});
+agent.configure({ llm: "openai/gpt-4.1" });
+
+// One call only
+call.configure({ llm: "mistral/mistral-medium" });
 ```
 
 This is useful for A/B testing different models, or upgrading the model for VIP callers without redeploying.
