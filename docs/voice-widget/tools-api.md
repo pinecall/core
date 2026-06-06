@@ -204,14 +204,14 @@ const confirmBooking = tool({
   }),
 });
 
-const agent = pc.deploy("booking-demo", {
+const agent = pc.agent("booking-demo", {
   prompt: `You are a booking assistant.
 - Call getAvailableSlots when the user wants to book.
 - After they pick a slot, call showContactForm.
 - If they say their name/email/phone, call fillField to auto-fill.
 - The form state is in "## UI Context" — you can see what they've typed.
 - When the form is submitted, call confirmBooking.`,
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   tools: [getAvailableSlots, showContactForm, fillField, confirmBooking],
   channels: ["webrtc"],

@@ -98,9 +98,9 @@ import { Pinecall } from "@pinecall/sdk";
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 await pc.connect();
 
-const agent = pc.deploy("support", {
+const agent = pc.agent("support", {
   prompt: "You are a support agent for an online store...",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   channels: ["+13186330963"],

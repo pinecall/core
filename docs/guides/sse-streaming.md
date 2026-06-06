@@ -44,7 +44,7 @@ app.get("/events", () => pc.stream());
 Streams events scoped to a single agent:
 
 ```typescript
-const mara = pc.deploy("mara", { /* ... */ });
+const mara = pc.agent("mara", { /* ... */ });
 
 app.get("/events/mara", (req, res) => mara.stream(res));
 app.get("/events/mara", () => mara.stream());

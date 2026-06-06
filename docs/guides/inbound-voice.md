@@ -21,9 +21,9 @@ import { Pinecall } from "@pinecall/sdk";
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 await pc.connect();
 
-const receptionist = pc.deploy("receptionist", {
+const receptionist = pc.agent("receptionist", {
   prompt: "You are the receptionist for Acme Corp. Be brief and warm.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   channels: ["+13186330963"],
@@ -46,12 +46,12 @@ That's a working phone agent. The server handles audio transport, STT, the LLM, 
 
 There are two ways to greet inbound callers:
 
-### Option 1: `greeting` in `deploy()` (declarative)
+### Option 1: `greeting` in `agent()` (declarative)
 
-If you use `pc.deploy()`, the `greeting` field handles everything — no event handler needed:
+If you use `pc.agent()`, the `greeting` field handles everything — no event handler needed:
 
 ```typescript
-const agent = pc.deploy("receptionist", {
+const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   llm: "openai/gpt-4.1-mini",
   prompt: "You are a receptionist for Acme Corp.",
@@ -131,9 +131,9 @@ const endCall = tool({
   },
 });
 
-const agent = pc.deploy("receptionist", {
+const agent = pc.agent("receptionist", {
   prompt: "You are a receptionist. Look up orders when asked.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   channels: ["+13186330963"],

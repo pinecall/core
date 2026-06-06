@@ -49,7 +49,7 @@ agent.on("call.started", async (call) => {
 });
 ```
 
-> **Tip:** The `greeting` field in `deploy()` is syntactic sugar for `call.say(text, { addToHistory })` inside a `call.started` handler. Use `greeting` for convenience, or `call.say()` directly for full control.
+> **Tip:** The `greeting` field in `pc.agent()` is syntactic sugar for `call.say(text, { addToHistory })` inside a `call.started` handler. Use `greeting` for convenience, or `call.say()` directly for full control.
 
 ### `reply(text)`
 

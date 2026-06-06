@@ -39,7 +39,7 @@ import { FallbackHandler } from "./dispatch/handlers/fallback.js";
 
 // Domain
 import { Agent } from "./domain/agent.js";
-import type { AgentConfig, ChannelConfig, DeployConfig } from "./config/agent.js";
+import type { AgentConfig, ChannelConfig } from "./config/agent.js";
 import type { TokenResponse } from "./api/tokens.js";
 import type { Turn } from "./domain/turn.js";
 import type { Call } from "./domain/call.js";
@@ -240,9 +240,12 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             return this.#agents.get(id)!;
         }
 
+        // Extract channel/greeting fields before passing to Agent
+        const { channels, greeting, ...agentConfig } = config;
+
         const agent = new Agent(
             id,
-            config,
+            agentConfig,
             (data) => this.#send(data),
         );
 
@@ -254,43 +257,6 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
         // Set up event forwarding: Agent → Pinecall
         forwardAgentEvents(agent, this);
-
-        // If already connected, register immediately
-        if (this.#connected) {
-            this.#registerAgent(agent);
-        }
-
-        return agent;
-    }
-
-    /**
-     * Deploy — shorthand for agent() + addChannel() in one call.
-     */
-    deploy(id: string, config: DeployConfig = {}): Agent {
-        // Extract deploy-specific fields from agent config
-        const { channels, model, prompt, greeting, ...agentConfig } = config;
-
-        // Build LLM config from model field
-        if (model) {
-            const [provider, ...rest] = model.split(":");
-            agentConfig.llm = {
-                provider: provider || "openai",
-                model: rest.join(":") || model,
-                enabled: true,
-                ...(prompt ? { prompt } : {}),
-            };
-        } else if (prompt) {
-            // No model specified but prompt given — use default model
-            agentConfig.llm = {
-                provider: "openai",
-                model: "gpt-4.1-mini",
-                enabled: true,
-                prompt,
-            };
-        }
-
-
-        const agent = this.agent(id, agentConfig);
 
         // Auto-register channels from config
         if (channels) {
@@ -325,6 +291,11 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
                 call.say(text, { addToHistory });
             });
+        }
+
+        // If already connected, register immediately
+        if (this.#connected) {
+            this.#registerAgent(agent);
         }
 
         return agent;

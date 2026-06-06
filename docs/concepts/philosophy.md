@@ -28,9 +28,9 @@ const lookupOrder = tool({
   execute: async ({ phone }) => await db.orders.findOne({ phone }),
 });
 
-const agent = pc.deploy("support", {
+const agent = pc.agent("support", {
   prompt: "You are a support agent for Acme Corp.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   channels: ["+15551234567"],
   tools: [lookupOrder],
@@ -82,9 +82,9 @@ No separate infrastructure per agent. No load balancer per channel. One `pc.conn
 There is no dashboard to configure. Agent config lives in your source code, version-controlled, reviewable:
 
 ```typescript
-const agent = pc.deploy("mara", {
+const agent = pc.agent("mara", {
   prompt: fs.readFileSync("./prompts/mara.md", "utf-8"),
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "es",
   stt: { provider: "deepgram-flux", keyterms: ["Acme", "checkout"] },

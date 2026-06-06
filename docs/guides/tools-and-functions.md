@@ -42,9 +42,9 @@ const scheduleCallback = tool({
   },
 });
 
-const agent = pc.deploy("support", {
+const agent = pc.agent("support", {
   prompt: "You are a helpful support agent. Use tools to look up information.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],

@@ -24,7 +24,7 @@ import type { Tool } from "../tool.js";
  */
 export type VoiceShortcut = string | Record<string, unknown>;
 
-/** STT shortcut: "deepgram" or full config object. */
+/** STT shortcut: "deepgram/flux" or full config object. */
 export type STTShortcut = string | Record<string, unknown>;
 
 /** Interruption shortcut: false (disable) or config object. */
@@ -37,11 +37,38 @@ export interface AgentConfig {
     language?: string;
     stt?: STTShortcut;
     interruption?: InterruptionShortcut;
-    /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
+    /** Server-side LLM: "openai/gpt-4.1-mini" or full config object. */
     llm?: string | Record<string, unknown>;
+    /** System prompt for the LLM. */
+    prompt?: string;
     /** Declarative tool definitions created with `tool()`. Auto-executed on llm.tool_call. */
     tools?: Tool[];
     config?: SessionConfig;
+    /**
+     * Greeting spoken on every inbound `call.started`.
+     * Added to LLM history by default so the model knows what was said.
+     *
+     * - **String**: static greeting, `addToHistory` defaults to `true`.
+     * - **Object**: `{ text, addToHistory? }` for explicit control.
+     * - **Function**: `(call) => string` for dynamic greetings, `addToHistory` defaults to `true`.
+     *
+     * @example "Hi! How can I help?"
+     * @example { text: "Hi!", addToHistory: false }
+     * @example async (call) => `Hello ${(await db.findByPhone(call.from)).name}!`
+     */
+    greeting?:
+        | string
+        | { text: string; addToHistory?: boolean }
+        | ((call: import("../domain/call.js").Call) => string | Promise<string>);
+    /**
+     * Channels to register (shortcut for addChannel).
+     * Strings: "webrtc", "mic", "chat", or a phone number.
+     * Objects: { type, ref?, config? } for per-channel overrides.
+     *
+     * @example ["webrtc", "+14155551234"]
+     * @example [{ type: "phone", ref: "+14155551234", config: { ringing: true } }]
+     */
+    channels?: Array<string | { type: string; ref?: string; config?: ChannelConfig }>;
     /** Persist conversations to MongoDB on the voice server. */
     historySave?: boolean;
     /**
@@ -59,12 +86,14 @@ export interface AgentConfig {
     allowedOrigins?: string[];
 }
 
+// ─── Channel config ──────────────────────────────────────────────────────
+
 export interface ChannelConfig {
     voice?: VoiceShortcut;
     language?: string;
     stt?: STTShortcut;
     interruption?: InterruptionShortcut;
-    /** Server-side LLM: "openai:gpt-4.1-nano" or full config object. */
+    /** Server-side LLM: "openai/gpt-4.1-mini" or full config object. */
     llm?: string | Record<string, unknown>;
     config?: Partial<SessionConfig>;
     /**
@@ -95,37 +124,4 @@ export interface WhatsAppChannelConfig extends ChannelConfig {
      * Optional — if not set, the WhatsApp option won't appear in the ContactHub popover.
      */
     phone?: string;
-}
-
-// ─── Deploy config ───────────────────────────────────────────────────────
-
-/** Config for `pc.deploy()` — all fields are optional. */
-export interface DeployConfig extends AgentConfig {
-    /** LLM model (e.g. "gpt-4.1-nano"). Enables server-side LLM. */
-    model?: string;
-    /** System prompt for the LLM. */
-    prompt?: string;
-    /**
-     * Greeting spoken on every inbound `call.started`.
-     * Added to LLM history by default so the model knows what was said.
-     *
-     * - **String**: static greeting, `addToHistory` defaults to `true`.
-     * - **Object**: `{ text, addToHistory? }` for explicit control.
-     * - **Function**: `(call) => string` for dynamic greetings, `addToHistory` defaults to `true`.
-     *
-     * @example "Hi! How can I help?"
-     * @example { text: "Hi!", addToHistory: false }
-     * @example async (call) => `Hello ${(await db.findByPhone(call.from)).name}!`
-     */
-    greeting?:
-        | string
-        | { text: string; addToHistory?: boolean }
-        | ((call: import("../domain/call.js").Call) => string | Promise<string>);
-    /**
-     * Channels to register (sugar for addChannel).
-     * Strings: "webrtc", "mic", "chat", or a phone number.
-     *
-     * @example ["webrtc", "+14155551234"]
-     */
-    channels?: Array<string | { type: string; ref?: string; config?: ChannelConfig }>;
 }

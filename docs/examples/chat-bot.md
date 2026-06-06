@@ -33,11 +33,11 @@ const getAvailability = tool({
   }),
 });
 
-const agent = pc.deploy("florencia", {
+const agent = pc.agent("florencia", {
   prompt: `You are Florencia, the booking assistant for Blossom Beauty Spa.
 Help customers book appointments. Be warm and concise.
 Available services: Haircut ($30), Color ($80), Facial ($60), Massage ($90).`,
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   language: "es",
   channels: ["chat"],
   allowedOrigins: ["http://localhost:*"],

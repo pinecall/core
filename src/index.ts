@@ -30,7 +30,6 @@
 // Core classes
 export { Pinecall, PinecallError } from "./client.js";
 export type { PinecallOptions, PinecallEvents } from "./client.js";
-export type { DeployConfig } from "./config/agent.js";
 export type { StreamOptions } from "./sse/stream.js";
 
 // Tool definition

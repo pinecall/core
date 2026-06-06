@@ -34,10 +34,10 @@ const lookupOrder = tool({
   },
 });
 
-const agent = pc.deploy("support", {
+const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   prompt: `You are a support agent for an online store.
 Help customers check order status and process returns.
 Be friendly, brief, and professional.`,
@@ -88,7 +88,7 @@ const processReturn = tool({
   },
 });
 
-const agent = pc.deploy("support", {
+const agent = pc.agent("support", {
   // ...same config
   tools: [lookupOrder, processReturn],
 });

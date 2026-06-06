@@ -47,7 +47,7 @@ const agent = pc.agent("my-bot", {
   stt: "deepgram/flux",
   llm: {
     provider: "openai",
-    model: "gpt-4.1-mini",
+    llm: "openai/gpt-4.1-mini",
     enabled: true,
     temperature: 0.3,      // 0-2. Lower = more deterministic
     max_tokens: 256,        // caps response length
@@ -69,7 +69,7 @@ Or with tuning:
 ```typescript
 llm: {
   provider: "openai",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   enabled: true,
   temperature: 0.7,
   max_tokens: 512,

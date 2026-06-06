@@ -5,7 +5,7 @@ description: "Owns channels, routes call events, stores defaults, dials outbound
 
 # Agent
 
-Created via `pc.agent(id, config?)` or `pc.deploy(id, config)`. Owns channels, routes call events, stores defaults, dials outbound calls.
+Created via `pc.agent(id, config?)`. Owns channels, routes call events, stores defaults, dials outbound calls.
 
 ## Creation
 

@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `whatsapp.message` event now includes `paused: boolean` field.
 - `whatsapp.response` event now includes `source?: "human"` field.
 - New guide: [Human Takeover](/guides/human-takeover).
+- `channels`, `greeting`, and `prompt` fields now supported in `pc.agent()` config.
+
+### Removed
+
+- **`pc.deploy()`** — removed entirely. Use `pc.agent()` with `channels` instead. All deploy-specific fields (`channels`, `greeting`, `prompt`) are now part of `AgentConfig`.
+- `DeployConfig` type — merged into `AgentConfig`.
+- `model` field — use `llm: "openai/gpt-4.1-mini"` instead.
 
 ---
 
@@ -106,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Greeting removed from config — use `call.say()` in `call.started` handler instead.
 - SSE streaming: `agent.stream()` and `pc.stream()` with multi-agent filtering.
-- `pc.deploy()` shorthand for agent + channel registration in one call.
+- `pc.deploy()` shorthand for agent + channel registration (removed in unreleased — use `pc.agent()` with `channels`).
 
 ---
 

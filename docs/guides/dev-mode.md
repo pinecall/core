@@ -44,9 +44,9 @@ const agentId = isDev ? `dev-${userInfo().username}-florencia` : "florencia";
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 await pc.connect();
 
-const agent = pc.deploy(agentId, {
+const agent = pc.agent(agentId, {
   prompt: "...",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   channels: ["+13186330963"], // shared with prod!
 });

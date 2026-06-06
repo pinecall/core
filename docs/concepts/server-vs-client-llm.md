@@ -24,9 +24,9 @@ const lookupCustomer = tool({
   execute: async ({ phone }) => await db.customers.findOne({ phone }),
 });
 
-const agent = pc.deploy("receptionist", {
+const agent = pc.agent("receptionist", {
   prompt: "You are a helpful receptionist. Be concise.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   tools: [lookupCustomer],
@@ -48,7 +48,7 @@ const agent = pc.agent("my-bot", { voice: "cartesia/yumiko", language: "en" });
 agent.on("turn.end", async (turn, call) => {
   const stream = call.replyStream(turn);
   const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+    llm: "openai/gpt-4.1-mini",
     messages: [
       { role: "system", content: "You are helpful. Be concise." },
       { role: "user", content: turn.text },

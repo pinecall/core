@@ -33,9 +33,9 @@ import { Pinecall } from "@pinecall/sdk";
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
 await pc.connect();
 
-const mara = pc.deploy("mara", {
+const mara = pc.agent("mara", {
   prompt: "You are Mara, a friendly voice assistant. Be concise.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],
@@ -126,7 +126,7 @@ You didn't write a single line of WebSocket code, audio handling, or VAD logic. 
 Want Mara to answer phone calls too? Add a `phone` channel:
 
 ```typescript
-const mara = pc.deploy("mara", {
+const mara = pc.agent("mara", {
   // ...same as before
   channels: ["webrtc", "+13186330963"],
 });
@@ -149,9 +149,9 @@ const lookupOrder = tool({
   execute: async ({ orderId }) => await db.orders.findOne(orderId),
 });
 
-const mara = pc.deploy("mara", {
+const mara = pc.agent("mara", {
   prompt: "You are Mara. Look up orders when asked.",
-  model: "gpt-4.1-mini",
+  llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
   channels: ["webrtc"],

@@ -76,31 +76,30 @@ Created automatically when someone connects on a channel. You receive a `Call` o
 - Configure mid-call (`call.configure`, `call.setPrompt`, `call.addContext`)
 - Read state (`call.transcript`, `call.from`, `call.duration`)
 
-## Two ways to create an agent
+## Creating an agent
 
-### `pc.deploy()` — the shortcut
+### With `channels` shortcut
 
-Combines agent creation, LLM config, and channel registration in one call. Best for getting started.
-
-```typescript
-const mara = pc.deploy("mara", {
-  prompt: "You are Mara. Be concise.",
-  model: "gpt-4.1-mini",
-  voice: "elevenlabs/sarah",
-  language: "es",
-  channels: ["webrtc", "+13186330963"],
-});
-```
-
-### `pc.agent()` — the explicit form
-
-More verbose, more control. Use this when you need to set advanced provider configs, configure channels with per-channel overrides, or build the agent dynamically.
+Pass `channels` directly to register them in one call:
 
 ```typescript
 const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
-  stt: "deepgram/flux",
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are Mara. Be concise.",
+  channels: ["webrtc", "+13186330963"],
+});
+```
+
+### With explicit `addChannel()`
+
+Use `addChannel()` when you need per-channel config overrides:
+
+```typescript
+const mara = pc.agent("mara", {
+  voice: "elevenlabs/sarah",
+  language: "es",
   llm: "openai/gpt-4.1-mini",
   prompt: "You are Mara. Be concise.",
 });
@@ -111,7 +110,7 @@ mara.addChannel("phone", "+13186330963", {
 });
 ```
 
-The two approaches are interchangeable — `deploy()` is just `agent()` + `addChannel()` calls under the hood.
+Both patterns are equivalent — `channels` is just shorthand for `addChannel()` calls.
 
 ## Per-channel config overrides
 

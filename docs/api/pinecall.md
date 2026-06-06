@@ -55,26 +55,26 @@ const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
   llm: "openai/gpt-4.1-mini",
-  prompt: "...",
-});
-```
-
-See [`Agent`](/api/agent) for full config.
-
-### `deploy(id, config)`
-
-Shortcut for `agent() + addChannel()`. Combines agent creation, LLM config, and channel registration in one call.
-
-```typescript
-const mara = pc.deploy("mara", {
-  prompt: "You are Mara. Be concise.",
-  model: "gpt-4.1-mini",
-  voice: "elevenlabs/sarah",
+  prompt: "You are a support agent. Be concise.",
   greeting: "Hi! How can I help you today?",
-  language: "es",
   channels: ["webrtc", "+13186330963"],
 });
 ```
+
+**`AgentConfig` fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `voice` | `string \| VoiceConfig` | TTS voice shortcut (e.g. `elevenlabs/sarah`) |
+| `language` | `string` | BCP-47 language code |
+| `stt` | `string \| STTConfig` | STT shortcut (e.g. `deepgram/flux`) |
+| `llm` | `string \| LLMConfig` | LLM shortcut (e.g. `openai/gpt-4.1-mini`) or full config |
+| `prompt` | `string` | System prompt for the LLM |
+| `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
+| `tools` | `Tool[]` | Declarative tool definitions created with `tool()` |
+| `channels` | `Array<string \| ChannelObject>` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
+| `sessionLimits` | `object` | Session timeout config (see [Session Limits](/reference/session-limits)) |
+| `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](/security)) |
 
 Dynamic greetings with a function:
 
@@ -91,20 +91,7 @@ Greeting without LLM history (e.g. a standalone announcement):
 greeting: { text: "Welcome! Please hold.", addToHistory: false },
 ```
 
-**`DeployConfig` fields:**
-
-| Field | Type | Description |
-|---|---|---|
-| `prompt` | `string` | System prompt for the LLM |
-| `model` | `string` | LLM model (default: `gpt-4.1-mini`) |
-| `voice` | `string` | TTS voice shortcut (e.g. `elevenlabs/sarah`) |
-| `stt` | `string` | STT shortcut (e.g. `deepgram/flux-en`) |
-| `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
-| `language` | `string` | BCP-47 language code |
-| `tools` | `array` | OpenAI function-calling tool definitions |
-| `channels` | `string[]` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
-| `sessionLimits` | `object` | Session timeout config (see [Session Limits](/reference/session-limits)) |
-| `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](/security)) |
+See [`Agent`](/api/agent) for full API reference.
 
 ### `getAgent(id)`
 

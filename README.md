@@ -31,10 +31,10 @@ import { Pinecall } from "@pinecall/sdk";
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 await pc.connect();
 
-const mara = pc.deploy("mara", {
+const mara = pc.agent("mara", {
   prompt: "You are Mara, a friendly voice assistant. Be concise.",
-  model: "gpt-4.1-mini",
-  voice: "elevenlabs:EXAVITQu4vr4xnSDxMaL",
+  llm: "openai/gpt-4.1-mini",
+  voice: "elevenlabs/sarah",
   language: "es",
   channels: ["webrtc", "+13186330963"],
 });

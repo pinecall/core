@@ -69,7 +69,7 @@ agent.on("turn.end", async (turn, call) => {
   try {
     const history = await call.getHistory();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      llm: "openai/gpt-4.1-mini",
       messages: [
         { role: "system", content: "You are helpful. Be concise." },
         ...history,

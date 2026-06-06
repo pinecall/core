@@ -44,9 +44,9 @@ const tenants = await db.tenants.findAll();
 for (const tenant of tenants) {
   for (const agentId of tenant.agents) {
     const config = await db.agentConfigs.findOne(agentId);
-    pc.deploy(agentId, {
+    pc.agent(agentId, {
       prompt: config.prompt,
-      model: config.model,
+      llm: config.llm,
       voice: config.voice,
       language: config.language,
       channels: config.channels,
