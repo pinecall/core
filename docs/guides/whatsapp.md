@@ -199,19 +199,181 @@ Set these on the voice server (`sdk-server`):
 | `WHATSAPP_APP_SECRET` | — | Meta App Secret for webhook HMAC verification |
 | `DEEPGRAM_API_KEY` | For voice notes | Required if you want voice note transcription |
 
+## Session lifecycle
+
+WhatsApp conversations are grouped into **sessions**. Understanding the session lifecycle is key for history, human takeover, and any dashboard UI.
+
+### How sessions are identified
+
+Each session is uniquely identified by the **agent + contact phone number** pair. When a contact sends their first message, a new session is created with an ID like `wa-a3f2b1c4d5e6`. All subsequent messages from the same contact (to the same agent) belong to that session — until it ends.
+
+```
+Contact: +5491155551234   ──msg──►  Agent: "support"
+                                       │
+                                       ▼
+                             Session: wa-a3f2b1c4d5e6
+                             ├── contact: +5491155551234
+                             ├── window: 24h from last inbound
+                             └── history: [user, assistant, user, ...]
+```
+
+If a second contact writes to the same agent, they get a **separate** session with their own LLM history, window timer, and session ID.
+
+### Message flow
+
+```
+User sends WhatsApp message
+        │
+        ▼
+   ┌─ Session exists? ─┐
+   │                    │
+   No                  Yes
+   │                    │
+   Create session       │
+   Emit: session_started│
+   │                    │
+   └────────┬───────────┘
+            │
+            ▼
+   Emit: whatsapp.message (to SDK + SSE)
+            │
+     ┌──────┴──────┐
+     │             │
+   Paused?       Active
+     │             │
+   Add to LLM    LLM generates response
+   history only  Send via WhatsApp
+     │             Emit: whatsapp.response
+     │             │
+     └──────┬──────┘
+            │
+            ▼
+   Refresh 24h window
+```
+
+**Key points:**
+- Every incoming message is emitted to the SDK via `whatsapp.message` — even when paused
+- The `paused` field in the event tells your UI whether the AI responded or not
+- Voice notes are automatically transcribed (Deepgram Nova-3) and treated as text
+- Interactive replies (buttons, lists) are treated as text with the selected option
+
+### How sessions end
+
+Sessions end for one of two reasons:
+
+| Reason | Trigger | What happens |
+|--------|---------|--------------|
+| `window_expired` | 24h since the last inbound message | Meta's service window closes |
+| `idle_timeout` | No messages for the configured idle period | Contact stopped writing |
+
+When a session ends:
+
+1. `whatsapp.session_ended` is emitted with the full transcript and metadata
+2. If a `HistoryStore` is configured, the conversation is automatically saved
+3. The session is removed from memory
+
+If the same contact writes again after a session ended, a **new session** is created (new ID, fresh LLM history).
+
+### Session events timeline
+
+```
+Session created (first message arrives)
+  ├── whatsapp.session_started  { sessionId, contactPhone, contactName }
+  │
+  ├── whatsapp.message          { sessionId, text, paused: false }
+  ├── whatsapp.response         { sessionId, text }
+  ├── whatsapp.status           { status: "sent" }
+  ├── whatsapp.status           { status: "delivered" }
+  ├── whatsapp.status           { status: "read" }
+  │
+  ├── whatsapp.message          { sessionId, text, paused: false }
+  ├── whatsapp.response         { sessionId, text }
+  │   ...
+  │
+  ├── (pause) ─────────────────────────────────────────
+  │   ├── session.paused        { sessionId }
+  │   ├── whatsapp.message      { sessionId, text, paused: true }   ← no AI response
+  │   ├── whatsapp.response     { sessionId, text, source: "human" } ← human operator
+  │   └── session.resumed       { sessionId }
+  │
+  └── whatsapp.session_ended    { sessionId, transcript, messages, duration }
+                                      │
+                                      ▼
+                              HistoryStore.save() (automatic)
+```
+
+## Conversation history
+
+When a `HistoryStore` is configured, WhatsApp conversations are **automatically saved** on `whatsapp.session_ended` — the same way voice calls are saved on `call.ended`.
+
+```typescript
+import { Pinecall, JsonFileHistory } from "@pinecall/sdk";
+
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
+await pc.connect();
+
+const history = new JsonFileHistory("./data/conversations.json");
+
+const support = pc.agent("support", {
+  llm: "openai/gpt-4.1-mini",
+  prompt: "You are a support agent.",
+  history,
+});
+```
+
+### What gets saved
+
+Each saved `ConversationRecord` includes:
+
+| Field | Value | Example |
+|-------|-------|---------|
+| `callId` | The session ID | `"wa-a3f2b1c4d5e6"` |
+| `agentId` | Agent name | `"support"` |
+| `channel` | Always `"whatsapp"` | `"whatsapp"` |
+| `from` | Contact's phone number | `"5491155551234"` |
+| `transcript` | Clean user/assistant pairs | `[{role: "user", content: "Hi"}, ...]` |
+| `messages` | Full LLM history (with system, tools) | Raw message array |
+| `duration` | Session duration in seconds | `342` |
+| `metadata.contactName` | WhatsApp profile name | `"John"` |
+| `metadata.messageCount` | Total messages exchanged | `8` |
+
+### Querying history
+
+```typescript
+// Find all conversations with a specific contact
+const conversations = await history.findByContact("5491155551234");
+
+// List recent conversations for the agent
+const recent = await history.list("support", 20);
+
+// Get a specific conversation
+const convo = await history.get("wa-a3f2b1c4d5e6");
+```
+
+`findByContact` searches the `from` field — which for WhatsApp is the contact's phone number (without `+`).
+
+> **Note:** `JsonFileHistory` is for prototyping. For production, implement `HistoryStore` with your database (MongoDB, Postgres, etc).
+
 ## All WhatsApp events
 
 | Event | Data fields | When |
 |---|---|---|
 | `whatsapp.session_started` | `sessionId`, `contactPhone`, `contactName` | First message from a new contact |
-| `whatsapp.message` | `sessionId`, `from`, `name`, `type`, `text`, `messageId` | Incoming message received |
-| `whatsapp.response` | `sessionId`, `to`, `text` | Agent sent a response |
+| `whatsapp.message` | `sessionId`, `from`, `name`, `type`, `text`, `messageId`, `paused` | Incoming message received |
+| `whatsapp.response` | `sessionId`, `to`, `text`, `source?` | Agent or human sent a response |
 | `whatsapp.status` | `status`, `recipient`, `messageId` | Delivery status update |
+| `whatsapp.session_ended` | `sessionId`, `contactPhone`, `transcript`, `messages`, `duration` | Session expired or timed out |
+| `session.paused` | `sessionId` | AI paused for a session |
+| `session.resumed` | `sessionId` | AI resumed for a session |
 
 Status values: `sent` → `delivered` → `read`.
 
+The `source` field on `whatsapp.response` is `"human"` when the message was sent by a human operator via `sendMessage()`. Otherwise it's absent (AI-generated).
+
 ## What's next
 
+- [WhatsApp Dashboard example](/examples/whatsapp-dashboard) — runnable example with React UI and human takeover
+- [Conversation History](/guides/conversation-history) — persistence options and custom stores
+- [Human Takeover](/guides/human-takeover) — advanced pause/resume patterns
 - [Tools and Functions](/guides/tools-and-functions) — let your WhatsApp bot take actions
 - [Dev mode](/guides/dev-mode) — route specific WhatsApp senders to dev agents
-- [Multi-tenant](/guides/multi-tenant) — host many tenants' WhatsApp bots on one agent
