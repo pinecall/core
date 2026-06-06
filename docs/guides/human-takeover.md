@@ -179,6 +179,7 @@ The pause state data model already supports voice call IDs and chat session IDs 
 
 ## What's next
 
+- [WhatsApp Dashboard example](/examples/whatsapp-dashboard) — runnable example with React UI
 - [WhatsApp guide](/guides/whatsapp) — set up the WhatsApp channel
 - [Events reference](/reference/events) — all event data shapes
 - [Agent API](/api/agent) — `pause()`, `resume()`, `sendMessage()` reference

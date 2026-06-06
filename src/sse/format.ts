@@ -6,7 +6,7 @@
 
 import { CALL_PROXY_EVENTS } from "../dispatch/proxy.js";
 
-/** SSE-streamable events — call lifecycle + all proxy events. */
+/** SSE-streamable events — call lifecycle + proxy + WhatsApp + session. */
 export const STREAM_EVENTS = [
     "call.started", "call.ended",
     ...CALL_PROXY_EVENTS.filter(e =>
@@ -14,6 +14,11 @@ export const STREAM_EVENTS = [
         e !== "call.muted" && e !== "call.unmuted" &&
         e !== "llm.tool_call" && e !== "session.timeout"
     ),
+    // WhatsApp
+    "whatsapp.session_started", "whatsapp.session_ended",
+    "whatsapp.message", "whatsapp.response", "whatsapp.status",
+    // Human-in-the-loop
+    "session.paused", "session.resumed",
 ] as const;
 
 /** Format a single SSE message. */
