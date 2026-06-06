@@ -24,7 +24,21 @@ interface AgentsResponse {
     dev_overrides: Record<string, string> | null;
 }
 
-export async function agentsCommand(config: CliConfig): Promise<void> {
+export async function agentsCommand(config: CliConfig, args?: string[]): Promise<void> {
+    if (args && (args.includes("--help") || args.includes("-h"))) {
+        console.log(`
+  ${c.purple("⚡")} ${c.bold("pinecall agents")} — List connected agents
+
+  ${c.bold("Usage:")}
+    ${c.dim("$")} pinecall agents
+    ${c.dim("$")} pinecall agents --json
+
+  Shows all agents currently connected to the voice server,
+  their registered phone numbers, and active channels.
+`);
+        return;
+    }
+
     const url = `${config.server}/api/sdk/agents`;
     let res: Response;
 
@@ -62,12 +76,17 @@ export async function agentsCommand(config: CliConfig): Promise<void> {
     console.log("");
     table(headers, rows);
 
-    // Dev overrides
-    if (data.dev_overrides && Object.keys(data.dev_overrides).length > 0) {
+    // Dev overrides + callers
+    const hasOverrides = data.dev_overrides && Object.keys(data.dev_overrides).length > 0;
+    const devCallers = (data as any).dev_callers as string[] | null;
+
+    if (hasOverrides || (devCallers && devCallers.length > 0)) {
         console.log("");
-        console.log(`  ${c.yellow("⚙")} ${c.dim("Dev overrides:")}`);
-        for (const [phone, agent] of Object.entries(data.dev_overrides)) {
-            console.log(`    ${phone} → ${c.purple(agent)}`);
+        for (const [phone, agent] of Object.entries(data.dev_overrides ?? {})) {
+            const callersPart = devCallers?.length
+                ? `  ${c.dim("←")} ${devCallers.map((n: string) => c.yellow(n)).join(c.dim(", "))}`
+                : "";
+            console.log(`  ${c.yellow("⚙")} ${c.purple(agent as string)} ${c.dim("on")} ${phone}${callersPart}`);
         }
     }
 

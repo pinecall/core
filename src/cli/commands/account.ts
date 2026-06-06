@@ -46,7 +46,44 @@ async function showAccount(config: CliConfig): Promise<void> {
     // ── Header ──
     console.log("");
     console.log(`  ${c.purple("⚡")} ${c.bold(org.name)} ${c.dim(`— ${org.slug}`)}`);
-    console.log(`    ${c.dim("Plan")} ${c.cyan(org.plan)}  ${c.dim("·")}  ${c.dim("Balance")} ${c.green("$" + org.balance)}  ${c.dim("·")}  ${c.dim("Email")} ${org.email || "—"}`);
+
+    // Plan + credits line
+    const planLabel = org.planDetails?.display || org.plan || "—";
+    const credits = org.credits ?? 0;
+    const maxCredits = org.planDetails?.credits || credits || 1;
+    const creditPct = maxCredits > 0 ? Math.round((credits / maxCredits) * 100) : 0;
+    const creditBar = creditPct > 50 ? c.green(`${credits.toLocaleString()}`) : creditPct > 20 ? c.yellow(`${credits.toLocaleString()}`) : c.red(`${credits.toLocaleString()}`);
+
+    console.log(`    ${c.dim("Plan")} ${c.cyan(planLabel)}  ${c.dim("·")}  ${c.dim("Credits")} ${creditBar}${org.planDetails ? c.dim(`/${org.planDetails.credits.toLocaleString()}`) : ""}  ${c.dim("·")}  ${c.dim("Email")} ${org.email || "—"}`);
+
+    // Trial countdown
+    if (org.trialEndsAt) {
+        const daysLeft = Math.max(0, Math.ceil((new Date(org.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        if (daysLeft > 0) {
+            console.log(`    ${c.yellow("⏱")}  ${c.yellow(`Trial: ${daysLeft} days remaining`)}  ${c.dim("·")}  ${c.dim("Upgrade:")} ${c.cyan("pinecall account upgrade")}`);
+        } else {
+            console.log(`    ${c.red("⚠")}  ${c.red("Trial expired")}  ${c.dim("·")}  ${c.dim("Upgrade:")} ${c.cyan("pinecall account upgrade")}`);
+        }
+    }
+
+    // Verified + outbound status
+    if (org.verified) {
+        console.log(`    ${c.green("✓")} ${c.green("Verified")} ${c.dim("— outbound calls enabled on managed numbers")}`);
+    } else {
+        console.log(`    ${c.dim("○")} ${c.dim("Not verified — outbound calls restricted")}`);
+    }
+
+    // Limits
+    if (org.planDetails?.limits) {
+        const lim = org.planDetails.limits;
+        const stats = await pg(config, "/orgs/me/stats").catch(() => null);
+        const phonesUsed = stats?.managedPhones ?? 0;
+        const phonesMax = lim.phones >= 999 ? "∞" : String(lim.phones);
+        const concurrent = lim.concurrentCalls >= 999 ? "∞" : String(lim.concurrentCalls);
+        const agents = lim.agents >= 999 ? "∞" : String(lim.agents);
+
+        console.log(`    ${c.dim("Limits:")} ${c.dim("phones")} ${phonesUsed}/${phonesMax}  ${c.dim("·")}  ${c.dim("concurrent")} ${concurrent}  ${c.dim("·")}  ${c.dim("agents")} ${agents}`);
+    }
 
     // ── Keys ──
     if (keysData.keys.length > 0) {
@@ -82,11 +119,12 @@ async function showAccount(config: CliConfig): Promise<void> {
     if (phonesData.phones.length > 0) {
         section("Phones", phonesData.phones.length);
         table(
-            ["Number", "Name", "Type"],
+            ["Number", "Name", "Type", "Source"],
             phonesData.phones.map((p: any) => [
                 c.green(p.number),
                 p.friendlyName || c.dim("—"),
                 c.dim(p.type),
+                p.managed ? c.cyan("managed") : c.dim("imported"),
             ]),
             4,
         );
@@ -94,7 +132,7 @@ async function showAccount(config: CliConfig): Promise<void> {
 
     console.log("");
     console.log(`  ${c.dim("Run")} ${c.cyan("pinecall twilio")} ${c.dim("for phone import details")}`);
-    console.log(`  ${c.dim("Run")} ${c.cyan("pinecall account keys")}${c.dim(",")} ${c.cyan("usage")}${c.dim(",")} ${c.cyan("session")} ${c.dim("for more")}`);
+    console.log(`  ${c.dim("Run")} ${c.cyan("pinecall account usage")} ${c.dim("for credit breakdown")}`);
     console.log("");
 }
 
@@ -144,6 +182,21 @@ async function createKey(config: CliConfig, name: string): Promise<void> {
 
 async function showTwilio(config: CliConfig): Promise<void> {
     const data = await pg(config, "/twilio?available=true");
+
+    // Fetch agent phone map for usage status
+    let phoneMap: Record<string, string> = {};
+    try {
+        const agentsRes = await fetch(`${config.server}/api/sdk/agents`, {
+            headers: { Authorization: `Bearer ${config.apiKey}` },
+        });
+        if (agentsRes.ok) {
+            const agentsData = await agentsRes.json();
+            phoneMap = agentsData.phone_map ?? {};
+        }
+    } catch {
+        // Server unreachable — skip agent info
+    }
+
     if (config.json) {
         console.log(JSON.stringify(data, null, 2));
         return;
@@ -176,18 +229,21 @@ async function showTwilio(config: CliConfig): Promise<void> {
             if (importedPhones.length > 0) {
                 console.log(`\n    ${c.green("●")} ${c.bold("Imported")}`);
                 table(
-                    ["Number", "Name", "Type"],
-                    importedPhones.map((p: any) => [
-                        c.green(p.number),
-                        p.name || c.dim("—"),
-                        c.dim(p.type),
-                    ]),
+                    ["Number", "Name", "Agent"],
+                    importedPhones.map((p: any) => {
+                        const agent = phoneMap[p.number];
+                        return [
+                            c.green(p.number),
+                            p.name || c.dim("—"),
+                            agent ? c.purple(agent) : c.dim("—"),
+                        ];
+                    }),
                     6,
                 );
             }
 
             if (availablePhones.length > 0) {
-                console.log(`\n    ${c.yellow("○")} ${c.dim("Available")} ${c.dim("— import with")} ${c.cyan("pinecall twilio import <number>")}`);
+                console.log(`\n    ${c.yellow("○")} ${c.dim("Available")} ${c.dim("— add with")} ${c.cyan("pinecall phones add <number>")}`);
                 table(
                     ["Number", "Name", "Type"],
                     availablePhones.map((p: any) => [
@@ -230,52 +286,71 @@ async function showPhones(config: CliConfig): Promise<void> {
 }
 
 async function showUsage(config: CliConfig): Promise<void> {
-    const data = await pg(config, "/usage");
-    const balance = await pg(config, "/usage/balance");
+    const org = await pg(config, "/orgs/me");
+    const summary = await pg(config, "/usage/summary?days=30");
 
     if (config.json) {
-        console.log(JSON.stringify({ ...data, balance }, null, 2));
+        console.log(JSON.stringify({ org: { plan: org.plan, credits: org.credits }, ...summary }, null, 2));
         return;
     }
 
-    section("Usage & Billing");
-    kv("Balance", c.green(`$${balance.balance}`));
+    section("Credits & Usage");
 
-    if (balance.thisMonth) {
-        kv("This month", `${balance.thisMonth.calls} calls  ${c.dim("·")}  ${balance.thisMonth.minutes} min  ${c.dim("·")}  $${balance.thisMonth.cost}`);
-        if (balance.projectedMonthly) {
-            kv("Projected", c.dim(`$${balance.projectedMonthly}/month`));
-        }
+    // Credits bar
+    const credits = org.credits ?? 0;
+    const maxCredits = org.planDetails?.credits || credits || 1;
+    const pct = maxCredits > 0 ? Math.round((credits / maxCredits) * 100) : 0;
+    const barWidth = 30;
+    const filled = Math.round(barWidth * pct / 100);
+    const bar = c.green("█".repeat(filled)) + c.dim("░".repeat(barWidth - filled));
+
+    kv("Plan", c.cyan(org.planDetails?.display || org.plan || "—"));
+    kv("Credits", `${bar}  ${credits.toLocaleString()}/${maxCredits.toLocaleString()} (${pct}%)`);
+
+    if (org.trialEndsAt) {
+        const daysLeft = Math.max(0, Math.ceil((new Date(org.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        kv("Trial", daysLeft > 0 ? c.yellow(`${daysLeft} days left`) : c.red("Expired"));
     }
 
-    if (data.events?.length > 0) {
-        console.log("");
-        console.log(`    ${c.bold("Recent")} ${c.dim(`(${data.summary.totalCalls} total)`)}`);
-        table(
-            ["Call ID", "Agent", "Duration", "Cost", "Date"],
-            data.events.slice(0, 15).map((e: any) => [
-                c.dim(e.callId.slice(0, 12) + "…"),
-                e.agentSlug ? c.purple(e.agentSlug) : c.dim("—"),
-                `${e.durationSeconds}s`,
-                c.dim(`$${e.cost.toFixed(4)}`),
-                c.dim(new Date(e.createdAt).toLocaleString()),
-            ]),
-            6,
-        );
+    if (org.creditsResetAt) {
+        const resetDays = Math.max(0, Math.ceil((new Date(org.creditsResetAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        kv("Resets in", c.dim(`${resetDays} days`));
     }
 
-    if (data.summary?.byAgent && Object.keys(data.summary.byAgent).length > 0) {
+    // Usage breakdown by service
+    if (summary.byService?.length > 0) {
         console.log("");
-        console.log(`    ${c.bold("By Agent")}`);
+        console.log(`    ${c.bold("Usage by Service")} ${c.dim(`(last ${summary.period.days} days)`)}`);
+
+        const serviceColors: Record<string, (s: string) => string> = {
+            stt: c.cyan,
+            tts: c.purple,
+            llm: c.green,
+            telephony: c.yellow,
+            platform: c.dim,
+        };
+
         table(
-            ["Agent", "Calls", "Minutes"],
-            Object.entries(data.summary.byAgent).map(([agent, stats]: [string, any]) => [
-                c.purple(agent),
-                String(stats.calls),
-                String(stats.minutes),
-            ]),
+            ["Service", "Credits", "Cost", "Events", ""],
+            summary.byService.map((s: any) => {
+                const color = serviceColors[s.service] || c.dim;
+                const svcBar = "█".repeat(Math.max(1, Math.round(s.percentage / 5)));
+                return [
+                    color(s.service.toUpperCase()),
+                    s.credits.toLocaleString(),
+                    c.dim(`$${s.costUsd.toFixed(4)}`),
+                    c.dim(String(s.events)),
+                    color(svcBar) + c.dim(` ${s.percentage}%`),
+                ];
+            }),
             6,
         );
+
+        console.log("");
+        kv("Total consumed", `${summary.total.credits.toLocaleString()} credits  ${c.dim("·")}  $${summary.total.costUsd.toFixed(4)}`);
+    } else {
+        console.log("");
+        info("No usage recorded yet.");
     }
 
     console.log("");
@@ -337,66 +412,9 @@ async function linkTwilio(config: CliConfig, accountSid: string, authToken: stri
             ]),
             4,
         );
-        console.log(`\n  ${c.dim("Import with:")} ${c.cyan("pinecall twilio import <number>")}`);
+        console.log(`\n  ${c.dim("Add with:")} ${c.cyan("pinecall phones add <number>")}`);
     }
 
-    console.log("");
-}
-
-async function importPhone(config: CliConfig, number: string): Promise<void> {
-    // Find the phone in available phones across all Twilio accounts
-    const data = await pg(config, "/twilio?available=true");
-
-    let targetPhone: any = null;
-    let targetAccount: any = null;
-
-    for (const a of data.accounts) {
-        if (!a.availablePhones) continue;
-        const phone = a.availablePhones.find((p: any) =>
-            p.number === number || p.number.endsWith(number),
-        );
-        if (phone) {
-            targetPhone = phone;
-            targetAccount = a;
-            break;
-        }
-    }
-
-    if (!targetPhone) {
-        error(`Phone ${number} not found in any linked Twilio account.\n\n  Run ${c.dim("pinecall twilio")} to see available phones.`);
-    }
-
-    if (targetPhone.imported) {
-        info(`${c.green(targetPhone.number)} is already imported.`);
-        return;
-    }
-
-    const result = await pg(config, "/phones/import", {
-        method: "POST",
-        body: JSON.stringify({
-            twilioAccountId: targetAccount.id,
-            phones: [{
-                number: targetPhone.number,
-                sid: targetPhone.sid,
-                type: targetPhone.type,
-                friendlyName: targetPhone.name,
-                ...(targetPhone.sipDomainSid && { sipDomainSid: targetPhone.sipDomainSid }),
-                ...(targetPhone.sipDomainName && { sipDomainName: targetPhone.sipDomainName }),
-            }],
-            configureWebhooks: true,
-        }),
-    });
-
-    if (config.json) {
-        console.log(JSON.stringify(result, null, 2));
-        return;
-    }
-
-    console.log("");
-    console.log(`  ${c.green("✓")} Imported ${c.green(targetPhone.number)}`);
-    kv("Name", targetPhone.name || "—");
-    kv("Account", targetAccount.friendlyName || targetAccount.accountSid);
-    kv("Webhook", result.imported?.[0]?.webhookConfigured ? c.green("configured") : c.yellow("skipped"));
     console.log("");
 }
 
@@ -452,28 +470,18 @@ const ACCOUNT_HELP = `
 const TWILIO_HELP = `
   ${c.purple("⚡")} ${c.bold("pinecall twilio")} — Twilio account management
 
-  ${c.bold("Subcommands:")}
-    ${c.dim("(none)")}               List accounts + imported/available phones
+  ${c.bold("Commands:")}
+    ${c.dim("(none)")}               List linked accounts + phone status
     link <SID> <Token>     Link a Twilio account
-    import <number>        Import an available phone number
     unlink <SID>           Unlink a Twilio account
 
-  ${c.bold("Getting Started:")}
-    ${c.dim("1.")} Link your Twilio account:
-       ${c.dim("$")} pinecall twilio link AC1234... your_auth_token
+  ${c.bold("Examples:")}
+    ${c.dim("$")} pinecall twilio
+    ${c.dim("$")} pinecall twilio link AC1234... your_auth_token
+    ${c.dim("$")} pinecall twilio unlink AC1234...
 
-    ${c.dim("2.")} See available phone numbers:
-       ${c.dim("$")} pinecall twilio
-
-    ${c.dim("3.")} Import the ones you want to use:
-       ${c.dim("$")} pinecall twilio import +1234567890
-
-  ${c.bold("Legend:")}
-    ${c.green("● Imported")}   Phone is active in Pinecall
-    ${c.yellow("○ Available")}  Phone exists on Twilio but not yet imported
-
-  ${c.bold("No Twilio account?")}
-    ${c.dim("Pinecall can provision a shared number for you.")} ${c.dim("(coming soon)")}
+  ${c.bold("Phone management:")}
+    ${c.dim("Use")} ${c.cyan("pinecall phones")} ${c.dim("to add/remove phone numbers.")}
 `;
 
 const SUBCOMMAND_HELP: Record<string, string> = {
@@ -515,10 +523,6 @@ export async function accountCommand(config: CliConfig, args: string[]): Promise
                 const token = positional[3];
                 if (!sid || !token) error(`Usage: pinecall twilio link <AccountSID> <AuthToken> [name]`);
                 await linkTwilio(config, sid, token, positional[4]);
-            } else if (sub2 === "import") {
-                const num = positional[2];
-                if (!num) error(`Usage: pinecall twilio import <phone_number>`);
-                await importPhone(config, num);
             } else if (sub2 === "unlink") {
                 const sid = positional[2];
                 if (!sid) error(`Usage: pinecall twilio unlink <AccountSID>`);

@@ -115,6 +115,8 @@ export class Agent extends TypedEventBus<AgentEvents> {
     #pendingQueue: Record<string, unknown>[] = [];
     /** Tracks registered channels for re-registration on reconnect. */
     #channels = new Map<string, { type: string; ref?: string; config?: ChannelConfig }>();
+    /** Tracked dev callers for re-registration on reconnect. */
+    #devCallers: string[] = [];
     /** @internal Reference to parent Pinecall client (for createToken). */
     #client: {
         createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<TokenResponse>;
@@ -258,6 +260,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     // ── Development ──────────────────────────────────────────────────────
 
     routeCallers(callers: string[]): void {
+        this.#devCallers = callers;
         this.send({ event: "dev.config", callers });
     }
 
@@ -494,9 +497,14 @@ export class Agent extends TypedEventBus<AgentEvents> {
             }
         }
 
-        // Flush any other pending messages (skip channel.add — already handled above)
+        // Re-send dev callers if configured
+        if (this.#devCallers.length > 0) {
+            this.#sendRaw({ event: "dev.config", callers: this.#devCallers });
+        }
+
+        // Flush any other pending messages (skip channel.add and dev.config — already handled above)
         for (const msg of this.#pendingQueue) {
-            if (msg.event === "channel.add") continue;
+            if (msg.event === "channel.add" || msg.event === "dev.config") continue;
             this.#sendRaw(msg);
         }
         this.#pendingQueue = [];

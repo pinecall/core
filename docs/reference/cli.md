@@ -288,11 +288,102 @@ Show your Twilio account balance.
 pinecall balance
 ```
 
-```
-  Twilio Balance: $125.45 USD
+> **Warning:** The balance is displayed in red when below $10 as a low-balance warning.
+
+### `pinecall signup`
+
+Create a new organization with a free trial plan.
+
+```bash
+pinecall signup "My Company" --email=admin@company.com
 ```
 
-> **Warning:** The balance is displayed in red when below $10 as a low-balance warning.
+- Assigns the **Free Trial** plan (14 days, 3,500 credits)
+- Generates your first API key
+- No authentication needed — this is the first step
+
+### `pinecall account`
+
+View your organization overview with plan, credits, keys, Twilio accounts, and phones.
+
+```bash
+pinecall account
+```
+
+```
+  ⚡ My Company — my-company
+    Plan Starter  ·  Credits 38,450/40,000  ·  Email admin@company.com
+    ○ Not verified — outbound calls restricted
+    Limits: phones 1/2  ·  concurrent 3  ·  agents 3
+
+  ▸ API Keys (2)
+  ▸ Twilio (1)
+  ▸ Phones (1)
+```
+
+#### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pinecall account` | Full overview |
+| `pinecall account keys` | List API keys |
+| `pinecall account keys create "Name"` | Create new key |
+| `pinecall account usage` | Credit usage breakdown by service |
+| `pinecall account session` | Debug session resolution |
+
+### `pinecall account usage`
+
+View credit consumption by service with a visual breakdown.
+
+```bash
+pinecall account usage
+```
+
+```
+  ▸ Credits & Usage
+    Plan      Starter
+    Credits   ████████████████████████░░░░░░  38,450/40,000 (96%)
+    Resets in 25 days
+
+    Usage by Service (last 30 days)
+    Service    Credits  Cost     Events
+    STT        560      $0.0539  70       ████████████████ 36%
+    TTS        900      $0.0450  20       ██████████████████████████ 58%
+    LLM        12       $0.0002  6        █ 1%
+    PLATFORM   78       $0.0780  78       █████ 5%
+
+    Total consumed  1,550 credits  ·  $0.1771
+```
+
+### `pinecall phone`
+
+Manage phone numbers — request managed numbers from Pinecall.
+
+```bash
+pinecall phone request                    # Provision a managed number
+pinecall phone request --country=US       # Specify country
+pinecall phone search                     # Search available numbers
+pinecall phone search --area-code=415     # Filter by area code
+```
+
+Plan limits are enforced:
+- **Free Trial**: managed numbers not available (use BYOC)
+- **Starter**: up to 2 managed numbers
+- **Pro**: up to 10
+- **Enterprise**: unlimited
+
+### `pinecall twilio`
+
+Manage your own Twilio accounts (BYOC).
+
+```bash
+pinecall twilio                           # List accounts + phones
+pinecall twilio link <SID> <Token>        # Link a Twilio account
+pinecall twilio import +1234567890        # Import a phone number
+pinecall twilio unlink <SID>              # Remove a Twilio account
+```
+
+> **BYOC phones are inbound only.** Outbound calls require a managed number from a verified account.
 
 ## Global Options
 

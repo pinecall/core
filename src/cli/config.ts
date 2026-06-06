@@ -41,7 +41,7 @@ export function resolveConfig(argv: string[]): CliConfig {
 
     if (!apiKey) apiKey = process.env.PINECALL_API_KEY ?? "";
     if (!server) server = process.env.PINECALL_URL ?? "https://voice.pinecall.io";
-    if (!playground) playground = process.env.PINECALL_PLAYGROUND_URL ?? "http://localhost:4000";
+    if (!playground) playground = process.env.PINECALL_PLAYGROUND_URL ?? "https://playground.pinecall.io";
 
     // Strip trailing slash
     server = server.replace(/\/+$/, "");

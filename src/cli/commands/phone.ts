@@ -31,6 +31,34 @@ async function pg(config: CliConfig, path: string, init?: RequestInit): Promise<
 }
 
 async function requestPhone(config: CliConfig, args: string[]): Promise<void> {
+    // Check plan limits first
+    const org = await pg(config, "/orgs/me");
+    const stats = await pg(config, "/orgs/me/stats").catch(() => null);
+
+    const phoneLimit = org.planDetails?.limits?.phones ?? 0;
+    const currentPhones = stats?.managedPhones ?? 0;
+
+    if (phoneLimit === 0) {
+        console.log("");
+        console.log(`  ${c.red("✗")} ${c.red("Managed numbers are not available on the Free Trial plan")}`);
+        console.log("");
+        console.log(`  ${c.dim("Options:")}`);
+        console.log(`    ${c.dim("•")} Upgrade to Starter ($29/mo) for 2 managed numbers`);
+        console.log(`    ${c.dim("•")} Or link your own Twilio: ${c.cyan("pinecall twilio link <SID> <Token>")}`);
+        console.log("");
+        return;
+    }
+
+    if (currentPhones >= phoneLimit && phoneLimit < 999) {
+        console.log("");
+        console.log(`  ${c.red("✗")} ${c.red(`Phone limit reached (${currentPhones}/${phoneLimit})`)}`);
+        console.log("");
+        console.log(`  ${c.dim("Your")} ${c.cyan(org.planDetails?.display || org.plan)} ${c.dim("plan allows")} ${phoneLimit} ${c.dim("managed numbers.")}`);
+        console.log(`  ${c.dim("Upgrade your plan or use BYOC:")} ${c.cyan("pinecall twilio link")}`);
+        console.log("");
+        return;
+    }
+
     // Parse flags
     const countryArg = args.find((a) => a.startsWith("--country="));
     const areaCodeArg = args.find((a) => a.startsWith("--area-code="));
@@ -62,7 +90,18 @@ async function requestPhone(config: CliConfig, args: string[]): Promise<void> {
     kv("Name", data.phone.friendlyName || "—");
     kv("Type", "managed");
     kv("Rate", c.yellow(data.phone.rate));
+    kv("Phones", c.dim(`${currentPhones + 1}/${phoneLimit >= 999 ? "∞" : phoneLimit}`));
     kv("Webhook", data.phone.webhookConfigured ? c.green("configured") : c.dim("pending"));
+
+    // Outbound status
+    if (org.verified) {
+        console.log("");
+        console.log(`  ${c.green("✓")} ${c.dim("Outbound calls enabled (verified account)")}`);
+    } else {
+        console.log("");
+        console.log(`  ${c.dim("○")} ${c.dim("Inbound only — contact support to enable outbound")}`);
+    }
+
     console.log("");
     console.log(`  ${c.dim("This number is ready to receive calls.")}`);
     console.log(`  ${c.dim("Connect an agent and assign it with")} ${c.cyan("agent.phone()")}`);

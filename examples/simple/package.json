@@ -6,7 +6,6 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@pinecall/sdk": "^0.1.0",
-    "express": "^5.1.0"
+    "@pinecall/sdk": "file:../../"
   }
 }

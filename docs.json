@@ -37,6 +37,7 @@
         "pages": [
           "guides/inbound-voice",
           "guides/outbound-calls",
+          "guides/live-listening",
           "guides/whatsapp",
           "guides/human-takeover",
           "guides/webrtc-browser",

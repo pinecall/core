@@ -29,39 +29,41 @@ const VERSION = "0.2.7";
 const HELP = `
   ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${VERSION}`)}
 
-  ${c.bold("Voice Server")}
-    agents                 ${c.dim("List connected agents + phones")}
-    phones                 ${c.dim("List phone numbers (with agent assignment)")}
+  ${c.bold("Agents & Phones")}
+    agents                 ${c.dim("List connected agents")}
+    phones                 ${c.dim("List phone numbers")}
+    phones add             ${c.dim("Add a number from Twilio")}
+    phones request         ${c.dim("Get a managed number")}
+    phones remove          ${c.dim("Remove a number")}
     voices                 ${c.dim("List available TTS voices")}
+    voices play            ${c.dim("Preview a voice")}
+    balance                ${c.dim("Show credit balance")}
+    usage                  ${c.dim("Credit usage breakdown")}
+    calls                  ${c.dim("Call history")}
+
+  ${c.bold("Development")}
     chat [agent]           ${c.dim("Chat with a connected agent")}
     test <path>            ${c.dim("Run agent specs (YAML test files)")}
-    balance                ${c.dim("Show Twilio account balance")}
 
-  ${c.bold("Account Management")}
+  ${c.bold("Account")}
     signup                 ${c.dim("Create a new organization")}
     account                ${c.dim("Org overview (keys, twilio, phones)")}
     account keys           ${c.dim("List / create API keys")}
     account usage          ${c.dim("Usage + billing")}
-    twilio                 ${c.dim("List Twilio accounts + phone status")}
+    twilio                 ${c.dim("Linked Twilio accounts")}
     twilio link            ${c.dim("Link a Twilio account")}
-    twilio import          ${c.dim("Import a phone number")}
-    phone request          ${c.dim("Get a managed number from Pinecall")}
-    phone search           ${c.dim("Search available numbers")}
+    twilio unlink          ${c.dim("Unlink a Twilio account")}
 
   ${c.bold("Options")}
     --api-key=pk_...       ${c.dim("Override PINECALL_API_KEY env var")}
-    --server=URL           ${c.dim("Override voice server URL")}
-    --playground=URL       ${c.dim("Override playground URL")}
     --json                 ${c.dim("Output raw JSON")}
 
   ${c.bold("Environment")}
     PINECALL_API_KEY       ${c.dim("Your Pinecall API key")}
-    PINECALL_URL           ${c.dim("Voice server URL")}
-    PINECALL_PLAYGROUND_URL ${c.dim("Playground API URL")}
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone"]);
+const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -75,7 +77,38 @@ async function main(): Promise<void> {
 
     // Global help — only if no command or command doesn't handle its own help
     const wantsHelp = args.includes("--help") || args.includes("-h");
-    if (args.length === 0 || (wantsHelp && (!command || !SELF_HELP_COMMANDS.has(command)))) {
+    if (wantsHelp && (!command || !SELF_HELP_COMMANDS.has(command))) {
+        console.log(HELP);
+        return;
+    }
+
+    // No args → show status + help
+    if (args.length === 0) {
+        const apiKey = process.env.PINECALL_API_KEY ?? "";
+        if (apiKey) {
+            const playground = process.env.PINECALL_PLAYGROUND_URL ?? "https://playground.pinecall.io";
+            try {
+                const res = await fetch(`${playground}/api/orgs/me`, {
+                    headers: { Authorization: `Bearer ${apiKey}` },
+                });
+                if (res.ok) {
+                    const org = await res.json();
+                    const credits = Math.floor(org.credits ?? 0).toLocaleString();
+                    const limit = org.creditLimit ? `/${Math.floor(org.creditLimit).toLocaleString()}` : "";
+                    const planLabel = (org.plan || "free").replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase());
+                    console.log("");
+                    console.log(`  ${c.green("●")} ${c.bold(org.name)} ${c.dim("·")} ${c.cyan(planLabel)} ${c.dim("·")} ${c.green(credits + limit)} ${c.dim("credits")}`);
+                } else {
+                    console.log("");
+                    console.log(`  ${c.red("●")} ${c.dim("Invalid API key. Sign up at:")} ${c.cyan("pinecall signup")}`);
+                }
+            } catch {
+                // Can't reach playground — just show help
+            }
+        } else {
+            console.log("");
+            console.log(`  ${c.dim("Not signed in. Get started:")} ${c.cyan("pinecall signup")}`);
+        }
         console.log(HELP);
         return;
     }
@@ -87,13 +120,7 @@ async function main(): Promise<void> {
 
     // Signup doesn't need API key — handle before resolveConfig
     if (command === "signup") {
-        const { resolveConfig: rc } = await import("./cli/config.js");
-        // Build a config without requiring API key
-        const playgroundArg = args.find(a => a.startsWith("--playground="));
-        const playground = playgroundArg
-            ? playgroundArg.slice("--playground=".length)
-            : process.env.PINECALL_PLAYGROUND_URL ?? "http://localhost:4000";
-        const config = { apiKey: "", server: "", playground: playground.replace(/\/+$/, ""), json: args.includes("--json") };
+        const config = { apiKey: "", server: "", playground: "https://playground.pinecall.io", json: false };
         const { signupCommand } = await import("./cli/commands/signup.js");
         await signupCommand(config, args);
         return;
@@ -105,12 +132,12 @@ async function main(): Promise<void> {
     switch (command) {
         case "agents": {
             const { agentsCommand } = await import("./cli/commands/agents.js");
-            await agentsCommand(config);
+            await agentsCommand(config, args);
             break;
         }
         case "phones": {
             const { phonesCommand } = await import("./cli/commands/phones.js");
-            await phonesCommand(config);
+            await phonesCommand(config, args);
             break;
         }
         case "voices": {
@@ -120,7 +147,12 @@ async function main(): Promise<void> {
         }
         case "balance": {
             const { balanceCommand } = await import("./cli/commands/balance.js");
-            await balanceCommand(config);
+            await balanceCommand(config, args);
+            break;
+        }
+        case "calls": {
+            const { callsCommand } = await import("./cli/commands/calls.js");
+            await callsCommand(config, args);
             break;
         }
         case "chat": {
@@ -142,6 +174,12 @@ async function main(): Promise<void> {
             // Top-level alias → delegates to account twilio
             const { accountCommand } = await import("./cli/commands/account.js");
             await accountCommand(config, ["account", "twilio", ...args.filter(a => a !== "twilio")]);
+            break;
+        }
+        case "usage": {
+            // Top-level alias → delegates to account usage
+            const { accountCommand } = await import("./cli/commands/account.js");
+            await accountCommand(config, ["account", "usage", ...args.filter(a => a !== "usage")]);
             break;
         }
         case "phone": {
