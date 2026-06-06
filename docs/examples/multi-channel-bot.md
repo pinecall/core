@@ -91,8 +91,8 @@ On WhatsApp, you can be slightly longer but still brief.`,
 });
 
 // ---- Register phone and WhatsApp ----
-support.phone("+13186330963");
-support.whatsapp({
+support.addPhoneNumber("+13186330963");
+support.addWhatsapp({
   phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
   accessToken: process.env.WA_TOKEN,
   appSecret: process.env.WA_APP_SECRET,
@@ -155,7 +155,7 @@ Everything else — tool definitions, the LLM, the response generation — is un
 Need to add SIP for a call center integration? One line:
 
 ```typescript
-support.phone("sip:bot@trunk.acmetel.com");
+support.addPhoneNumber("sip:bot@trunk.acmetel.com");
 ```
 
 WebRTC and Chat work automatically via tokens — the agent handles all transports.

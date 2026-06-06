@@ -181,11 +181,11 @@ export class Agent extends TypedEventBus<AgentEvents> {
      * same number updates its config.
      *
      * @example
-     * agent.phone("+13186330963");
-     * agent.phone("+34612345678", { ringing: true, voice: "elevenlabs/lucia" });
-     * agent.phone("sip:bot@trunk.twilio.com");
+     * agent.addPhoneNumber("+13186330963");
+     * agent.addPhoneNumber("+34612345678", { ringing: true, voice: "elevenlabs/lucia" });
+     * agent.addPhoneNumber("sip:bot@trunk.twilio.com");
      */
-    phone(number: string, config?: ChannelConfig): void {
+    addPhoneNumber(number: string, config?: ChannelConfig): void {
         this._addChannel("phone", number, config);
     }
 
@@ -194,9 +194,9 @@ export class Agent extends TypedEventBus<AgentEvents> {
      * same phoneNumberId updates its config.
      *
      * @example
-     * agent.whatsapp({ phoneNumberId: "123", accessToken: "EAA..." });
+     * agent.addWhatsapp({ phoneNumberId: "123", accessToken: "EAA..." });
      */
-    whatsapp(config: WhatsAppChannelConfig): void {
+    addWhatsapp(config: WhatsAppChannelConfig): void {
         this._addChannel("whatsapp", config);
     }
 

@@ -99,7 +99,7 @@ const agent = pc.agent("support", {
 Same headless pattern — add a channel:
 
 ```typescript
-agent.whatsapp({
+agent.addWhatsapp({
   phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
   accessToken: process.env.WA_TOKEN,
   appSecret: process.env.WA_APP_SECRET,

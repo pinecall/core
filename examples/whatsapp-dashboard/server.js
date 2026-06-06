@@ -32,7 +32,7 @@ If the customer asks to speak to a human, tell them you'll connect them right aw
 });
 
 // Register WhatsApp channel from environment variables
-agent.whatsapp({
+agent.addWhatsapp({
   phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
   accessToken: process.env.WA_ACCESS_TOKEN,
   verifyToken: process.env.WA_VERIFY_TOKEN || "pinecall-wa-verify",

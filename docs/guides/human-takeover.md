@@ -45,7 +45,7 @@ const support = pc.agent("support", {
   prompt: "You are a helpful support agent.",
 });
 
-support.whatsapp({
+support.addWhatsapp({
   phoneNumberId: process.env.WA_PHONE_ID!,
   accessToken: process.env.WA_TOKEN!,
 });

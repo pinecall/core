@@ -27,6 +27,9 @@ const agent = pc.agent("my-agent", {
 | `stt` | `string \| STTConfig` | STT provider — shortcut or full config |
 | `llm` | `LLMConfig` | LLM provider, model, prompt, enabled flag |
 | `tools` | `Tool[]` | OpenAI function-calling tool definitions |
+| `phoneNumbers` | `string[] \| PhoneNumberConfig[]` | Phone numbers to register (E.164 or SIP URI) |
+| `whatsapp` | `WhatsAppChannelConfig[]` | WhatsApp channels to register |
+| `history` | `HistoryStore` | Conversation persistence (see [History](/guides/conversation-history)) |
 | `sessionLimits` | `SessionLimits` | Duration / idle timeout config |
 | `interruption` | `InterruptionConfig` | Energy thresholds for barge-in |
 | `analysis` | `AnalysisConfig` | Audio metrics streaming |
@@ -36,16 +39,16 @@ See [Reference → Providers](/reference/stt-providers) for full provider config
 
 ## Phone numbers
 
-### `phone(number, config?)`
+### `addPhoneNumber(number, config?)`
 
 Register a phone number or SIP URI. Idempotent — calling again with the same number updates its config.
 
 ```typescript
-agent.phone("+13186330963");
-agent.phone("sip:bot@trunk.twilio.com");
+agent.addPhoneNumber("+13186330963");
+agent.addPhoneNumber("sip:bot@trunk.twilio.com");
 
 // Per-number config overrides
-agent.phone("+34911234567", {
+agent.addPhoneNumber("+34911234567", {
   voice: "elevenlabs/valentina",
   language: "es",
 });
@@ -61,12 +64,12 @@ agent.removePhone("+34911234567");
 
 ## WhatsApp
 
-### `whatsapp(config)`
+### `addWhatsapp(config)`
 
 Register a WhatsApp channel. Idempotent.
 
 ```typescript
-agent.whatsapp({
+agent.addWhatsapp({
   phoneNumberId: "123456789012345",
   accessToken: "EAABx...",
   verifyToken: "my-secret",

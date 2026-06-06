@@ -57,8 +57,8 @@ const agent = pc.agent("support", {
 });
 
 // Or imperatively:
-agent.phone("+13186330963");
-agent.whatsapp({ phoneNumberId: "123", accessToken: "..." });
+agent.addPhoneNumber("+13186330963");
+agent.addWhatsapp({ phoneNumberId: "123", accessToken: "..." });
 
 // WebRTC + Chat: work via tokens, no registration needed
 const token = await agent.createToken("webrtc");
@@ -100,9 +100,9 @@ const mara = pc.agent("mara", {
 
 WebRTC and Chat work automatically — no declaration needed. Just create tokens.
 
-### With `agent.phone()` (imperative)
+### With `agent.addPhoneNumber()` (imperative)
 
-Use `agent.phone()` when you need per-number config overrides:
+Use `agent.addPhoneNumber()` when you need per-number config overrides:
 
 ```typescript
 const mara = pc.agent("mara", {
@@ -112,7 +112,7 @@ const mara = pc.agent("mara", {
   prompt: "You are Mara. Be concise.",
 });
 
-mara.phone("+13186330963", {
+mara.addPhoneNumber("+13186330963", {
   voice: "elevenlabs/daniel",
 });
 ```

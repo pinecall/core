@@ -104,7 +104,7 @@ async function requestPhone(config: CliConfig, args: string[]): Promise<void> {
 
     console.log("");
     console.log(`  ${c.dim("This number is ready to receive calls.")}`);
-    console.log(`  ${c.dim("Connect an agent and assign it with")} ${c.cyan("agent.phone()")}`);
+    console.log(`  ${c.dim("Connect an agent and assign it with")} ${c.cyan("agent.addPhoneNumber()")}`);
     console.log("");
 }
 

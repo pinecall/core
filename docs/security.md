@@ -132,7 +132,7 @@ The SDK never exposes the API key over the wire in browser-bound responses — `
 For WhatsApp, set `appSecret` so the server verifies the HMAC signature on every incoming webhook:
 
 ```typescript
-agent.whatsapp({
+agent.addWhatsapp({
   phoneNumberId: "...",
   accessToken: "...",
   verifyToken: "...",

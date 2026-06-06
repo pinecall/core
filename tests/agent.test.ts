@@ -63,14 +63,14 @@ describe('Agent', () => {
 
   it('buffers messages before server-ready', () => {
     const { agent, send } = createAgent()
-    agent.phone('+15551234567')
+    agent.addPhoneNumber('+15551234567')
     // send should NOT have been called — buffered
     expect(send).not.toHaveBeenCalled()
   })
 
   it('flushes buffered messages on _flushPending()', () => {
     const { agent, send } = createAgent()
-    agent.phone('+15551234567')
+    agent.addPhoneNumber('+15551234567')
     markReady(agent)
     // channel.add should now be sent
     expect(send).toHaveBeenCalledWith(
@@ -83,7 +83,7 @@ describe('Agent', () => {
     markReady(agent)
     send.mockClear()
 
-    agent.phone('+15559999999')
+    agent.addPhoneNumber('+15559999999')
     expect(send).toHaveBeenCalledOnce()
   })
 
@@ -92,7 +92,7 @@ describe('Agent', () => {
   it('phone() sends channel.add with agent_id', () => {
     const { agent, send } = createAgent('my-bot')
     markReady(agent)
-    agent.phone('+15551234567')
+    agent.addPhoneNumber('+15551234567')
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'channel.add',
@@ -106,13 +106,13 @@ describe('Agent', () => {
   it('phone() validates E.164 phone numbers', () => {
     const { agent } = createAgent()
     markReady(agent)
-    expect(() => agent.phone('abc')).toThrow('Invalid phone number')
+    expect(() => agent.addPhoneNumber('abc')).toThrow('Invalid phone number')
   })
 
   it('phone() allows SIP URIs', () => {
     const { agent, send } = createAgent()
     markReady(agent)
-    agent.phone('sip:bot@trunk.twilio.com')
+    agent.addPhoneNumber('sip:bot@trunk.twilio.com')
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ ref: 'sip:bot@trunk.twilio.com' }),
     )
@@ -297,8 +297,8 @@ describe('Agent', () => {
     const { agent, send } = createAgent()
     markReady(agent)
 
-    agent.phone('+15551111111')
-    agent.phone('+15552222222')
+    agent.addPhoneNumber('+15551111111')
+    agent.addPhoneNumber('+15552222222')
     send.mockClear()
 
     // Simulate reconnect
