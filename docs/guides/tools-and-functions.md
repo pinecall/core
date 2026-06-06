@@ -47,7 +47,6 @@ const agent = pc.agent("support", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
-  channels: ["webrtc"],
   tools: [lookupOrder, scheduleCallback],
 });
 

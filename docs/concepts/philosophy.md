@@ -32,7 +32,7 @@ const agent = pc.agent("support", {
   prompt: "You are a support agent for Acme Corp.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
-  channels: ["+15551234567"],
+  phoneNumbers: ["+15551234567"],
   tools: [lookupOrder],
 });
 
@@ -88,7 +88,7 @@ const agent = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: { provider: "deepgram-flux", keyterms: ["Acme", "checkout"] },
-  channels: ["webrtc", "+13186330963"],
+  phoneNumbers: ["+13186330963"],
   sessionLimits: { idle_timeout_seconds: 30, idle_warning_seconds: 10 },
 });
 ```

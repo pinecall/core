@@ -34,26 +34,39 @@ const agent = pc.agent("my-agent", {
 
 See [Reference → Providers](/reference/stt-providers) for full provider configs.
 
-## Channels
+## Phone numbers
 
-### `addChannel(type, ref?, config?)`
+### `phone(number, config?)`
 
-Register a channel. Types: `phone`, `sip`, `webrtc`, `chat`, `whatsapp`, `mic`.
+Register a phone number or SIP URI. Idempotent — calling again with the same number updates its config.
 
 ```typescript
-agent.addChannel("phone", "+13186330963");
-agent.addChannel("phone", "sip:bot@trunk.twilio.com");
-agent.addChannel("webrtc");
-agent.addChannel("chat");
+agent.phone("+13186330963");
+agent.phone("sip:bot@trunk.twilio.com");
 
-// Per-channel config overrides
-agent.addChannel("phone", "+34911234567", {
+// Per-number config overrides
+agent.phone("+34911234567", {
   voice: "elevenlabs/valentina",
   language: "es",
 });
+```
 
-// WhatsApp
-agent.addChannel("whatsapp", {
+### `removePhone(number)`
+
+Unregister a phone number.
+
+```typescript
+agent.removePhone("+34911234567");
+```
+
+## WhatsApp
+
+### `whatsapp(config)`
+
+Register a WhatsApp channel. Idempotent.
+
+```typescript
+agent.whatsapp({
   phoneNumberId: "123456789012345",
   accessToken: "EAABx...",
   verifyToken: "my-secret",
@@ -61,22 +74,14 @@ agent.addChannel("whatsapp", {
 });
 ```
 
-See [WhatsApp guide](/guides/whatsapp) for WhatsApp channel config.
+See [WhatsApp guide](/guides/whatsapp) for full config.
 
-### `configureChannel(ref, config)`
+### `removeWhatsapp(phoneNumberId)`
 
-Update a specific channel's config at runtime.
-
-```typescript
-agent.configureChannel("+34911234567", { voice: "cartesia/blake" });
-```
-
-### `removeChannel(ref)`
-
-Unregister a channel.
+Unregister a WhatsApp channel.
 
 ```typescript
-agent.removeChannel("+34911234567");
+agent.removeWhatsapp("123456789012345");
 ```
 
 ## Config & hot-reload

@@ -214,7 +214,6 @@ const agent = pc.agent("booking-demo", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   tools: [getAvailableSlots, showContactForm, fillField, confirmBooking],
-  channels: ["webrtc"],
 });
 
 agent.on("call.started", (call) => call.say("Hi! Want to book an appointment?"));

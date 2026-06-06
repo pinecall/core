@@ -6,6 +6,7 @@
 
 import type { SessionConfig } from "./session.js";
 import type { Tool } from "../tool.js";
+import type { HistoryStore } from "../history.js";
 
 // ─── Shortcut types ──────────────────────────────────────────────────────
 
@@ -61,16 +62,34 @@ export interface AgentConfig {
         | { text: string; addToHistory?: boolean }
         | ((call: import("../domain/call.js").Call) => string | Promise<string>);
     /**
-     * Channels to register (shortcut for addChannel).
-     * Strings: "webrtc", "mic", "chat", or a phone number.
-     * Objects: { type, ref?, config? } for per-channel overrides.
+     * Phone numbers to register (Twilio E.164 or SIP URI).
      *
-     * @example ["webrtc", "+14155551234"]
-     * @example [{ type: "phone", ref: "+14155551234", config: { ringing: true } }]
+     * @example ["+14155551234", "+34612345678"]
+     * @example ["+14155551234", { number: "+34612345678", ringing: true }]
      */
-    channels?: Array<string | { type: string; ref?: string; config?: ChannelConfig }>;
-    /** Persist conversations to MongoDB on the voice server. */
-    historySave?: boolean;
+    phoneNumbers?: Array<string | PhoneNumberConfig>;
+    /**
+     * WhatsApp channels to register (Meta Cloud API credentials).
+     *
+     * @example [{ phoneNumberId: "123", accessToken: "EAA..." }]
+     */
+    whatsapp?: WhatsAppChannelConfig[];
+    /**
+     * Pluggable conversation persistence. When set, conversations are
+     * auto-saved on every `call.ended`.
+     *
+     * Use the built-in `JsonFileHistory` for prototyping, or implement
+     * `HistoryStore` for MongoDB, Postgres, or your own API.
+     *
+     * @example
+     * ```ts
+     * import { JsonFileHistory } from "@pinecall/sdk";
+     * const agent = pc.agent("my-agent", {
+     *     history: new JsonFileHistory("./data/calls.json"),
+     * });
+     * ```
+     */
+    history?: HistoryStore;
     /**
      * Allowed origins for public browser token access (WebRTC, Chat).
      *
@@ -84,6 +103,23 @@ export interface AgentConfig {
      * via `pc.createToken()` or `agent.createToken()`.
      */
     allowedOrigins?: string[];
+}
+
+// ─── Phone number config ─────────────────────────────────────────────────
+
+/** Per-phone-number configuration for `phoneNumbers` array. */
+export interface PhoneNumberConfig {
+    /** Phone number in E.164 format or SIP URI. */
+    number: string;
+    /**
+     * Enable call.ringing for this number.
+     * When true, inbound calls emit `call.ringing` instead of auto-accepting.
+     */
+    ringing?: boolean;
+    /** Per-number voice override. */
+    voice?: VoiceShortcut;
+    /** Per-number language override. */
+    language?: string;
 }
 
 // ─── Channel config ──────────────────────────────────────────────────────

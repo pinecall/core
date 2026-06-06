@@ -137,7 +137,7 @@ agent.configure({ voice: "cartesia/blake" });
 call.configure({ voice: "elevenlabs/daniel" });
 
 // Per-channel override
-agent.addChannel("phone", "+34911234567", {
+agent.phone("+34911234567", {
   voice: "elevenlabs/valentina",
 });
 ```

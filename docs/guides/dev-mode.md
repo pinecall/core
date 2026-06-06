@@ -48,7 +48,7 @@ const agent = pc.agent(agentId, {
   prompt: "...",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
-  channels: ["+13186330963"], // shared with prod!
+  phoneNumbers: ["+13186330963"], // shared with prod!
 });
 ```
 

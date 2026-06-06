@@ -89,13 +89,12 @@ A single `Pinecall` instance can host multiple agents, each with a different LLM
 const support = pc.agent("support", {
   llm: "openai/gpt-4.1-mini",
   prompt: "...",
+  phoneNumbers: ["+13186330963"],
+  whatsapp: [{ phoneNumberId: "123", accessToken: "EAA..." }],
 });
-support.addChannel("whatsapp", { /* config */ });
-support.addChannel("phone", "+13186330963");
 
 // Client-side agent using Anthropic for a specialized use case
 const research = pc.agent("research", { voice: "elevenlabs/george", language: "en" });
-research.addChannel("webrtc");
 research.on("turn.end", async (turn, call) => {
   /* call Anthropic, stream back */
 });

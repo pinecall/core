@@ -17,6 +17,7 @@ import { RingingCall } from "../../domain/ringing-call.js";
 import { decodeEvent } from "../../protocol/codec.js";
 import { forwardCallEvents } from "../proxy.js";
 import type { CallStartedEvent, CallEndedEvent } from "../../protocol/events.js";
+import type { ConversationRecord } from "../../history.js";
 
 export class LifecycleHandler implements EventHandler {
     readonly events = ["call.started", "call.ended", "call.dialing", "call.error", "call.forwarded", "call.dtmf_sent", "call.ringing", "call.rejected"] as const;
@@ -82,6 +83,40 @@ export class LifecycleHandler implements EventHandler {
 
                 const reason = (wire.reason ?? "unknown") as string;
                 call._applyEnd(reason, wire);
+
+                // Auto-save via HistoryStore if configured
+                const historyStore = agent.getConfig().history;
+                if (historyStore?.save && call.transcript.length > 0) {
+                    // For WebRTC/Chat: use metadata.userId as contact ID if available,
+                    // since call.from is just "webrtc" (not a useful identifier).
+                    const contactId = (
+                        call.metadata?.userId
+                            ? String(call.metadata.userId)
+                            : call.from
+                    );
+                    const record: ConversationRecord = {
+                        callId: call.id,
+                        agentId: agent.id,
+                        channel: call.transport as ConversationRecord["channel"],
+                        direction: call.direction,
+                        from: contactId,
+                        to: call.to,
+                        startedAt: call.startedAt,
+                        endedAt: call.endedAt,
+                        duration: call.duration,
+                        reason: call.reason,
+                        transcript: call.transcript,
+                        messages: call.messages,
+                        metadata: call.metadata,
+                    };
+                    // Fire-and-forget — never block call cleanup
+                    historyStore.save(record).catch((err) => {
+                        ctx.logger.error(`History save failed: ${err}`, {
+                            agent: agent.id,
+                            callId,
+                        });
+                    });
+                }
 
                 agent._emitWire("call.ended", call, reason);
                 agent._deleteCall(callId);

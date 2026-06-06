@@ -53,7 +53,7 @@ const support = pc.agent("support", {
   prompt: "You are a helpful support agent on WhatsApp. Be concise.",
 });
 
-support.addChannel("whatsapp", {
+support.whatsapp({
   phoneNumberId: "123456789012345",
   accessToken: process.env.WA_TOKEN!,
   verifyToken: "my-verify-token",
@@ -111,9 +111,9 @@ const support = pc.agent("support", {
   tools: [lookupOrder],
 });
 
-support.addChannel("whatsapp", { /* WhatsApp config */ });
-support.addChannel("phone", "+13186330963");
-support.addChannel("webrtc");
+support.whatsapp({ phoneNumberId: "123", accessToken: "EAA..." });
+support.phone("+13186330963");
+
 
 // Voice greeting (WhatsApp doesn't use this)
 support.on("call.started", (call) => {

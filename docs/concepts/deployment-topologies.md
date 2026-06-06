@@ -103,7 +103,7 @@ const agent = pc.agent("support", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
-  channels: ["+13186330963"],
+  phoneNumbers: ["+13186330963"],
   tools: [lookupOrder, processReturn],
 });
 

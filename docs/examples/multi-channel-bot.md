@@ -90,10 +90,9 @@ On WhatsApp, you can be slightly longer but still brief.`,
   tools: [lookupOrder, transferToHuman, endConversation],
 });
 
-// ---- Add all three channels ----
-support.addChannel("phone", "+13186330963");
-support.addChannel("webrtc");
-support.addChannel("whatsapp", {
+// ---- Register phone and WhatsApp ----
+support.phone("+13186330963");
+support.whatsapp({
   phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
   accessToken: process.env.WA_TOKEN,
   appSecret: process.env.WA_APP_SECRET,
@@ -156,16 +155,10 @@ Everything else — tool definitions, the LLM, the response generation — is un
 Need to add SIP for a call center integration? One line:
 
 ```typescript
-support.addChannel("phone", "sip:bot@trunk.acmetel.com");
+support.phone("sip:bot@trunk.acmetel.com");
 ```
 
-Need to add chat for the web app's help panel? One line:
-
-```typescript
-support.addChannel("chat");
-```
-
-The agent doesn't care.
+WebRTC and Chat work automatically via tokens — the agent handles all transports.
 
 ## Deploy
 

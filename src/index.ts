@@ -13,9 +13,8 @@
  * const agent = pc.agent("my-agent", {
  *   voice: "elevenlabs:abc",
  *   language: "es",
+ *   phoneNumbers: ["+19035551234"],
  * });
- *
- * agent.addChannel("phone", "+19035551234");
  *
  * agent.on("call.started", (call) => {
  *   call.say("Hello! How can I help you?");
@@ -36,6 +35,10 @@ export type { StreamOptions } from "./sse/stream.js";
 export { tool } from "./tool.js";
 export type { Tool, ToolConfig } from "./tool.js";
 
+// History persistence
+export { JsonFileHistory } from "./history.js";
+export type { HistoryStore, ConversationRecord } from "./history.js";
+
 export { Agent } from "./domain/agent.js";
 export type {
     AgentEvents,
@@ -43,6 +46,7 @@ export type {
 
 export type {
     AgentConfig,
+    PhoneNumberConfig,
     ChannelConfig,
     WhatsAppChannelConfig,
     VoiceShortcut,

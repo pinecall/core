@@ -2,7 +2,7 @@
  * Agent — a logical voice agent within a Pinecall connection.
  *
  * Created via `pc.agent("my-agent", config?)`.
- * Each agent owns channels (phone, webrtc, mic) and receives events
+ * Each agent owns channels (phone, webrtc) and receives events
  * independently from other agents on the same connection.
  *
  * The old _handleEvent() 200-line switch is gone. Dispatch handlers now
@@ -95,6 +95,7 @@ export interface AgentEvents {
     "whatsapp.response": (event: Record<string, unknown>) => void;
     "whatsapp.status": (event: Record<string, unknown>) => void;
     "whatsapp.session_started": (event: Record<string, unknown>) => void;
+    "whatsapp.session_ended": (event: Record<string, unknown>) => void;
 
     // Human-in-the-loop
     "session.paused": (event: { sessionId?: string; contact?: string }) => void;
@@ -175,7 +176,52 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     // ── Channel management ───────────────────────────────────────────────
 
-    addChannel(type: "phone" | "webrtc" | "mic" | "chat" | "whatsapp", ref?: string | WhatsAppChannelConfig, config?: ChannelConfig): void {
+    /**
+     * Register a phone number or SIP URI. Idempotent — calling again with the
+     * same number updates its config.
+     *
+     * @example
+     * agent.phone("+13186330963");
+     * agent.phone("+34612345678", { ringing: true, voice: "elevenlabs/lucia" });
+     * agent.phone("sip:bot@trunk.twilio.com");
+     */
+    phone(number: string, config?: ChannelConfig): void {
+        this._addChannel("phone", number, config);
+    }
+
+    /**
+     * Register a WhatsApp channel. Idempotent — calling again with the
+     * same phoneNumberId updates its config.
+     *
+     * @example
+     * agent.whatsapp({ phoneNumberId: "123", accessToken: "EAA..." });
+     */
+    whatsapp(config: WhatsAppChannelConfig): void {
+        this._addChannel("whatsapp", config);
+    }
+
+    /**
+     * Remove a phone number or SIP URI.
+     *
+     * @example agent.removePhone("+13186330963");
+     */
+    removePhone(number: string): void {
+        this.#channels.delete(number);
+        this._send({ event: "channel.remove", agent_id: this.id, type: "phone", ref: number });
+    }
+
+    /**
+     * Remove a WhatsApp channel by phoneNumberId.
+     *
+     * @example agent.removeWhatsapp("123");
+     */
+    removeWhatsapp(phoneNumberId: string): void {
+        this.#channels.delete(phoneNumberId);
+        this._send({ event: "channel.remove", agent_id: this.id, type: "whatsapp", ref: phoneNumberId });
+    }
+
+    /** @internal — used by client.ts and config processing. */
+    _addChannel(type: "phone" | "webrtc" | "chat" | "whatsapp", ref?: string | WhatsAppChannelConfig, config?: ChannelConfig): void {
         // Validate phone numbers early (SIP URIs pass through)
         if (type === "phone" && typeof ref === "string" && ref && !ref.startsWith("sip:")) {
             const cleaned = ref.replace(/[\s\-()]/g, "");
@@ -311,7 +357,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
             }
             if (phoneChannels.length === 0) {
                 return Promise.reject(new Error(
-                    "No phone channels registered. Add one with agent.addChannel(\"phone\", \"+1...\") or pass `from` explicitly.",
+                    "No phone numbers registered. Add one with `phoneNumbers: [\"+1...\"]` or pass `from` explicitly.",
                 ));
             }
             if (phoneChannels.length > 1) {

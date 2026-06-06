@@ -39,7 +39,6 @@ Help customers book appointments. Be warm and concise.
 Available services: Haircut ($30), Color ($80), Facial ($60), Massage ($90).`,
   llm: "openai/gpt-4.1-mini",
   language: "es",
-  channels: ["chat"],
   allowedOrigins: ["http://localhost:*"],
   tools: [getAvailability],
 });
@@ -176,7 +175,7 @@ Same as voice — the server appends your context as a `## UI Context` section i
 
 ## Same agent, voice + chat
 
-Change `channels: ["chat"]` to `channels: ["chat", "webrtc"]` and the same agent handles **both** text and voice. Same prompt, same tools, same conversation context.
+The same agent handles **both** text (chat) and voice (WebRTC) automatically. Same prompt, same tools, same conversation context — no extra configuration needed.
 
 ## What's next
 

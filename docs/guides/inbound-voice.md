@@ -26,7 +26,7 @@ const receptionist = pc.agent("receptionist", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
-  channels: ["+13186330963"],
+  phoneNumbers: ["+13186330963"],
 });
 
 receptionist.on("call.started", (call) => {
@@ -55,7 +55,7 @@ const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   llm: "openai/gpt-4.1-mini",
   prompt: "You are a receptionist for Acme Corp.",
-  channels: ["+13186330963"],
+  phoneNumbers: ["+13186330963"],
 
   // Static
   greeting: "Thanks for calling Acme. How can I help?",
@@ -136,7 +136,7 @@ const agent = pc.agent("receptionist", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
-  channels: ["+13186330963"],
+  phoneNumbers: ["+13186330963"],
   tools: [lookupOrder, transferToHuman, endCall],
 });
 

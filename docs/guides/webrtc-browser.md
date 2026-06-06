@@ -18,7 +18,9 @@ Browser ──► your /api/token endpoint ──► token
 
 Your backend never proxies audio. The audio path is browser ↔ voice server, peer-to-peer over WebRTC.
 
-## 1. Add a WebRTC channel to the agent
+## 1. Create the agent
+
+WebRTC works automatically for any agent — no channel declaration needed.
 
 ```typescript
 import { Pinecall } from "@pinecall/sdk";
@@ -31,7 +33,6 @@ const mara = pc.agent("mara", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "es",
-  channels: ["webrtc"],
 });
 
 mara.on("call.started", (call) => call.say("¡Hola!"));
@@ -156,11 +157,9 @@ Then the widget can fetch tokens directly from the voice server, no backend need
 
 ## Chat channel (text only)
 
-Same pattern, different channel. Use the chat channel for typed conversations without audio:
+Same pattern, different token type. Chat gives you typed conversations without audio:
 
 ```typescript
-agent.addChannel("chat");
-
 // Backend
 app.get("/api/chat-token", authMiddleware, async (req, res) => {
   const token = await agent.createToken("chat");

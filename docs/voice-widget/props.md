@@ -50,7 +50,6 @@ const florencia = pc.agent("florencia", {
   prompt: "...",
 });
 
-florencia.addChannel("webrtc");
 florencia.on("call.started", (call) => call.say("¡Hola!"));
 
 // Token endpoint — add your own auth in production

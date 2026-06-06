@@ -24,13 +24,13 @@ const mara = pc.agent("mara", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "es",
-  channels: ["webrtc", "+13186330963"],
+  phoneNumbers: ["+13186330963"],
 });
 
 mara.on("call.started", (call) => call.say("¡Hola!"));
 ```
 
-That snippet is a production-ready agent. It accepts phone calls, accepts browser WebRTC connections, runs an LLM, and speaks back with low-latency TTS.
+That snippet is a production-ready agent. It answers phone calls, runs an LLM, and speaks back with low-latency TTS. WebRTC and Chat connections work automatically via tokens — no declaration needed.
 
 ## What you can build
 
@@ -50,11 +50,11 @@ The library has three core concepts. If you understand these, you understand the
 
 ```
 Pinecall (one connection)
-   ├── Agent "support"  ──┬── Channel: +1-555-...
-   │                      ├── Channel: webrtc
-   │                      └── Channel: whatsapp
-   ├── Agent "sales"    ──── Channel: +1-555-...
-   └── Agent "intake"   ──── Channel: sip:...
+   ├── Agent "support"  ──┬── Phone: +1-555-...
+   │                      └── WhatsApp: +51-...
+   ├── Agent "sales"    ──── Phone: +1-555-...
+   └── Agent "intake"   ──── Phone: sip:...
+           (WebRTC + Chat work via tokens on any agent)
 ```
 
 A single `Pinecall` instance can host many agents. A single agent can serve many channels. Every channel emits the same events on the agent — your code doesn't care whether the call came from a phone, a browser, or WhatsApp.

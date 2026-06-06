@@ -41,7 +41,7 @@ const agent = pc.agent("support", {
   prompt: `You are a support agent for an online store.
 Help customers check order status and process returns.
 Be friendly, brief, and professional.`,
-  channels: ["+13186330963"],
+  phoneNumbers: ["+13186330963"],
   tools: [lookupOrder],
 });
 
@@ -99,7 +99,7 @@ const agent = pc.agent("support", {
 Same headless pattern — add a channel:
 
 ```typescript
-agent.addChannel("whatsapp", {
+agent.whatsapp({
   phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
   accessToken: process.env.WA_TOKEN,
   appSecret: process.env.WA_APP_SECRET,

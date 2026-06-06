@@ -45,7 +45,7 @@ const support = pc.agent("support", {
   prompt: "You are a helpful support agent.",
 });
 
-support.addChannel("whatsapp", {
+support.whatsapp({
   phoneNumberId: process.env.WA_PHONE_ID!,
   accessToken: process.env.WA_TOKEN!,
 });

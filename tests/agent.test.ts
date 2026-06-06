@@ -63,14 +63,14 @@ describe('Agent', () => {
 
   it('buffers messages before server-ready', () => {
     const { agent, send } = createAgent()
-    agent.addChannel('phone', '+15551234567')
+    agent.phone('+15551234567')
     // send should NOT have been called — buffered
     expect(send).not.toHaveBeenCalled()
   })
 
   it('flushes buffered messages on _flushPending()', () => {
     const { agent, send } = createAgent()
-    agent.addChannel('phone', '+15551234567')
+    agent.phone('+15551234567')
     markReady(agent)
     // channel.add should now be sent
     expect(send).toHaveBeenCalledWith(
@@ -83,16 +83,16 @@ describe('Agent', () => {
     markReady(agent)
     send.mockClear()
 
-    agent.addChannel('phone', '+15559999999')
+    agent.phone('+15559999999')
     expect(send).toHaveBeenCalledOnce()
   })
 
   // ── Channel management ────────────────────────────────
 
-  it('addChannel() sends channel.add with agent_id', () => {
+  it('phone() sends channel.add with agent_id', () => {
     const { agent, send } = createAgent('my-bot')
     markReady(agent)
-    agent.addChannel('phone', '+15551234567')
+    agent.phone('+15551234567')
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'channel.add',
@@ -103,25 +103,25 @@ describe('Agent', () => {
     )
   })
 
-  it('addChannel() validates E.164 phone numbers', () => {
+  it('phone() validates E.164 phone numbers', () => {
     const { agent } = createAgent()
     markReady(agent)
-    expect(() => agent.addChannel('phone', 'abc')).toThrow('Invalid phone number')
+    expect(() => agent.phone('abc')).toThrow('Invalid phone number')
   })
 
-  it('addChannel() allows SIP URIs', () => {
+  it('phone() allows SIP URIs', () => {
     const { agent, send } = createAgent()
     markReady(agent)
-    agent.addChannel('phone', 'sip:bot@trunk.twilio.com')
+    agent.phone('sip:bot@trunk.twilio.com')
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ ref: 'sip:bot@trunk.twilio.com' }),
     )
   })
 
-  it('addChannel("webrtc") works without ref', () => {
+  it('_addChannel("webrtc") works without ref', () => {
     const { agent, send } = createAgent()
     markReady(agent)
-    agent.addChannel('webrtc')
+    agent._addChannel('webrtc')
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'channel.add', type: 'webrtc' }),
     )
@@ -297,8 +297,8 @@ describe('Agent', () => {
     const { agent, send } = createAgent()
     markReady(agent)
 
-    agent.addChannel('phone', '+15551111111')
-    agent.addChannel('phone', '+15552222222')
+    agent.phone('+15551111111')
+    agent.phone('+15552222222')
     send.mockClear()
 
     // Simulate reconnect

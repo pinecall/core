@@ -38,13 +38,12 @@ const agent = pc.agent("simple-agent", {
   llm: "openai/gpt-4.1-mini",
   prompt:
     "You are a friendly assistant. Keep your responses short (1-2 sentences) since this is a voice call.",
+  phoneNumbers: [PHONE],
   media: {
     live: true,
     recording: true,
   },
 });
-
-agent.addChannel("phone", PHONE);
 
 // ── Call lifecycle ───────────────────────────────────────────────────────
 

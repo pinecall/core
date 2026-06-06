@@ -49,7 +49,7 @@ for (const tenant of tenants) {
       llm: config.llm,
       voice: config.voice,
       language: config.language,
-      channels: config.channels,
+      phoneNumbers: config.phoneNumbers,
     });
   }
 }

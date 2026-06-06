@@ -39,6 +39,7 @@
           "guides/outbound-calls",
           "guides/live-listening",
           "guides/whatsapp",
+          "guides/conversation-history",
           "guides/human-takeover",
           "guides/webrtc-browser",
           "guides/tools-and-functions",

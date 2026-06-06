@@ -27,7 +27,7 @@ Without ringing enabled, the flow goes directly from ring → `call.started` (au
 Pass `ringing: true` in the channel overrides:
 
 ```typescript
-agent.addChannel("phone", "+13186330963", { ringing: true });
+agent.phone("+13186330963", { ringing: true });
 ```
 
 <Warning>
@@ -105,7 +105,7 @@ const agent = pc.agent("receptionist", {
 });
 
 // Enable ringing on the phone channel
-agent.addChannel("phone", "+13186330963", { ringing: true });
+agent.phone("+13186330963", { ringing: true });
 
 // Screen calls before answering
 agent.on("call.ringing", (call) => {

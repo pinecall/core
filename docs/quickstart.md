@@ -38,7 +38,6 @@ const mara = pc.agent("mara", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
-  channels: ["webrtc"],
 });
 
 mara.on("call.started", (call) => call.say("Hello! How can I help?"));
@@ -117,18 +116,18 @@ Click the widget, talk to Mara. She'll respond.
 
 ## What just happened
 
-You created an agent (`mara`), gave her a personality, exposed her over WebRTC, and connected a browser to her. The server handles STT (you speak → text), runs the LLM (text → response), and handles TTS (response → voice).
+You created an agent (`mara`), gave her a personality, and connected a browser to her via WebRTC. The server handles STT (you speak → text), runs the LLM (text → response), and handles TTS (response → voice). WebRTC works automatically via tokens — no channel declaration needed.
 
 You didn't write a single line of WebSocket code, audio handling, or VAD logic. The SDK and the Pinecall server handle all of that.
 
 ## Add a phone number
 
-Want Mara to answer phone calls too? Add a `phone` channel:
+Want Mara to answer phone calls too? Add `phoneNumbers`:
 
 ```typescript
 const mara = pc.agent("mara", {
   // ...same as before
-  channels: ["webrtc", "+13186330963"],
+  phoneNumbers: ["+13186330963"],
 });
 ```
 
@@ -154,7 +153,6 @@ const mara = pc.agent("mara", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "en",
-  channels: ["webrtc"],
   tools: [lookupOrder],
 });
 

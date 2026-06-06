@@ -1,0 +1,11 @@
+{
+  "name": "pinecall-history-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@pinecall/sdk": "file:../../"
+  }
+}

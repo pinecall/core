@@ -14,11 +14,11 @@ Pinecall (the client)
    │
    └── Agent (a personality)
             │
-            ├── Channel: phone +1-555-123-4567
-            ├── Channel: webrtc
-            └── Channel: whatsapp
-                  │
-                  └── Call (a live session)
+            ├── Phone: +1-555-123-4567
+            ├── WhatsApp: +51-987-654-321
+            │
+            └── Call (a live session)
+            (WebRTC + Chat: work via tokens, no declaration)
 ```
 
 ### `Pinecall` — the client
@@ -47,25 +47,31 @@ You can have many agents on the same `Pinecall` instance — `support`, `sales`,
 
 ### `Channel` — a way to reach the agent
 
-A surface through which calls arrive. The same agent can have many channels; each call lands on the same agent and emits the same events.
+A surface through which calls arrive. Some channels need explicit registration; others work automatically:
 
 ```typescript
-agent.addChannel("phone", "+13186330963");      // Twilio phone number
-agent.addChannel("phone", "sip:bot@trunk.io");  // SIP trunk
-agent.addChannel("webrtc");                      // browser audio
-agent.addChannel("chat");                        // browser text
-agent.addChannel("whatsapp", { /* config */ });  // WhatsApp Cloud API
+// Phone numbers — declared in config
+const agent = pc.agent("support", {
+  phoneNumbers: ["+13186330963", "sip:bot@trunk.io"],
+  whatsapp: [{ phoneNumberId: "123", accessToken: "..." }],
+});
+
+// Or imperatively:
+agent.phone("+13186330963");
+agent.whatsapp({ phoneNumberId: "123", accessToken: "..." });
+
+// WebRTC + Chat: work via tokens, no registration needed
+const token = await agent.createToken("webrtc");
 ```
 
-Channels come in five types:
+Channel types:
 
-| Type | What it is |
-|---|---|
-| `phone` | A Twilio number or SIP URI |
-| `webrtc` | Browser audio (the user clicks a widget, talks through their mic) |
-| `chat` | Browser text (typed messages via WebSocket) |
-| `whatsapp` | WhatsApp Cloud API messages |
-| `mic` | Local microphone (development / desktop apps) |
+| Type | Registration | How users connect |
+|---|---|---|
+| `phone` | `phoneNumbers: ["+1..."]` | Call the number |
+| `whatsapp` | `whatsapp: [{...}]` | Send a WhatsApp message |
+| `webrtc` | **None** (automatic) | Browser widget + token |
+| `chat` | **None** (automatic) | WebSocket + token |
 
 ### `Call` — a live session
 
@@ -78,9 +84,9 @@ Created automatically when someone connects on a channel. You receive a `Call` o
 
 ## Creating an agent
 
-### With `channels` shortcut
+### With `phoneNumbers` (declarative)
 
-Pass `channels` directly to register them in one call:
+Pass phone numbers directly in the config:
 
 ```typescript
 const mara = pc.agent("mara", {
@@ -88,13 +94,15 @@ const mara = pc.agent("mara", {
   language: "es",
   llm: "openai/gpt-4.1-mini",
   prompt: "You are Mara. Be concise.",
-  channels: ["webrtc", "+13186330963"],
+  phoneNumbers: ["+13186330963"],
 });
 ```
 
-### With explicit `addChannel()`
+WebRTC and Chat work automatically — no declaration needed. Just create tokens.
 
-Use `addChannel()` when you need per-channel config overrides:
+### With `agent.phone()` (imperative)
+
+Use `agent.phone()` when you need per-number config overrides:
 
 ```typescript
 const mara = pc.agent("mara", {
@@ -104,27 +112,23 @@ const mara = pc.agent("mara", {
   prompt: "You are Mara. Be concise.",
 });
 
-mara.addChannel("webrtc");
-mara.addChannel("phone", "+13186330963", {
+mara.phone("+13186330963", {
   voice: "elevenlabs/daniel",
 });
 ```
 
-Both patterns are equivalent — `channels` is just shorthand for `addChannel()` calls.
+## Per-number config overrides
 
-## Per-channel config overrides
-
-The agent has defaults. Each channel can override them. This is how you give the same agent a different voice on a Spanish phone number vs a French one:
+The agent has defaults. Each phone number can override them. This is how you give the same agent a different voice on different numbers:
 
 ```typescript
-agent.addChannel("phone", "+34911234567", {
-  voice: "elevenlabs/valentina",
-  language: "es",
-});
-
-agent.addChannel("phone", "+33145678901", {
-  voice: "elevenlabs/claire",
-  language: "fr",
+const agent = pc.agent("support", {
+  llm: "openai/gpt-4.1-mini",
+  voice: "elevenlabs/sarah",
+  phoneNumbers: [
+    { number: "+34911234567", voice: "elevenlabs/valentina", language: "es" },
+    { number: "+33145678901", voice: "elevenlabs/claire", language: "fr" },
+  ],
 });
 ```
 

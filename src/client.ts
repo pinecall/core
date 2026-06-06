@@ -241,7 +241,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         }
 
         // Extract channel/greeting fields before passing to Agent
-        const { channels, greeting, ...agentConfig } = config;
+        const { phoneNumbers, whatsapp, greeting, ...agentConfig } = config;
 
         const agent = new Agent(
             id,
@@ -258,19 +258,22 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         // Set up event forwarding: Agent → Pinecall
         forwardAgentEvents(agent, this);
 
-        // Auto-register channels from config
-        if (channels) {
-            for (const ch of channels) {
-                if (typeof ch === "string") {
-                    if (ch === "webrtc" || ch === "mic" || ch === "chat") {
-                        agent.addChannel(ch);
-                    } else {
-                        // Assume it's a phone number
-                        agent.addChannel("phone", ch);
-                    }
+        // Register phone numbers
+        if (phoneNumbers) {
+            for (const ph of phoneNumbers) {
+                if (typeof ph === "string") {
+                    agent._addChannel("phone", ph);
                 } else {
-                    agent.addChannel(ch.type as any, ch.ref, ch.config);
+                    const { number, ...phoneConfig } = ph;
+                    agent._addChannel("phone", number, phoneConfig);
                 }
+            }
+        }
+
+        // Register WhatsApp channels
+        if (whatsapp) {
+            for (const wa of whatsapp) {
+                agent._addChannel("whatsapp", wa);
             }
         }
 
@@ -355,7 +358,6 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             agent_id: agent.id,
             ...buildShortcutPayload(config),
             ...(config.allowedOrigins ? { allowed_origins: config.allowedOrigins } : {}),
-            ...(config.historySave !== undefined ? { history_save: config.historySave } : {}),
         });
     }
 

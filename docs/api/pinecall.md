@@ -57,7 +57,7 @@ const agent = pc.agent("support", {
   llm: "openai/gpt-4.1-mini",
   prompt: "You are a support agent. Be concise.",
   greeting: "Hi! How can I help you today?",
-  channels: ["webrtc", "+13186330963"],
+  phoneNumbers: ["+13186330963"],
 });
 ```
 
@@ -72,7 +72,8 @@ const agent = pc.agent("support", {
 | `prompt` | `string` | System prompt for the LLM |
 | `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
 | `tools` | `Tool[]` | Declarative tool definitions created with `tool()` |
-| `channels` | `Array<string \| ChannelObject>` | Channels to register: `"webrtc"`, `"chat"`, or phone numbers |
+| `phoneNumbers` | `Array<string \| PhoneNumberConfig>` | Phone numbers/SIP URIs to register (Twilio) |
+| `whatsapp` | `WhatsAppChannelConfig[]` | WhatsApp channels (Meta Cloud API credentials) |
 | `sessionLimits` | `object` | Session timeout config (see [Session Limits](/reference/session-limits)) |
 | `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](/security)) |
 
