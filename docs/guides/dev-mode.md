@@ -72,6 +72,14 @@ if (isDev) {
 DEV_CALLERS=+34607827824
 ```
 
+> **Vite users:** Vite loads `.env.local` but does **not** inject non-`VITE_` variables into `process.env` for server plugins. You must set `NODE_ENV` and `DEV_CALLERS` in the shell or your start command:
+>
+> ```bash
+> NODE_ENV=development DEV_CALLERS=+34607827824 npx vite --port 5170
+> ```
+>
+> Alternatively, if your agent boots inside a Vite plugin (`configureServer`), load `.env.local` manually with `dotenv`.
+
 Now when Berna calls `+13186330963` from her phone (`+34607827824`), the call routes to `dev-berna-florencia`. When anyone else calls, it goes to `florencia` (prod).
 
 ## Multiple devs at once
