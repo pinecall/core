@@ -14,9 +14,34 @@ function useSSE(url) {
 
   const upsertSession = useCallback((id, updater) => {
     setSessions((prev) => {
-      const existing = prev[id] || { id, name: "", phone: "", messages: [], paused: false };
+      const existing = prev[id] || { id, name: "", phone: "", messages: [], paused: false, status: "active" };
       return { ...prev, [id]: updater(existing) };
     });
+  }, []);
+
+  // Load saved conversations on mount
+  useEffect(() => {
+    fetch("/api/history")
+      .then((r) => r.json())
+      .then((records) => {
+        const loaded = {};
+        for (const rec of records) {
+          loaded[rec.callId] = {
+            id: rec.callId,
+            name: rec.metadata?.contactName || "",
+            phone: rec.from || "",
+            status: rec.status || "ended",
+            paused: false,
+            messages: (rec.transcript || []).map((m) => ({
+              role: m.role === "assistant" ? (m.source === "human" ? "human" : "bot") : "user",
+              text: m.content,
+              time: rec.startedAt * 1000,
+            })),
+          };
+        }
+        setSessions((prev) => ({ ...loaded, ...prev }));
+      })
+      .catch(() => { /* no history available */ });
   }, []);
 
   useEffect(() => {
@@ -28,6 +53,7 @@ function useSSE(url) {
         ...s,
         name: d.contactName || s.name,
         phone: d.contactPhone || s.phone,
+        status: "active",
       }));
     });
 
@@ -37,6 +63,7 @@ function useSSE(url) {
         ...s,
         name: d.name || s.name,
         paused: d.paused ?? s.paused,
+        status: "active",
         messages: [
           ...s.messages,
           { role: "user", text: d.text, time: Date.now() },
@@ -67,6 +94,13 @@ function useSSE(url) {
       const d = JSON.parse(e.data);
       if (d.sessionId) {
         upsertSession(d.sessionId, (s) => ({ ...s, paused: false }));
+      }
+    });
+
+    es.addEventListener("whatsapp.session_ended", (e) => {
+      const d = JSON.parse(e.data);
+      if (d.sessionId) {
+        upsertSession(d.sessionId, (s) => ({ ...s, status: "ended", paused: false }));
       }
     });
 
@@ -147,16 +181,18 @@ function Sidebar({ sessions, activeId, onSelect }) {
         )}
         {sessions.map((s) => {
           const last = s.messages[s.messages.length - 1];
+          const isEnded = s.status === "ended";
           return (
             <div
               key={s.id}
-              className={`session-item ${s.id === activeId ? "active" : ""}`}
+              className={`session-item ${s.id === activeId ? "active" : ""} ${isEnded ? "ended" : ""}`}
               onClick={() => onSelect(s.id)}
             >
               <div className="name">
                 {s.name || s.phone || s.id}
-                {s.paused && <span className="badge paused">Paused</span>}
-                {!s.paused && s.messages.length > 0 && (
+                {isEnded && <span className="badge ended">Ended</span>}
+                {!isEnded && s.paused && <span className="badge paused">Paused</span>}
+                {!isEnded && !s.paused && s.messages.length > 0 && (
                   <span className="badge active">AI</span>
                 )}
               </div>

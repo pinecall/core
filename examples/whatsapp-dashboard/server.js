@@ -39,6 +39,35 @@ agent.addWhatsapp({
   appSecret: process.env.WA_APP_SECRET || undefined,
 });
 
+// ── DEBUG: Trace everything ──────────────────────────────────────────────
+console.log("DEBUG: pc.connected =", pc.connected);
+
+// Monkey-patch the WS to see raw events
+const origOnMsg = pc._onMessage?.bind(pc);
+if (origOnMsg) {
+  console.log("DEBUG: patched _onMessage");
+}
+
+// Listen to EVERYTHING on the agent
+const allEvents = [
+  "whatsapp.session_started", "whatsapp.message", "whatsapp.response",
+  "whatsapp.status", "whatsapp.session_ended",
+  "session.paused", "session.resumed",
+  "call.started", "call.ended",
+];
+for (const evt of allEvents) {
+  agent.on(evt, (...args) => {
+    console.log(`🔍 AGENT EVENT: ${evt}`, JSON.stringify(args).slice(0, 200));
+  });
+}
+
+// Also listen on pc level
+for (const evt of allEvents) {
+  pc.on(evt, (...args) => {
+    console.log(`🔍 PC EVENT: ${evt}`, JSON.stringify(args).slice(0, 200));
+  });
+}
+
 // ── Logging ──────────────────────────────────────────────────────────────
 
 agent.on("whatsapp.session_started", (event) => {

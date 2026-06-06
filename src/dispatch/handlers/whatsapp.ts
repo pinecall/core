@@ -40,7 +40,20 @@ export class WhatsAppHandler implements EventHandler {
     #sessions = new Map<string, WaSession>();
 
     handle(wire: WireEvent, ctx: DispatchContext): boolean {
-        const agent = wire.agent_id ? ctx.agent(wire.agent_id) : null;
+        let agent = wire.agent_id ? ctx.agent(wire.agent_id) : null;
+
+        // Server may omit agent_id for WhatsApp events — find the agent
+        if (!agent) {
+            const agents = ctx.client._allAgents();
+            for (const a of agents) {
+                // Match by session tracking or just use the first agent with WhatsApp channels
+                const channels = a._getChannels();
+                for (const [, ch] of channels) {
+                    if (ch.type === "whatsapp") { agent = a; break; }
+                }
+                if (agent) break;
+            }
+        }
         if (!agent) return false;
 
         const historyStore = agent.getConfig().history;

@@ -373,6 +373,11 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         const wire = data as WireEvent;
         this.#logger.debug("←", data);
 
+        // DEBUG: trace WhatsApp events
+        if (typeof wire.event === "string" && (wire.event.startsWith("whatsapp") || wire.event.startsWith("session"))) {
+            console.log(`[SDK DEBUG] WS recv: ${wire.event} agent_id=${wire.agent_id ?? "NONE"} keys=${Object.keys(wire).join(",")}`);
+        }
+
         // Build dispatch context
         const ctx: DispatchContext = {
             agent: (wireId: string) => {
