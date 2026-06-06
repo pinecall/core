@@ -6,6 +6,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@pinecall/sdk": "file:../../"
+    "@pinecall/sdk": "file:../../",
+    "dotenv": "^17.4.2"
   }
 }

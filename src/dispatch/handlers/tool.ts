@@ -70,6 +70,15 @@ export class ToolHandler implements EventHandler {
         // Emit event on call (so agent proxy picks it up too)
         if (call) {
             call._emitWire("llm.tool_call", event);
+            // Push tool_calls to incremental history
+            call._pushMessage({
+                role: "assistant",
+                tool_calls: toolCalls.map(tc => ({
+                    id: tc.id,
+                    type: "function",
+                    function: { name: tc.name, arguments: tc.arguments },
+                })),
+            });
         } else {
             // No Call object (WhatsApp sessions) — emit directly on agent
             agent._emitWire("llm.tool_call", event);
@@ -150,6 +159,17 @@ export class ToolHandler implements EventHandler {
         );
 
         call.toolResult(event.msgId, results);
+
+        // Push tool results to incremental history
+        if ("_pushMessage" in call) {
+            for (const r of results) {
+                (call as any)._pushMessage({
+                    role: "tool",
+                    tool_call_id: r.toolCallId,
+                    content: typeof r.result === "string" ? r.result : JSON.stringify(r.result),
+                });
+            }
+        }
     }
 }
 

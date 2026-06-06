@@ -41,9 +41,12 @@ export class SpeechHandler implements EventHandler {
                 call._emitWire("user.speaking", decodeEvent<UserSpeakingEvent>(wire));
                 return true;
 
-            case "user.message":
-                call._applyUserMessage(decodeEvent<UserMessageEvent>(wire));
+            case "user.message": {
+                const event = decodeEvent<UserMessageEvent>(wire);
+                call._applyUserMessage(event);
+                call._pushMessage({ role: "user", content: event.text });
                 return true;
+            }
 
             default:
                 return false;

@@ -14,23 +14,35 @@ npm install @pinecall/sdk
 Pinecall is **code-first** voice AI: the agent runs inside your app, uses your database, calls your internal APIs, and handles tool calls as local functions. There are no webhooks to expose, no platform dashboard to configure, no JSON tool schemas to maintain separately from your code.
 
 ```typescript
-import { Pinecall } from "@pinecall/sdk";
+import { Pinecall, tool } from "@pinecall/sdk";
+import { z } from "zod";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
+const pc = new Pinecall();
 
-const mara = pc.agent("mara", {
-  prompt: "You are Mara. Be concise and warm.",
+const agent = pc.agent("mara", {
+  prompt: "You are Mara, a friendly booking assistant.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
-  language: "es",
+  stt: "deepgram/flux",
   phoneNumbers: ["+13186330963"],
+  greeting: async (call) => {
+    const user = await db.findByPhone(call.from);
+    return `Hello ${user.name}! Ready to book?`;
+  },
+  tools: [
+    tool({
+      name: "findSlots",
+      description: "Find available appointment slots for a date",
+      schema: z.object({ date: z.string(), service: z.string() }),
+      execute: async ({ date, service }) => calendar.getSlots(date, service),
+    }),
+  ],
 });
 
-mara.on("call.started", (call) => call.say("¡Hola!"));
+await pc.connect();
 ```
 
-That snippet is a production-ready agent. It answers phone calls, runs an LLM, and speaks back with low-latency TTS. WebRTC and Chat connections work automatically via tokens — no declaration needed.
+That snippet is a production-ready agent. It answers phone calls, greets the caller by name from your database, runs an LLM with tool calling, and speaks back with low-latency TTS — all local functions, no webhooks. WebRTC and Chat connections work automatically via tokens.
 
 ## What you can build
 

@@ -1,9 +1,9 @@
 /**
  * History — pluggable conversation persistence.
  *
- * The server sends full transcript + LLM messages in the `call.ended` event.
- * When `history` is set on an agent config, conversations are auto-saved
- * on every `call.ended`.
+ * When `history` is set on an agent config, conversations are saved
+ * incrementally: each confirmed user message, bot response, and tool call
+ * triggers an upsert. The final save on `call.ended` adds metadata.
  *
  * Built-in: `JsonFileHistory` — appends to a JSON file on disk.
  * Custom: implement `HistoryStore` (only `save()` is required).
@@ -31,7 +31,7 @@
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
-/** A completed conversation record. */
+/** A conversation record — saved incrementally during a call and finalized on end. */
 export interface ConversationRecord {
     callId: string;
     agentId: string;
@@ -43,7 +43,10 @@ export interface ConversationRecord {
     endedAt: number;
     duration: number;
     reason: string;
+    /** `"active"` while the call is in progress, `"ended"` after call.ended. */
+    status: "active" | "ended";
     transcript: Array<{ role: string; content: string }>;
+    /** Full LLM messages including tool calls. Built incrementally from events. */
     messages: Array<Record<string, unknown>>;
     metadata: Record<string, unknown>;
 }
@@ -78,7 +81,7 @@ export interface ConversationRecord {
  * ```
  */
 export interface HistoryStore {
-    /** Save a completed conversation. Called automatically on call.ended. */
+    /** Save/upsert a conversation. Called on every confirmed message and on call.ended. */
     save(record: ConversationRecord): Promise<void>;
 
     /**

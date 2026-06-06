@@ -33,6 +33,7 @@ import type {
     ToolCallEvent,
 } from "../protocol/events.js";
 import type { SessionConfig } from "../config/session.js";
+import type { ConversationRecord, HistoryStore } from "../history.js";
 
 // ─── Call-scoped event map ───────────────────────────────────────────────
 
@@ -94,8 +95,10 @@ export class Call extends TypedEventBus<CallEvents> {
             .filter(m => (m.role === "user" || m.role === "assistant") && m.content)
             .map(m => ({ role: m.role as string, content: m.content as string }));
     }
-    /** Full LLM message history (includes system, tool_calls, etc.). Populated on call.ended. */
+    /** Full LLM message history. Built incrementally from events; server copy merged on call.ended. */
     messages: Array<Record<string, unknown>> = [];
+    /** Conversation status. `"active"` during call, `"ended"` after call.ended. */
+    status: "active" | "ended" = "active";
     /** Call duration in seconds. Populated on call.ended. */
     duration: number = 0;
     /** Epoch seconds when call started. Populated on call.ended. */
@@ -128,6 +131,13 @@ export class Call extends TypedEventBus<CallEvents> {
 
     /** @internal Pending response resolvers for request/response events. */
     #pendingResponses = new Map<string, (data: any) => void>();
+
+    /** @internal Agent reference for history saves. Set by lifecycle handler. */
+    #historyStore: HistoryStore | undefined;
+    #historyAgentId = "";
+    #historySaveTimer: ReturnType<typeof setTimeout> | undefined;
+    /** Debounce interval for incremental history saves (ms). */
+    static HISTORY_DEBOUNCE_MS = 200;
 
     constructor(
         data: {
@@ -399,12 +409,22 @@ export class Call extends TypedEventBus<CallEvents> {
     /** @internal Mark call as ended. Populates messages from server data. */
     _applyEnd(reason: string, data?: Record<string, unknown>): void {
         this.reason = reason;
+        this.status = "ended";
+
         if (data) {
-            if (Array.isArray(data.messages)) this.messages = data.messages as any;
+            // Prefer server's definitive messages if available
+            if (Array.isArray(data.messages) && (data.messages as any[]).length > 0) {
+                this.messages = data.messages as any;
+            }
             if (typeof data.duration_seconds === "number") this.duration = data.duration_seconds as number;
             if (typeof data.started_at === "number") this.startedAt = data.started_at as number;
             if (typeof data.ended_at === "number") this.endedAt = data.ended_at as number;
         }
+
+        // Cancel any pending debounced save and force a final save
+        if (this.#historySaveTimer) clearTimeout(this.#historySaveTimer);
+        this._saveHistoryNow();
+
         // Abort all streams
         for (const stream of this.#activeStreams) {
             stream.abort();
@@ -414,6 +434,75 @@ export class Call extends TypedEventBus<CallEvents> {
         // Defer listener cleanup so "ended" handlers can still interact
         queueMicrotask(() => this.removeAllListeners());
     }
+
+    // ─── Incremental history ─────────────────────────────────────────────
+
+    /**
+     * @internal Initialize history tracking. Called by lifecycle handler on call.started.
+     */
+    _initHistory(agentId: string, historyStore: HistoryStore): void {
+        this.#historyStore = historyStore;
+        this.#historyAgentId = agentId;
+        this.startedAt = Date.now() / 1000;
+        // Initial save — creates the record with status: "active"
+        this._saveHistoryNow();
+    }
+
+    /**
+     * @internal Append a message and trigger a debounced history save.
+     * Called by speech/bot/tool handlers on confirmed events.
+     */
+    _pushMessage(msg: Record<string, unknown>): void {
+        this.messages.push(msg);
+        this._saveHistoryDebounced();
+    }
+
+    /**
+     * @internal Schedule a debounced history save (coalesces rapid events).
+     */
+    _saveHistoryDebounced(): void {
+        if (!this.#historyStore) return;
+        if (this.#historySaveTimer) clearTimeout(this.#historySaveTimer);
+        this.#historySaveTimer = setTimeout(() => {
+            this._saveHistoryNow();
+        }, Call.HISTORY_DEBOUNCE_MS);
+    }
+
+    /**
+     * @internal Immediate history save. Builds a ConversationRecord from current state.
+     */
+    _saveHistoryNow(): void {
+        if (!this.#historyStore) return;
+
+        const contactId = (
+            this.metadata?.userId
+                ? String(this.metadata.userId)
+                : this.from
+        );
+
+        const record: ConversationRecord = {
+            callId: this.id,
+            agentId: this.#historyAgentId,
+            channel: this.transport as ConversationRecord["channel"],
+            direction: this.direction,
+            from: contactId,
+            to: this.to,
+            startedAt: this.startedAt,
+            endedAt: this.endedAt,
+            duration: this.duration,
+            reason: this.reason,
+            status: this.status,
+            transcript: this.transcript,
+            messages: this.messages,
+            metadata: this.metadata,
+        };
+
+        // Fire-and-forget — never block event dispatch
+        this.#historyStore.save(record).catch(() => {
+            // Silently ignore save errors during call
+        });
+    }
+
 
     // ─── SSE streaming ──────────────────────────────────────────────────
 

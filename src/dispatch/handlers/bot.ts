@@ -52,9 +52,14 @@ export class BotHandler implements EventHandler {
                 call._emitWire("bot.interrupted", decodeEvent<BotInterruptedEvent>(wire));
                 return true;
 
-            case "message.confirmed":
-                call._emitWire("message.confirmed", decodeEvent<MessageConfirmedEvent>(wire));
+            case "message.confirmed": {
+                const event = decodeEvent<MessageConfirmedEvent>(wire);
+                call._emitWire("message.confirmed", event);
+                if (event.text) {
+                    call._pushMessage({ role: "assistant", content: event.text });
+                }
                 return true;
+            }
 
             case "reply.rejected":
                 call._emitWire("reply.rejected", decodeEvent<ReplyRejectedEvent>(wire));
