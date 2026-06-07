@@ -36,6 +36,7 @@ import { WhatsAppHandler } from "./dispatch/handlers/whatsapp.js";
 import { HistoryHandler } from "./dispatch/handlers/history.js";
 import { SystemHandler } from "./dispatch/handlers/system.js";
 import { FallbackHandler } from "./dispatch/handlers/fallback.js";
+import { PreparingHandler } from "./dispatch/handlers/preparing.js";
 
 // Domain
 import { Agent } from "./domain/agent.js";
@@ -156,6 +157,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             new TurnHandler(),
             new BotHandler(),
             new ToolHandler(),
+            new PreparingHandler(),
             new SessionHandler(),
             this.#waHandler,
             new HistoryHandler(),

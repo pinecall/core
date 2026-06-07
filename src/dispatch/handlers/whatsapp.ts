@@ -71,6 +71,7 @@ export class WhatsAppHandler implements EventHandler {
 
         switch (wire.event) {
             case "whatsapp.session_started": {
+                console.log(`[wa] 📱 session_started session=${sessionId} agent=${agent.id} phone=${wire.contact_phone}`);
                 // Create the WaSession tracker
                 const waSession: WaSession = {
                     sessionId,
@@ -133,15 +134,15 @@ export class WhatsAppHandler implements EventHandler {
                 agent._setCall(sessionId, call);
                 forwardCallEvents(call, agent, call);
 
-                // Emit call.started — runs the developer's universal handler
-                agent._emitWire("call.started", call);
+                console.log(`[wa] ✅ session=${sessionId} agent=${agent.id}`);
 
-                // Also emit whatsapp.sessionStarted for WA-specific handlers
-                agent._emitWire("whatsapp.sessionStarted" as any, waSession.handle as any);
+                // Emit whatsapp.started — the single entry point for WA sessions
+                agent._emitWire("whatsapp.started" as any, call, waSession.handle as any);
                 return true;
             }
 
             case "whatsapp.message": {
+                console.log(`[wa] 💬 message session=${sessionId} text="${(wire.text ?? "").toString().slice(0, 50)}"`);
                 const session = this.#sessions.get(sessionId);
                 if (session && historyStore?.save) {
                     const text = (wire.text ?? "") as string;

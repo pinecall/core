@@ -60,6 +60,7 @@ export interface CallEvents {
     "call.muted": () => void;
     "call.unmuted": (mutedTranscript: string | null) => void;
     "llm.toolCall": (event: ToolCallEvent) => void;
+    "call.preparing": (call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent) => void;
     "ended": (reason: string) => void;
 }

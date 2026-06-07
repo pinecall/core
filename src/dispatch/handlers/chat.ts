@@ -27,6 +27,8 @@ export class ChatHandler implements EventHandler {
         "llm.chat.ended",
         "llm.chat.error",
         "llm.tool_call",
+        "chat.message",
+        "chat.response",
     ] as const;
 
     handle(wire: WireEvent, ctx: DispatchContext): boolean {
@@ -44,7 +46,6 @@ export class ChatHandler implements EventHandler {
 
         switch (wire.event) {
             case "llm.chat.started": {
-                // Create a chat Call with noop send
                 const call = new Call(
                     {
                         call_id: callId,
@@ -59,9 +60,8 @@ export class ChatHandler implements EventHandler {
                 agent._setCall(callId, call);
                 forwardCallEvents(call, agent, call);
 
-                // Emit call.started so per-call setup (setPromptVars, addContext,
-                // greeting, etc.) runs for ALL transports — not just voice.
-                agent._emitWire("call.started", call);
+                // Emit chat.started — the entry point for chat sessions
+                agent._emitWire("chat.started" as any, call);
 
                 return true;
             }
@@ -82,7 +82,7 @@ export class ChatHandler implements EventHandler {
                     );
                     agent._setCall(callId, call);
                     forwardCallEvents(call, agent, call);
-                    agent._emitWire("call.started", call);
+                    agent._emitWire("chat.started" as any, call);
                 }
 
                 // Emit as bot.speaking for consistency
@@ -112,6 +112,26 @@ export class ChatHandler implements EventHandler {
                     call._applyEnd("chat_error", wire);
                     agent._emitWire("call.ended", call, "chat_error");
                     agent._deleteCall(callId);
+                }
+                return true;
+            }
+
+            case "chat.message": {
+                const call = agent._getCall(callId);
+                if (call) {
+                    const text = (wire.text ?? "") as string;
+                    call._pushMessage({ role: "user", content: text });
+                    call._emitWire("user.message", { event: "user.message", callId, text });
+                }
+                return true;
+            }
+
+            case "chat.response": {
+                const call = agent._getCall(callId);
+                if (call) {
+                    const text = (wire.text ?? "") as string;
+                    call._pushMessage({ role: "assistant", content: text });
+                    call._emitWire("bot.speaking", { event: "bot.speaking", callId, messageId: "", text });
                 }
                 return true;
             }
