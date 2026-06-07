@@ -7,20 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.2.8] — 2026-06-07
 
 ### Added
 
-- **Human-in-the-loop**: `agent.pause()`, `agent.resume()`, `agent.sendMessage()` — pause the AI so a human can take over conversations. Works on WhatsApp (voice/chat planned). Messages continue flowing to the SDK while paused; human messages are recorded in LLM history for seamless resume.
+- **`bot.word` event** — fires on each TTS word synchronized with audio playback. Enables live text preview.
+- **`call.currentBotText`** — auto-accumulated bot text from `bot.word` events, reset on each new bot turn.
+- **`bot.preview`** pattern — `bot.word` + `call.currentBotText` for real-time word-by-word display.
+- **WhatsApp session** (`wa-session.ts`) — dedicated session class for WhatsApp conversations.
+- **Transport types** — `call.transport` now includes `"chat"` and `"whatsapp"` in addition to `"phone"`, `"webrtc"`, `"unknown"`.
+- **`greeting` config** — `pc.agent()` accepts `greeting` as string, object, or async callback.
+- **Examples:**
+  - `turn-detection` — per-turn bordered containers with state machine visualization and interruption highlighting.
+  - `sse` — Express + React + SSE dashboard with live call cards, chat-bubble transcript, outbound dialer.
+- **Docs:**
+  - Turn detection guide with full state machine documentation.
+  - Advanced usage section (dynamic greetings, `call.say()`, `phoneNumbers`).
+  - Examples index page, STT language coverage tables.
+
+### Changed
+
+- **Human-in-the-loop**: `agent.pause()`, `agent.resume()`, `agent.sendMessage()` — pause the AI so a human can take over conversations.
 - New events: `session.paused`, `session.resumed`.
 - `whatsapp.message` event now includes `paused: boolean` field.
 - `whatsapp.response` event now includes `source?: "human"` field.
-- New guide: [Human Takeover](/guides/human-takeover).
-- `channels`, `greeting`, and `prompt` fields now supported in `pc.agent()` config.
+- Unified LLM registry for all transports (voice, chat, WhatsApp).
 
 ### Removed
 
-- **`pc.deploy()`** — removed entirely. Use `pc.agent()` with `channels` instead. All deploy-specific fields (`channels`, `greeting`, `prompt`) are now part of `AgentConfig`.
+- **`pc.deploy()`** — removed entirely. Use `pc.agent()` with `channels` instead.
 - `DeployConfig` type — merged into `AgentConfig`.
 - `model` field — use `llm: "openai/gpt-4.1-mini"` instead.
 
