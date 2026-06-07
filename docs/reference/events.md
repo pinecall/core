@@ -34,7 +34,46 @@ Interruption   →  bot.interrupted
 agent.on("call.started", (call: Call) => { });
 ```
 
-A new call connected. The `Call` object is partially populated — `id`, `from`, `to`, `direction`, `transport`, `metadata` are available. `duration`, `endedAt`, `reason` are not yet.
+A new **voice** call connected (phone or WebRTC). The `Call` object is partially populated — `id`, `from`, `to`, `direction`, `transport`, `metadata` are available. `duration`, `endedAt`, `reason` are not yet.
+
+> **Note:** `call.started` fires only for voice transports (`phone`, `webrtc`). For chat and WhatsApp, use `chat.started` and `whatsapp.started` instead.
+
+### `chat.started`
+
+```typescript
+agent.on("chat.started", (call: Call) => { });
+```
+
+A new chat session started. Receives the same `Call` object, with `call.transport === "chat"`. Use `setPromptVars()`, `addContext()`, and all other Call methods as usual.
+
+### `whatsapp.started`
+
+```typescript
+agent.on("whatsapp.started", (call: Call, session: WhatsAppSession) => { });
+```
+
+A new WhatsApp session started (first message from a new contact). Receives both:
+- `call` — the universal `Call` object for `setPromptVars()`, `addContext()`, etc.
+- `session` — a `WhatsAppSession` with `contactPhone`, `contactName`, and history methods.
+
+### `call.preparing`
+
+```typescript
+agent.on("call.preparing", (call: Call) => { });
+```
+
+Fires before **every** LLM generation — voice, chat, and WhatsApp. Use it to refresh per-call variables that need to be current for every turn:
+
+```typescript
+agent.on("call.preparing", (call) => {
+  call.setPromptVars({
+    date_block: buildFreshDate(),
+    format_rules: call.transport === "phone" ? VOICE_FORMAT : CHAT_FORMAT,
+  });
+});
+```
+
+The server waits briefly (~150ms) for your handler to call `setPromptVars()` before proceeding with the LLM call. This runs just-in-time, so variables are always fresh — even in long-lived WhatsApp sessions.
 
 ### `call.ended`
 
@@ -105,8 +144,8 @@ Bot speech follows this lifecycle:
 
 ```
 bot.speaking  →  bot.word × N  →  bot.finished      (completed normally)
-                                  bot.interrupted    (user barged in)
-                                  message.confirmed  (full text saved to history)
+                                   bot.interrupted    (user barged in)
+                                   message.confirmed  (full text saved to history)
 ```
 
 `call.currentBotText` accumulates `bot.word` events into a live preview string.
@@ -224,18 +263,6 @@ agent.on("session.timeout", (event: {
 A session limit hit. The call is about to end.
 
 ## WhatsApp events
-
-### `whatsapp.sessionStarted`
-
-```typescript
-agent.on("whatsapp.sessionStarted", (event: {
-  sessionId: string;
-  contactPhone: string;
-  contactName: string;
-}) => { });
-```
-
-First message from a new contact.
 
 ### `whatsapp.message`
 
