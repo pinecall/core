@@ -61,7 +61,7 @@ export class ToolHandler implements EventHandler {
         }));
 
         const event: ToolCallEvent = {
-            event: "llm.tool_call",
+            event: "llm.toolCall",
             callId,
             toolCalls,
             msgId,
@@ -69,7 +69,7 @@ export class ToolHandler implements EventHandler {
 
         // Emit event on call (so agent proxy picks it up too)
         if (call) {
-            call._emitWire("llm.tool_call", event);
+            call._emitWire("llm.toolCall", event);
             // Push tool_calls to incremental history
             call._pushMessage({
                 role: "assistant",
@@ -81,7 +81,7 @@ export class ToolHandler implements EventHandler {
             });
         } else {
             // No Call object (WhatsApp sessions) — emit directly on agent
-            agent._emitWire("llm.tool_call", event);
+            agent._emitWire("llm.toolCall", event, null as any);
         }
 
         // Auto-execute registered Tool objects

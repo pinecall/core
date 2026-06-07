@@ -39,6 +39,7 @@ const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: "...",
 });
 ```
@@ -50,9 +51,9 @@ You can have many agents on the same `Pinecall` instance — `support`, `sales`,
 A surface through which calls arrive. Some channels need explicit registration; others work automatically:
 
 ```typescript
-// Phone numbers — declared in config
+// Phone number — declared in config
 const agent = pc.agent("support", {
-  phoneNumbers: ["+13186330963", "sip:bot@trunk.io"],
+  phoneNumber: "+13186330963",
   whatsapp: [{ phoneNumberId: "123", accessToken: "..." }],
 });
 
@@ -68,7 +69,7 @@ Channel types:
 
 | Type | Registration | How users connect |
 |---|---|---|
-| `phone` | `phoneNumbers: ["+1..."]` | Call the number |
+| `phone` | `phoneNumber: "+1..."` | Call the number |
 | `whatsapp` | `whatsapp: [{...}]` | Send a WhatsApp message |
 | `webrtc` | **None** (automatic) | Browser widget + token |
 | `chat` | **None** (automatic) | WebSocket + token |
@@ -84,17 +85,18 @@ Created automatically when someone connects on a channel. You receive a `Call` o
 
 ## Creating an agent
 
-### With `phoneNumbers` (declarative)
+### With `phoneNumber` (declarative)
 
-Pass phone numbers directly in the config:
+Pass a phone number directly in the config:
 
 ```typescript
 const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: "You are Mara. Be concise.",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
 });
 ```
 
@@ -109,6 +111,7 @@ const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: "You are Mara. Be concise.",
 });
 
@@ -119,20 +122,33 @@ mara.addPhoneNumber("+13186330963", {
 
 ## Per-number config overrides
 
-The agent has defaults. Each phone number can override them. This is how you give the same agent a different voice on different numbers:
+The agent has defaults. Each phone number can override voice, language, and STT. This is how you give the same agent different settings per number:
 
 ```typescript
 const agent = pc.agent("support", {
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   voice: "elevenlabs/sarah",
+  phoneNumber: { number: "+34911234567", voice: "elevenlabs/valentina", language: "es" },
+});
+```
+
+For multiple numbers with different overrides — including STT provider — use `phoneNumbers`:
+
+```typescript
+const agent = pc.agent("global-support", {
+  prompt: "You are a multilingual support agent.",
+  llm: "openai/gpt-4.1-mini",
   phoneNumbers: [
-    { number: "+34911234567", voice: "elevenlabs/valentina", language: "es" },
-    { number: "+33145678901", voice: "elevenlabs/claire", language: "fr" },
+    { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },
+    { number: "+34612345678", language: "es", voice: "elevenlabs/valentina", stt: "deepgram/flux" },
+    // Arabic requires Nova-3 (Flux doesn't support it)
+    { number: "+972501234567", language: "ar", voice: "elevenlabs/ahmad", stt: "deepgram/nova-3" },
   ],
 });
 ```
 
-The agent's prompt, tools, and LLM stay the same — only the audio surface changes per number.
+The agent's prompt, tools, and LLM stay the same — only the audio surface changes per number. Turn detection and VAD are auto-derived from the STT provider (Flux → native, Nova-3 → smart_turn + silero).
 
 ## Why this design
 

@@ -55,9 +55,10 @@ const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: "You are a support agent. Be concise.",
   greeting: "Hi! How can I help you today?",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
 });
 ```
 
@@ -72,7 +73,8 @@ const agent = pc.agent("support", {
 | `prompt` | `string` | System prompt for the LLM |
 | `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
 | `tools` | `Tool[]` | Declarative tool definitions created with `tool()` |
-| `phoneNumbers` | `Array<string \| PhoneNumberConfig>` | Phone numbers/SIP URIs to register (Twilio) |
+| `phoneNumber` | `string \| PhoneNumberConfig` | Phone number or SIP URI to register (Twilio) |
+| `phoneNumbers` | `Array<string \| PhoneNumberConfig>` | Multiple phone numbers with per-number config (e.g. one per language) |
 | `whatsapp` | `WhatsAppChannelConfig[]` | WhatsApp channels (Meta Cloud API credentials) |
 | `sessionLimits` | `object` | Session timeout config (see [Session Limits](/reference/session-limits)) |
 | `allowedOrigins` | `string[]` | Allowed origins for public browser token access (see [Security](/security)) |

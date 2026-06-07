@@ -78,6 +78,7 @@ const support = pc.agent("acme-support", {
   voice: "elevenlabs/sarah",
   language: "en",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: `You are Nova, a support agent at Acme Corp.
 
 You can:

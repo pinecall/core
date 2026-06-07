@@ -37,19 +37,21 @@ export class BotHandler implements EventHandler {
 
         switch (wire.event) {
             case "bot.speaking":
-                call._emitWire("bot.speaking", decodeEvent<BotSpeakingEvent>(wire));
+                call._applyBotSpeaking(decodeEvent<BotSpeakingEvent>(wire));
                 return true;
 
             case "bot.word":
-                call._emitWire("bot.word", decodeEvent<BotWordEvent>(wire));
+                call._applyBotWord(decodeEvent<BotWordEvent>(wire));
                 return true;
 
             case "bot.finished":
                 call._emitWire("bot.finished", decodeEvent<BotFinishedEvent>(wire));
+                call._clearBotWords();
                 return true;
 
             case "bot.interrupted":
                 call._emitWire("bot.interrupted", decodeEvent<BotInterruptedEvent>(wire));
+                call._clearBotWords();
                 return true;
 
             case "message.confirmed": {

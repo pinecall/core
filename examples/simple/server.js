@@ -41,25 +41,16 @@ const agent = pc.agent("simple-agent", {
   llm: "openai/gpt-4.1-mini",
   prompt:
     "You are a friendly assistant. Keep your responses short (1-2 sentences) since this is a voice call.",
-  phoneNumbers: [PHONE],
+  phoneNumber: PHONE,
   history,
 });
 
 // ── Call lifecycle ───────────────────────────────────────────────────────
 
-agent.on("call.started", async (call) => {
+agent.on("call.started", (call) => {
   console.log(`\nCall started: ${call.from} -> ${call.to}`);
-
-  // Restore prior conversation for returning callers
-  const prior = await history.findByContact(call.from, 1);
-  if (prior.length > 0) {
-    // Greeting first (fire-and-forget), then restore history
-    call.say("Welcome back! I remember our last conversation. How can I help?");
-    await call.setHistory(prior[0].messages);
-    console.log(`  📚 Restored ${prior[0].messages.length} messages from prior call`);
-  } else {
-    call.say("Hello! How can I help you today?");
-  }
+  // History is auto-restored by the SDK (last 20 messages from prior calls)
+  call.say("Hello! How can I help you today?");
 });
 
 agent.on("user.message", (event) => {

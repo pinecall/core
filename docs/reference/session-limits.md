@@ -13,7 +13,7 @@ Calls have built-in safety limits to prevent runaway sessions: max call duration
 |---|---|---|
 | `max_duration_seconds` | `600` (10 min) | Hard cap on total call length |
 | `idle_timeout_seconds` | `60` | Auto-hangup after this many seconds of no user speech |
-| `idle_warning_seconds` | `15` | Emit `session.idle_warning` this many seconds **before** idle timeout |
+| `idle_warning_seconds` | `15` | Emit `session.idleWarning` this many seconds **before** idle timeout |
 | `idle_grace_seconds` | `10` | After idle timeout fires, agent gets this many seconds to prompt user before force-hangup |
 
 ## Tuning per agent
@@ -49,18 +49,18 @@ sessionLimits: {
 1. The server starts two watchdog tasks when a call begins.
 2. The **max-duration watchdog** fires after `max_duration_seconds` — emits `session.timeout` then hangs up.
 3. The **idle watchdog** tracks user activity:
-   - When the user hasn't spoken for `idle_timeout_seconds - idle_warning_seconds`, emits `session.idle_warning`
+   - When the user hasn't spoken for `idle_timeout_seconds - idle_warning_seconds`, emits `session.idleWarning`
    - Then waits `idle_warning_seconds` for the user to speak
-   - If still silent at `idle_timeout_seconds`, fires `session.idle_warning` again, gives the agent `idle_grace_seconds` to prompt the user
+   - If still silent at `idle_timeout_seconds`, fires `session.idleWarning` again, gives the agent `idle_grace_seconds` to prompt the user
    - If still silent, emits `session.timeout` and hangs up
 4. Any user speech resets the idle timer.
 
 ## Reacting to warnings
 
-The `session.idle_warning` event lets you prompt the user before the timeout:
+The `session.idleWarning` event lets you prompt the user before the timeout:
 
 ```typescript
-agent.on("session.idle_warning", (event, call) => {
+agent.on("session.idleWarning", (event, call) => {
   // event.remainingSeconds: seconds until timeout
   // event.idleTimeoutSeconds: the configured idle timeout
   call.say("Are you still there?");
@@ -83,7 +83,7 @@ agent.on("session.timeout", (event, call) => {
 
 ## Widget integration
 
-The `@pinecall/voice-widget` automatically responds to `session.idle_warning` by switching the orb to a blinking amber state (`.idle-warning` CSS class, configurable via `colorWarning` theme prop). On `session.timeout`, the widget auto-disconnects.
+The `@pinecall/voice-widget` automatically responds to `session.idleWarning` by switching the orb to a blinking amber state (`.idle-warning` CSS class, configurable via `colorWarning` theme prop). On `session.timeout`, the widget auto-disconnects.
 
 ## Common configs
 

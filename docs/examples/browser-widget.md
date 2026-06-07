@@ -27,6 +27,7 @@ const mara = pc.agent("mara", {
 Be brief — 1-2 sentences per response.`,
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
   allowedOrigins: ["http://localhost:*"],
 });

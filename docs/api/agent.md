@@ -27,7 +27,8 @@ const agent = pc.agent("my-agent", {
 | `stt` | `string \| STTConfig` | STT provider — shortcut or full config |
 | `llm` | `LLMConfig` | LLM provider, model, prompt, enabled flag |
 | `tools` | `Tool[]` | OpenAI function-calling tool definitions |
-| `phoneNumbers` | `string[] \| PhoneNumberConfig[]` | Phone numbers to register (E.164 or SIP URI) |
+| `phoneNumber` | `string \| PhoneNumberConfig` | Phone number to register (E.164 or SIP URI) |
+| `phoneNumbers` | `Array<string \| PhoneNumberConfig>` | Multiple numbers with per-number config |
 | `whatsapp` | `WhatsAppChannelConfig[]` | WhatsApp channels to register |
 | `history` | `HistoryStore` | Conversation persistence (see [History](/guides/conversation-history)) |
 | `sessionLimits` | `SessionLimits` | Duration / idle timeout config |
@@ -274,15 +275,15 @@ Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` 
 | Event | Signature | When |
 |---|---|---|
 | `message.confirmed` | `(event, call)` | Server acknowledged bot message |
-| `llm.tool_call` | `(data, call)` | Server-side LLM requests a tool call |
-| `session.idle_warning` | `(event, call)` | Warning — user hasn't spoken, call will timeout soon |
+| `llm.toolCall` | `(data, call)` | Server-side LLM requests a tool call |
+| `session.idleWarning` | `(event, call)` | Warning — user hasn't spoken, call will timeout soon |
 | `session.timeout` | `(event, call)` | Session timeout fired (max duration / idle) |
 
 ### WhatsApp
 
 | Event | Signature | When |
 |---|---|---|
-| `whatsapp.session_started` | `(event)` | New WhatsApp conversation started |
+| `whatsapp.sessionStarted` | `(event)` | New WhatsApp conversation started |
 | `whatsapp.message` | `(event)` | Incoming WhatsApp message received |
 | `whatsapp.response` | `(event)` | Agent sent a WhatsApp response |
 | `whatsapp.status` | `(event)` | Message delivery status |

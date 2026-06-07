@@ -49,7 +49,7 @@ for (const tenant of tenants) {
       llm: config.llm,
       voice: config.voice,
       language: config.language,
-      phoneNumbers: config.phoneNumbers,
+      phoneNumber: config.phoneNumber,
     });
   }
 }
@@ -152,7 +152,6 @@ A single `Pinecall` instance handles dozens to hundreds of agents on one WebSock
 - **Split by tier** — separate processes for free/paid tiers to isolate resource limits
 - **Split by capability** — one process for voice-only tenants, another for WhatsApp-heavy tenants
 
-The SDK has no hard limit, but standard Node.js performance considerations apply. Profile before scaling out.
 
 ## What's next
 

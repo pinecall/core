@@ -46,6 +46,7 @@ const agent = pc.agent("support", {
   prompt: "You are a helpful support agent. Use tools to look up information.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
   tools: [lookupOrder, scheduleCallback],
 });
@@ -223,10 +224,10 @@ const lookupOrder = tool({
 
 ## Listening to tool calls (optional)
 
-The `llm.tool_call` event still fires for every tool call — useful for logging, metrics, or UI:
+The `llm.toolCall` event still fires for every tool call — useful for logging, metrics, or UI:
 
 ```typescript
-agent.on("llm.tool_call", (data, call) => {
+agent.on("llm.toolCall", (data, call) => {
   console.log(`Tools called: ${data.toolCalls.map(t => t.name).join(", ")}`);
 });
 ```
@@ -238,5 +239,5 @@ The same tools work for phone, WebRTC, chat, and WhatsApp. The `Call` object is 
 ## What's next
 
 - [Hot-reload](/concepts/hot-reload) — change the prompt or tools mid-call
-- [Events reference](/reference/events) — all events including `llm.tool_call`
+- [Events reference](/reference/events) — all events including `llm.toolCall`
 - [`Call` API reference](/api/call) — `forward`, `hangup`, etc.

@@ -4,9 +4,10 @@
  * Handles: llm.chat.started, llm.chat.chunk, llm.chat.ended,
  *          llm.chat.error, llm.tool_call (with chat- prefix)
  *
- * Business logic ported from agent.ts:
- *   - §7.3 Chat Call creation with noop send
- *   - chat.started (not call.started) event
+ * Business logic:
+ *   - Creates a Call with transport="chat" on llm.chat.started
+ *   - Emits call.started (same as voice/WA) so the developer's universal
+ *     call.started handler runs setPromptVars, addContext, etc.
  *   - Fallback lazy Call creation on llm.chat.chunk if chat.started was missed
  */
 
@@ -50,7 +51,7 @@ export class ChatHandler implements EventHandler {
                         from: "chat",
                         to: agent.id,
                         direction: "inbound",
-                        transport: "unknown",
+                        transport: "chat" as any,
                     },
                     (data) => agent.send(data),
                 );
@@ -58,8 +59,9 @@ export class ChatHandler implements EventHandler {
                 agent._setCall(callId, call);
                 forwardCallEvents(call, agent, call);
 
-                // Emit chat.started (NOT call.started)
-                agent._emitWire("chat.started" as any, call);
+                // Emit call.started so per-call setup (setPromptVars, addContext,
+                // greeting, etc.) runs for ALL transports — not just voice.
+                agent._emitWire("call.started", call);
 
                 return true;
             }
@@ -74,13 +76,13 @@ export class ChatHandler implements EventHandler {
                             from: "chat",
                             to: agent.id,
                             direction: "inbound",
-                            transport: "unknown",
+                            transport: "chat" as any,
                         },
                         (data) => agent.send(data),
                     );
                     agent._setCall(callId, call);
                     forwardCallEvents(call, agent, call);
-                    agent._emitWire("chat.started" as any, call);
+                    agent._emitWire("call.started", call);
                 }
 
                 // Emit as bot.speaking for consistency
@@ -124,13 +126,13 @@ export class ChatHandler implements EventHandler {
                             from: "chat",
                             to: agent.id,
                             direction: "inbound",
-                            transport: "unknown",
+                            transport: "chat" as any,
                         },
                         (data) => agent.send(data),
                     );
                     agent._setCall(callId, call);
                     forwardCallEvents(call, agent, call);
-                    agent._emitWire("chat.started" as any, call);
+                    agent._emitWire("call.started", call);
                 }
 
                 const rawToolCalls = (wire.tool_calls ?? []) as Array<Record<string, unknown>>;
@@ -140,8 +142,8 @@ export class ChatHandler implements EventHandler {
                     arguments: (tc.arguments ?? (tc.function as any)?.arguments ?? "{}") as string,
                 }));
 
-                call._emitWire("llm.tool_call", {
-                    event: "llm.tool_call",
+                call._emitWire("llm.toolCall", {
+                    event: "llm.toolCall",
                     callId,
                     toolCalls,
                     msgId: (wire.msg_id ?? "") as string,

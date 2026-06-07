@@ -19,7 +19,7 @@ Twilio / Meta ──► voice.pinecall.io ──► SDK WebSocket ──► Your
                                                          EventEmitter
                                                     agent.on("call.started")
                                                     agent.on("user.message")
-                                                    agent.on("llm.tool_call")
+                                                    agent.on("llm.toolCall")
 ```
 
 **2. Browser channels** — WebRTC and chat. The browser connects **directly** to `voice.pinecall.io`. Your backend's only job is minting short-lived tokens.
@@ -102,8 +102,9 @@ const agent = pc.agent("support", {
   prompt: "You are a support agent for an online store...",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
   tools: [lookupOrder, processReturn],
 });
 

@@ -38,10 +38,11 @@ const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: `You are a support agent for an online store.
 Help customers check order status and process returns.
 Be friendly, brief, and professional.`,
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
   tools: [lookupOrder],
 });
 

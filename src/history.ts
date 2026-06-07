@@ -5,6 +5,9 @@
  * incrementally: each confirmed user message, bot response, and tool call
  * triggers an upsert. The final save on `call.ended` adds metadata.
  *
+ * If the store implements `findByContact()`, prior conversations are
+ * automatically restored for returning contacts — no extra code needed.
+ *
  * Built-in: `JsonFileHistory` — appends to a JSON file on disk.
  * Custom: implement `HistoryStore` (only `save()` is required).
  *
@@ -12,19 +15,9 @@
  * ```ts
  * import { Pinecall, JsonFileHistory } from "@pinecall/sdk";
  *
- * const history = new JsonFileHistory("./data/calls.json");
- *
  * const agent = pc.agent("my-agent", {
- *     history,  // auto-saves every call
- * });
- *
- * // Load prior conversation for returning callers:
- * agent.on("call.started", async (call) => {
- *     const prior = await history.findByContact(call.from, 1);
- *     if (prior.length > 0) {
- *         await call.setHistory(prior[0].messages);
- *         call.say("Welcome back!");
- *     }
+ *     history: new JsonFileHistory("./data/calls.json"),
+ *     // auto-saves AND auto-restores — zero boilerplate
  * });
  * ```
  */

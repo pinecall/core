@@ -101,6 +101,17 @@ The user kept talking after a turn signal. Any active `ReplyStream` auto-aborts.
 
 ## Bot speech events
 
+Bot speech follows this lifecycle:
+
+```
+bot.speaking  →  bot.word × N  →  bot.finished      (completed normally)
+                                  bot.interrupted    (user barged in)
+                                  message.confirmed  (full text saved to history)
+```
+
+`call.currentBotText` accumulates `bot.word` events into a live preview string.
+It resets on each new `bot.speaking` and clears after `bot.finished` / `bot.interrupted`.
+
 ### `bot.speaking`
 
 ```typescript
@@ -109,39 +120,58 @@ agent.on("bot.speaking", (event: { messageId: string; text: string }, call: Call
 
 The bot started speaking a message. `messageId` lets you track this specific utterance.
 
+`text` contains the full response text for non-streaming replies (`call.say()`, `call.reply()`). For streaming replies (`call.replyStream()`), `text` is empty because tokens arrive incrementally — use `bot.word` events or `call.currentBotText` to track what the bot is saying.
+
 ### `bot.word`
 
 ```typescript
 agent.on("bot.word", (event: { messageId: string; word: string }, call: Call) => { });
 ```
 
-A word was just played by TTS. Use to build live captions.
+A word was just played by TTS — synchronized with the actual audio playback. Use for live captions, subtitles, or transcript UIs.
+
+Each `bot.word` is automatically accumulated into `call.currentBotText`:
 
 ```typescript
-let current = "";
-agent.on("bot.speaking", () => { current = ""; });
-agent.on("bot.word", (e) => {
-  current += e.word + " ";
-  updateCaption(current);
+// Live preview — grows word-by-word as the bot speaks
+agent.on("bot.word", (event, call) => {
+  console.log(`🗣  "${call.currentBotText}"`);
+  // "¡Hola!"
+  // "¡Hola! Estoy"
+  // "¡Hola! Estoy bien,"
+  // "¡Hola! Estoy bien, gracias."
 });
-agent.on("bot.finished", () => clearCaption());
 ```
+
+> **Note:** `bot.word` timing is aligned with TTS audio. If the bot says a 5-second sentence, words arrive spread across those 5 seconds — not all at once.
 
 ### `bot.finished`
 
 ```typescript
-agent.on("bot.finished", (event: { messageId: string }, call: Call) => { });
+agent.on("bot.finished", (event: { messageId: string; durationMs: number }, call: Call) => { });
 ```
 
-The bot finished speaking the message. TTS audio fully played out.
+The bot finished speaking. TTS audio fully played. `call.currentBotText` still contains the accumulated words during this handler — it clears immediately after.
+
+```typescript
+agent.on("bot.finished", (event, call) => {
+  console.log(`Done (${event.durationMs}ms): "${call.currentBotText}"`);
+});
+```
 
 ### `bot.interrupted`
 
 ```typescript
-agent.on("bot.interrupted", (event: { messageId: string }, call: Call) => { });
+agent.on("bot.interrupted", (event: { messageId: string; playedMs: number; reason: string }, call: Call) => { });
 ```
 
-The user cut off the bot mid-speech. The bot stops talking immediately.
+The user cut off the bot mid-speech. `call.currentBotText` shows what the bot managed to say before being interrupted.
+
+```typescript
+agent.on("bot.interrupted", (event, call) => {
+  console.log(`Interrupted after ${event.playedMs}ms, said: "${call.currentBotText}"`);
+});
+```
 
 ## Protocol events
 
@@ -153,10 +183,10 @@ agent.on("message.confirmed", (event: { messageId: string }, call: Call) => { })
 
 The server acknowledged a bot message you sent (via `say`, `reply`, or `replyStream`).
 
-### `llm.tool_call`
+### `llm.toolCall`
 
 ```typescript
-agent.on("llm.tool_call", (data: {
+agent.on("llm.toolCall", (data: {
   msgId: string;
   toolCalls: Array<{ id: string; name: string; arguments: string }>;
 }, call: Call) => { });
@@ -166,10 +196,10 @@ The server-side LLM is requesting one or more tool calls. If you defined tools w
 
 See [Tools and Functions](/guides/tools-and-functions).
 
-### `session.idle_warning`
+### `session.idleWarning`
 
 ```typescript
-agent.on("session.idle_warning", (event: {
+agent.on("session.idleWarning", (event: {
   remainingSeconds: number;
   idleTimeoutSeconds: number;
 }, call: Call) => { });
@@ -178,7 +208,7 @@ agent.on("session.idle_warning", (event: {
 Fires before idle timeout. The user hasn't spoken in a while. Use it to prompt them.
 
 ```typescript
-agent.on("session.idle_warning", (event, call) => {
+agent.on("session.idleWarning", (event, call) => {
   call.say("Are you still there?");
 });
 ```
@@ -195,10 +225,10 @@ A session limit hit. The call is about to end.
 
 ## WhatsApp events
 
-### `whatsapp.session_started`
+### `whatsapp.sessionStarted`
 
 ```typescript
-agent.on("whatsapp.session_started", (event: {
+agent.on("whatsapp.sessionStarted", (event: {
   sessionId: string;
   contactPhone: string;
   contactName: string;

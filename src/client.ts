@@ -55,7 +55,8 @@ import { createToken as createTokenApi } from "./api/tokens.js";
 // ─── Types ───────────────────────────────────────────────────────────────
 
 export interface PinecallOptions {
-    apiKey: string;
+    /** API key. Falls back to PINECALL_API_KEY env var if not provided. */
+    apiKey?: string;
     /** Server URL. Default: wss://voice.pinecall.io */
     apiUrl?: string;
     /** Auto-reconnect on disconnect. Default: true. */
@@ -90,7 +91,7 @@ export interface PinecallEvents {
     "message.confirmed": (...args: any[]) => void;
     "reply.rejected": (...args: any[]) => void;
     "audio.metrics": (...args: any[]) => void;
-    "llm.tool_call": (...args: any[]) => void;
+    "llm.toolCall": (...args: any[]) => void;
     "session.timeout": (...args: any[]) => void;
 }
 
@@ -115,6 +116,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     readonly #resolver: StandardAgentIdResolver;
     readonly #dispatcher: Dispatcher;
     readonly #logger: Logger;
+    readonly #waHandler: WhatsAppHandler;
 
     #transport: Transport | null = null;
     #pingInterval: ReturnType<typeof setInterval> | null = null;
@@ -123,9 +125,9 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     #connectResolve: (() => void) | null = null;
     #connectReject: ((err: Error) => void) | null = null;
 
-    constructor(opts: PinecallOptions) {
+    constructor(opts: PinecallOptions = {}) {
         super();
-        this.#apiKey = opts.apiKey;
+        this.#apiKey = opts.apiKey ?? this.#getEnv("PINECALL_API_KEY") ?? "";
 
         // Normalize URLs
         const rawUrl = opts.apiUrl ?? "wss://voice.pinecall.io";
@@ -142,6 +144,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         this.#logger = logPath ? fileLogger(logPath) : noopLogger;
 
         // Build dispatcher with all handlers in priority order
+        this.#waHandler = new WhatsAppHandler();
         this.#dispatcher = new Dispatcher([
             new SystemHandler(),
             new ConnectionHandler(),
@@ -154,7 +157,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             new BotHandler(),
             new ToolHandler(),
             new SessionHandler(),
-            new WhatsAppHandler(),
+            this.#waHandler,
             new HistoryHandler(),
             new FallbackHandler(),
         ]);
@@ -241,7 +244,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         }
 
         // Extract channel/greeting fields before passing to Agent
-        const { phoneNumbers, whatsapp, greeting, ...agentConfig } = config;
+        const { phoneNumber, phoneNumbers, whatsapp, greeting, ...agentConfig } = config;
 
         const agent = new Agent(
             id,
@@ -258,13 +261,20 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         // Set up event forwarding: Agent → Pinecall
         forwardAgentEvents(agent, this);
 
-        // Register phone numbers
-        if (phoneNumbers) {
-            for (const ph of phoneNumbers) {
-                if (typeof ph === "string") {
-                    agent._addChannel("phone", ph);
+        // Register phone number(s) — singular takes precedence over deprecated array
+        if (phoneNumber) {
+            if (typeof phoneNumber === "string") {
+                agent._addChannel("phone", phoneNumber);
+            } else {
+                const { number, ...phoneConfig } = phoneNumber;
+                agent._addChannel("phone", number, phoneConfig);
+            }
+        } else if (phoneNumbers) {
+            for (const p of phoneNumbers) {
+                if (typeof p === "string") {
+                    agent._addChannel("phone", p);
                 } else {
-                    const { number, ...phoneConfig } = ph;
+                    const { number, ...phoneConfig } = p;
                     agent._addChannel("phone", number, phoneConfig);
                 }
             }
@@ -473,5 +483,10 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     /** @internal Get all registered agents. Used by ToolHandler when agent_id is missing. */
     _allAgents(): Agent[] {
         return [...this.#agents.values()];
+    }
+
+    /** @internal Get the WhatsApp handler. Used by HistoryHandler for wa- session routing. */
+    _getWhatsAppHandler(): WhatsAppHandler {
+        return this.#waHandler;
     }
 }

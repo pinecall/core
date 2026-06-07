@@ -30,9 +30,7 @@ Pass `ringing: true` in the channel overrides:
 agent.addPhoneNumber("+13186330963", { ringing: true });
 ```
 
-<Warning>
-Only phone channels support ringing. WebRTC and chat channels don't have a ringing phase.
-</Warning>
+> **Warning:** Only phone channels support ringing. WebRTC and chat channels don't have a ringing phase.
 
 ## Handle `call.ringing`
 
@@ -82,9 +80,7 @@ agent.on("call.ringing", (call) => {
 
 If you don't call `accept()` or `reject()` within the timeout (configurable on the server, default ~15s), the call is **auto-accepted**. This prevents calls from hanging indefinitely if your handler crashes.
 
-<Note>
-If you don't register a `call.ringing` handler at all, calls are auto-accepted immediately — same as before this feature existed. Ringing is fully opt-in.
-</Note>
+> **Note:** If you don't register a `call.ringing` handler at all, calls are auto-accepted immediately — same as before this feature existed. Ringing is fully opt-in.
 
 ## Full example
 

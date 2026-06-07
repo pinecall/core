@@ -24,11 +24,8 @@ const agent = pc.agent("mara", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  phoneNumbers: ["+13186330963"],
-  greeting: async (call) => {
-    const user = await db.findByPhone(call.from);
-    return `Hello ${user.name}! Ready to book?`;
-  },
+  phoneNumber: "+13186330963",
+  greeting: "Hello! How can I help you today?",
   tools: [
     tool({
       name: "findSlots",
@@ -42,7 +39,7 @@ const agent = pc.agent("mara", {
 await pc.connect();
 ```
 
-That snippet is a production-ready agent. It answers phone calls, greets the caller by name from your database, runs an LLM with tool calling, and speaks back with low-latency TTS — all local functions, no webhooks. WebRTC and Chat connections work automatically via tokens.
+That snippet is a production-ready agent. It answers phone calls, greets the caller, runs an LLM with tool calling, and speaks back with low-latency TTS — all local functions, no webhooks. WebRTC and Chat connections work automatically via tokens.
 
 ## What you can build
 
@@ -70,6 +67,51 @@ Pinecall (one connection)
 ```
 
 A single `Pinecall` instance can host many agents. A single agent can serve many channels. Every channel emits the same events on the agent — your code doesn't care whether the call came from a phone, a browser, or WhatsApp.
+
+## Advanced usage
+
+### Dynamic greetings
+
+The `greeting` config accepts a string, but also a callback that receives the `Call` object — useful for personalized greetings:
+
+```typescript
+const agent = pc.agent("mara", {
+  // ...
+  greeting: async (call) => {
+    const user = await db.findByPhone(call.from);
+    return `Hello ${user.name}! Ready to book?`;
+  },
+});
+```
+
+The `greeting` config is a shorthand. Under the hood it calls `call.say()` when the call connects, which sends text directly to TTS without going through the LLM. You can also use `call.say()` manually in the `call.started` event:
+
+```typescript
+agent.on("call.started", async (call) => {
+  const user = await db.findByPhone(call.from);
+  call.say(`Hello ${user.name}!`, { addToHistory: false });
+});
+```
+
+`addToHistory: false` tells the server to speak the text but not include it in the LLM conversation history — useful for ephemeral messages like "Please hold" or "One moment."
+
+### Multiple phone numbers
+
+Use `phoneNumbers` (plural) to attach several numbers with per-number overrides — ideal for A/B testing, multi-language support, or regional routing:
+
+```typescript
+const agent = pc.agent("mara", {
+  prompt: "You are Mara, a friendly assistant.",
+  llm: "openai/gpt-4.1-mini",
+  phoneNumbers: [
+    { number: "+14155551234", language: "en", stt: "deepgram/flux", voice: "elevenlabs/sarah" },
+    { number: "+966501234567", language: "ar", stt: "deepgram/nova-3", voice: "elevenlabs/ahmad" },
+    "+13186330963",  // inherits agent defaults
+  ],
+});
+```
+
+Each number can override `language`, `stt`, `voice`, and `ringing`. The agent prompt, LLM, and tools stay the same — only the voice interface changes per number.
 
 ## Where to go next
 

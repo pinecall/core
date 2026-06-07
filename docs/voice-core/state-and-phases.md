@@ -33,7 +33,7 @@ interface VoiceSessionState {
 | `agentSpeaking` | `true` while TTS is playing. |
 | `duration` | Seconds since `status` became `connected`. Updates every second. |
 | `messages` | Full transcript — user and bot turns. See [Transcript messages](#transcript-messages) below. |
-| `idleWarning` | When the server emits `session.idle_warning`, this holds the seconds remaining until timeout. `null` when no warning is active. |
+| `idleWarning` | When the server emits `session.idleWarning`, this holds the seconds remaining until timeout. `null` when no warning is active. |
 
 ## Call phases
 

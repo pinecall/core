@@ -20,24 +20,18 @@ await pc.connect();
 const agent = pc.agent("my-agent", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   prompt: "You are a helpful assistant with memory of past conversations.",
-  phoneNumbers: ["+13186330963"],
-  history, // ← auto-saves every call
+  phoneNumber: "+13186330963",
+  history, // ← auto-saves AND auto-restores
 });
 
-// Restore prior conversation for returning callers
-agent.on("call.started", async (call) => {
-  const prior = await history.findByContact(call.from, 1);
-  if (prior.length > 0) {
-    await call.setHistory(prior[0].messages);
-    call.say("Welcome back! I remember our last conversation.");
-  } else {
-    call.say("Hello! How can I help?");
-  }
+agent.on("call.started", (call) => {
+  call.say("Hello! How can I help?");
 });
 ```
 
-That's it. Every call is saved when it ends, and returning callers get their prior context restored.
+That's it. Every call is auto-saved when it ends, and returning callers get their prior context restored automatically — no extra code needed.
 
 ## How it works
 
@@ -73,33 +67,39 @@ You never need to write a `call.ended` handler for saving — it happens automat
 | `messages` | array | Full LLM messages (including tool calls, system prompt) |
 | `metadata` | object | Any metadata attached to the call |
 
-### Restoring context
+### Auto-restore
 
-Use `findByContact()` to look up prior conversations, then `call.setHistory()` to inject them into the LLM:
+When your `HistoryStore` implements `findByContact()`, the SDK **automatically restores** prior conversations for returning contacts — for all channels (voice, WebRTC, chat, and WhatsApp).
+
+On each new call or WhatsApp session, the SDK:
+1. Calls `findByContact(contactId, 5)` to load the last 5 conversations
+2. Merges all messages and keeps the most recent 20 user/assistant messages
+3. Injects them into the server-side LLM via `setHistory()`
+
+This happens in the background — no code needed. The `JsonFileHistory` built-in store implements `findByContact()`, so auto-restore works out of the box.
+
+### Manual override
+
+If you need custom restore logic (e.g., different message limits, conditional restore), handle it yourself in the event handler. The auto-restore fires in the background, but your manual `setHistory()` call will override it:
 
 ```typescript
 agent.on("call.started", async (call) => {
-  // Phone calls use the caller's number as the contact ID
-  const contactId = call.from;
-
-  const prior = await history.findByContact(contactId, 1);
-  if (prior.length > 0) {
-    // Inject the prior conversation's LLM messages
+  // Custom: only restore if the last call was within 24 hours
+  const prior = await history.findByContact(call.from, 1);
+  if (prior.length > 0 && Date.now() / 1000 - prior[0].endedAt < 86400) {
     await call.setHistory(prior[0].messages);
   }
 });
 ```
 
-`call.setHistory(messages)` **replaces** the server-side LLM history. The model sees the full prior conversation as context, so it can reference things discussed before.
-
 ## Channel support
 
-| Channel | Auto-save? | Contact ID | Notes |
-|---|---|---|---|
-| **Phone (Twilio)** | ✅ | `call.from` (E.164 number) | Saved on `call.ended` |
-| **WebRTC** | ✅ | `call.metadata.userId` | Pass userId from browser |
-| **Chat** | ✅ | `call.metadata.userId` | Same as WebRTC |
-| **WhatsApp** | ✅ | `contact_phone` | Saved on session expiry (24h window or 2h idle) |
+| Channel | Auto-save? | Restore? | Contact ID | Notes |
+|---|---|---|---|---|
+| **Phone (Twilio)** | ✅ | ✅ `call.setHistory()` | `call.from` (E.164 number) | Saved on `call.ended` |
+| **WebRTC** | ✅ | ✅ `call.setHistory()` | `call.metadata.userId` | Pass userId from browser |
+| **Chat** | ✅ | ✅ `call.setHistory()` | `call.metadata.userId` | Same as WebRTC |
+| **WhatsApp** | ✅ | ✅ `session.setHistory()` | `session.contactPhone` | Uses `WhatsAppSession` object |
 
 ### WebRTC / Chat: identifying contacts
 
@@ -137,7 +137,7 @@ WhatsApp sessions are different from voice calls — they're **long-lived text c
 
 1. Contact sends a WhatsApp message → server creates a `WhatsAppSession`
 2. Messages flow back and forth, all tracked in the server's LLM history
-3. When the session ends (24h window expires or 2h idle), the server emits `whatsapp.session_ended` with the full conversation
+3. When the session ends (24h window expires or 2h idle), the server emits `whatsapp.sessionEnded` with the full conversation
 4. The SDK's `HistoryStore` auto-saves it — same `ConversationRecord` as voice
 
 **Session end triggers:**
@@ -147,13 +147,38 @@ WhatsApp sessions are different from voice calls — they're **long-lived text c
 The saved record has `channel: "whatsapp"` and includes `metadata.contactName` and `metadata.messageCount`.
 
 ```typescript
-agent.on("whatsapp.session_ended", (event) => {
+agent.on("whatsapp.sessionEnded", (event) => {
   console.log(`WhatsApp session ended: ${event.contactPhone} (${event.reason})`);
   // Already auto-saved by HistoryStore — no manual save needed
 });
 ```
 
 > WhatsApp uses `contact_phone` (e.g. `"5491155551234"`) as the `from` field. Use `findByContact()` with this number to restore prior conversations.
+
+### WhatsApp: restoring conversations
+
+`whatsapp.sessionStarted` passes a `WhatsAppSession` object with the same history methods as `Call`:
+
+```typescript
+agent.on("whatsapp.sessionStarted", async (session) => {
+  const prior = await history.findByContact(session.contactPhone, 1);
+  if (prior.length > 0) {
+    await session.setHistory(prior[0].messages);
+  }
+});
+```
+
+`WhatsAppSession` methods:
+
+| Method | Description |
+|---|---|
+| `session.setHistory(messages)` | Replace server-side LLM history |
+| `session.addHistory(messages)` | Append messages to history |
+| `session.getHistory()` | Read current LLM history |
+| `session.clearHistory()` | Clear all history |
+| `session.setPrompt(text)` | Replace the system prompt |
+| `session.setPromptVars(vars)` | Set `{{variable}}` values |
+| `session.addContext(text)` | Append context after prompt |
 
 ## Built-in: `JsonFileHistory`
 
@@ -342,7 +367,7 @@ Beyond auto-save/restore, you can manipulate the LLM history during an active ca
 | `call.getHistory()` | **Read** the current LLM history from the server |
 | `call.clearHistory()` | **Clear** all LLM history |
 
-These work during active voice calls (Twilio and WebRTC). They modify the server-side LLM context in real-time.
+These work during active voice calls (Twilio, WebRTC, Chat) and WhatsApp sessions (via `WhatsAppSession`). They modify the server-side LLM context in real-time.
 
 ## What's next
 

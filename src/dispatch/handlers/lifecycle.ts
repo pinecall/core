@@ -65,6 +65,21 @@ export class LifecycleHandler implements EventHandler {
                     call._initHistory(agent.id, historyStore);
                 }
 
+                // Auto-restore prior conversations for returning contacts
+                if (historyStore?.findByContact && call.from) {
+                    historyStore.findByContact(call.from, 5).then((prior) => {
+                        if (!prior || prior.length === 0) return;
+                        const messages = prior
+                            .reverse()
+                            .flatMap((c) => c.messages)
+                            .filter((m) => m.role === "user" || m.role === "assistant")
+                            .slice(-20);
+                        if (messages.length > 0) {
+                            call.setHistory(messages as any).catch(() => {});
+                        }
+                    }).catch(() => {});
+                }
+
                 // Set up event forwarding: Call → Agent → Pinecall
                 forwardCallEvents(call, agent, call);
 

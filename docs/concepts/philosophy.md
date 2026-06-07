@@ -32,11 +32,12 @@ const agent = pc.agent("support", {
   prompt: "You are a support agent for Acme Corp.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
-  phoneNumbers: ["+15551234567"],
+  stt: "deepgram/flux",
+  phoneNumber: "+15551234567",
   tools: [lookupOrder],
 });
 
-agent.on("call.started", (call) => call.say("Hi, how can I help?"));
+agent.on("call.started", (call) => call.say("Hi, how can I help?", { addToHistory: true }));
 ```
 
 No webhooks. No separate tool server. No "upload your tools as JSON". Your tools are just functions with Zod schemas, auto-executed by the SDK.
@@ -88,7 +89,7 @@ const agent = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: { provider: "deepgram-flux", keyterms: ["Acme", "checkout"] },
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
   sessionLimits: { idle_timeout_seconds: 30, idle_warning_seconds: 10 },
 });
 ```

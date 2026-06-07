@@ -53,6 +53,8 @@
       {
         "group": "Examples",
         "pages": [
+          "examples/index",
+          "examples/turn-detection",
           "examples/headless-agent",
           "examples/multi-channel-bot",
           "examples/chat-bot",

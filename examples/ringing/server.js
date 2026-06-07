@@ -48,7 +48,7 @@ const agent = pc.agent("ringing-example", {
   prompt:
     "You are a friendly assistant. Keep your responses short (1-2 sentences) since this is a voice call.",
   // Register phone with ringing enabled — calls go through call.ringing first
-  phoneNumbers: [{ number: PHONE, ringing: true }],
+  phoneNumber: { number: PHONE, ringing: true },
 });
 
 // ── Ringing handler ──────────────────────────────────────────────────────

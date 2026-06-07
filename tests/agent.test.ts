@@ -245,11 +245,11 @@ describe('Agent', () => {
     expect(handler.mock.calls[0][0].word).toBe('Hello')
   })
 
-  it('emits llm.tool_call on agent for server-side LLM', () => {
+  it('emits llm.toolCall on agent for server-side LLM', () => {
     const { agent } = createAgent()
     markReady(agent)
     const handler = vi.fn()
-    agent.on('llm.tool_call', handler)
+    agent.on('llm.toolCall', handler)
 
     // Start call
     const call = startCall(agent, {
@@ -260,8 +260,8 @@ describe('Agent', () => {
     })
 
     // Emit tool call on call — should proxy to agent
-    call._emitWire('llm.tool_call', {
-      event: 'llm.tool_call',
+    call._emitWire('llm.toolCall', {
+      event: 'llm.toolCall',
       callId: 'CA_004',
       toolCalls: [{ id: 'tc_1', name: 'lookup', arguments: '{"id":"123"}' }],
       msgId: 'msg_5',

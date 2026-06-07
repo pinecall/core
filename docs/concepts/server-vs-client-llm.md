@@ -28,6 +28,7 @@ const agent = pc.agent("receptionist", {
   prompt: "You are a helpful receptionist. Be concise.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
   tools: [lookupCustomer],
 });
@@ -70,7 +71,7 @@ agent.on("turn.end", async (turn, call) => {
 |---|---|---|
 | LLM choice | OpenAI, Mistral (more coming) | Any provider, any model, local |
 | You handle conversation history | ❌ Server does it | ✅ You do it |
-| You see tool calls | ✅ Via `llm.tool_call` | ✅ You define them |
+| You see tool calls | ✅ Via `llm.toolCall` | ✅ You define them |
 | Easier to ship | ✅ Yes | Slightly more code |
 | Required for WhatsApp | ✅ Yes | ❌ No (server-side only) |
 | Latency | Slightly lower (LLM runs near the audio pipeline) | Depends on your provider |
@@ -88,8 +89,9 @@ A single `Pinecall` instance can host multiple agents, each with a different LLM
 // Server-side agent for WhatsApp + phone
 const support = pc.agent("support", {
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: "...",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
   whatsapp: [{ phoneNumberId: "123", accessToken: "EAA..." }],
 });
 

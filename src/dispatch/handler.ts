@@ -25,6 +25,7 @@ export interface DispatchContext {
         _emitWire(event: string, ...args: unknown[]): void;
         _getAgent(id: string): Agent | undefined;
         _allAgents(): Agent[];
+        _getWhatsAppHandler?(): { getSession(id: string): any };
     };
 }
 

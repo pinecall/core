@@ -65,7 +65,7 @@ These events are **not** processed by the state machine but are forwarded throug
 | Event | Fields | Description |
 |---|---|---|
 | `llm.thinking` | — | LLM started generating a response |
-| `llm.tool_call` | `tool_calls[]`, `msg_id`, `call_id` | LLM requested tool/function calls. Each item has `id`, `name`, `arguments` (JSON string). |
+| `llm.toolCall` | `tool_calls[]`, `msg_id`, `call_id` | LLM requested tool/function calls. Each item has `id`, `name`, `arguments` (JSON string). |
 | `llm.tool_result` | `call_id`, `msg_id`, `results[]` | Tool execution results sent back to LLM. Each item has `tool_call_id`, `result`. |
 | `llm.response` | `text`, `finish_reason` | LLM finished generating (text may be empty for tool-only turns) |
 | `llm.error` | `error` | LLM error occurred |
@@ -74,7 +74,7 @@ These events are **not** processed by the state machine but are forwarded throug
 
 | Event | Fields | Description |
 |---|---|---|
-| `session.idle_warning` | `remaining_seconds` | User hasn't spoken — call will timeout in `remaining_seconds`. Drives the `idleWarning` state field. |
+| `session.idleWarning` | `remaining_seconds` | User hasn't spoken — call will timeout in `remaining_seconds`. Drives the `idleWarning` state field. |
 | `session.timeout` | `reason` | Session timed out (`"idle_timeout"` or `"max_duration"`). The client auto-disconnects. |
 
 ## Client → Server commands
@@ -100,7 +100,7 @@ Most of these have helper methods on `VoiceSession` (`toggleMute`, `configure`).
 session.addEventListener("event", (e) => {
   const { event, tool_calls, results } = e.detail;
 
-  if (event === "llm.tool_call" && tool_calls) {
+  if (event === "llm.toolCall" && tool_calls) {
     for (const tc of tool_calls) {
       console.log(`Agent calling ${tc.name}(${tc.arguments})`);
     }
@@ -169,4 +169,4 @@ Browser                              Voice Server
 
 - [`VoiceSession`](/voice-core/voice-session) — the high-level API
 - [State and phases](/voice-core/state-and-phases) — how raw events map to state
-- [Tools API](/voice-widget/tools-api) — building UI that responds to `llm.tool_call`
+- [Tools API](/voice-widget/tools-api) — building UI that responds to `llm.toolCall`

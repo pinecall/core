@@ -92,7 +92,7 @@ function AdvancedVoice() {
     const onEvent = (e: CustomEvent) => {
       const { event, tool_calls } = e.detail;
 
-      if (event === "llm.tool_call" && tool_calls) {
+      if (event === "llm.toolCall" && tool_calls) {
         for (const tc of tool_calls) {
           console.log(`Tool call: ${tc.name}`, tc.arguments);
         }

@@ -32,6 +32,7 @@ const mara = pc.agent("mara", {
   prompt: "You are Mara. Be concise and warm.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "es",
 });
 

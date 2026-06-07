@@ -157,7 +157,7 @@ session.addEventListener("message", (e) => {
 
 session.addEventListener("event", (e) => {
   // raw — see DataChannel protocol page for the full catalog
-  if (e.detail.event === "llm.tool_call") {
+  if (e.detail.event === "llm.toolCall") {
     console.log("Tool calls:", e.detail.tool_calls);
   }
 });

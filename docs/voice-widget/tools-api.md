@@ -10,7 +10,7 @@ The widget can render interactive UI in response to server-side LLM tool calls. 
 ## The flow
 
 ```
-1. Agent calls tool       ──► llm.tool_call event
+1. Agent calls tool       ──► llm.toolCall event
                                        │
 2. Widget tracks in state.toolCalls    ▼
                                   Your component renders

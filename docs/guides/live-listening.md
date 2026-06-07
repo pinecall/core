@@ -16,6 +16,7 @@ const agent = pc.agent("support", {
   prompt: "You are a support agent.",
   voice: "elevenlabs/sarah",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   media: {
     live: true,       // enables real-time WebSocket stream
     recording: true,  // keeps full call recording in memory

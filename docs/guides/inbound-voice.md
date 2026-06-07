@@ -25,8 +25,9 @@ const receptionist = pc.agent("receptionist", {
   prompt: "You are the receptionist for Acme Corp. Be brief and warm.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
 });
 
 receptionist.on("call.started", (call) => {
@@ -54,8 +55,9 @@ If you use `pc.agent()`, the `greeting` field handles everything — no event ha
 const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   llm: "openai/gpt-4.1-mini",
+  stt: "deepgram/flux",
   prompt: "You are a receptionist for Acme Corp.",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
 
   // Static
   greeting: "Thanks for calling Acme. How can I help?",
@@ -135,8 +137,9 @@ const agent = pc.agent("receptionist", {
   prompt: "You are a receptionist. Look up orders when asked.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
   tools: [lookupOrder, transferToHuman, endCall],
 });
 

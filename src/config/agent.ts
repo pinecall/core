@@ -62,10 +62,17 @@ export interface AgentConfig {
         | { text: string; addToHistory?: boolean }
         | ((call: import("../domain/call.js").Call) => string | Promise<string>);
     /**
-     * Phone numbers to register (Twilio E.164 or SIP URI).
+     * Phone number to register (Twilio E.164 or SIP URI).
+     *
+     * @example "+14155551234"
+     * @example { number: "+14155551234", ringing: true }
+     */
+    phoneNumber?: string | PhoneNumberConfig;
+    /**
+     * Multiple phone numbers with per-number config (e.g. one per language/region).
      *
      * @example ["+14155551234", "+34612345678"]
-     * @example ["+14155551234", { number: "+34612345678", ringing: true }]
+     * @example [{ number: "+14155551234", language: "en" }, { number: "+34612345678", language: "es" }]
      */
     phoneNumbers?: Array<string | PhoneNumberConfig>;
     /**
@@ -107,7 +114,7 @@ export interface AgentConfig {
 
 // ─── Phone number config ─────────────────────────────────────────────────
 
-/** Per-phone-number configuration for `phoneNumbers` array. */
+/** Per-phone-number configuration for `phoneNumber` option. */
 export interface PhoneNumberConfig {
     /** Phone number in E.164 format or SIP URI. */
     number: string;
@@ -118,6 +125,8 @@ export interface PhoneNumberConfig {
     ringing?: boolean;
     /** Per-number voice override. */
     voice?: VoiceShortcut;
+    /** Per-number STT override (e.g. `"deepgram/nova-3"` for languages not supported by Flux). */
+    stt?: STTShortcut;
     /** Per-number language override. */
     language?: string;
 }

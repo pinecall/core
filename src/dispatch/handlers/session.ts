@@ -35,8 +35,8 @@ export class SessionHandler implements EventHandler {
                 if (!callId) return false;
                 const call = agent._getCall(callId);
                 if (call) {
-                    call._emitWire("session.idle_warning" as any, decodeEvent(wire));
-                    agent._emitWire("session.idle_warning", decodeEvent(wire), call);
+                    call._emitWire("session.idleWarning" as any, decodeEvent(wire));
+                    agent._emitWire("session.idleWarning", decodeEvent(wire), call);
                 }
                 return true;
             }

@@ -64,7 +64,7 @@ const agent = pc.agent("history-example", {
 When you have prior conversation context, reference things discussed before
 to make the caller feel recognized. Keep responses short (1-2 sentences)
 since this is a voice call.`,
-  phoneNumbers: [PHONE],
+  phoneNumber: PHONE,
 
   // ✨ Auto-save: every call is saved to the JSON file automatically
   history,

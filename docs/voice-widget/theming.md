@@ -105,7 +105,7 @@ The orb gets a different look per phase:
 | Thinking | Violet pulse | `.thinking` | Waiting for LLM response |
 | **Idle warning** | **Orange blink** | `.idle-warning` | User silent — call will timeout soon |
 
-The idle warning state is driven by the server's `session.idle_warning` event and clears when the user speaks or the call ends.
+The idle warning state is driven by the server's `session.idleWarning` event and clears when the user speaks or the call ends.
 
 ## Building on top of presets
 

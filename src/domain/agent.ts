@@ -79,11 +79,11 @@ export interface AgentEvents {
     "audio.metrics": (event: AudioMetricsEvent, call: Call) => void;
 
     // Session limits
-    "session.idle_warning": (event: any, call: Call) => void;
+    "session.idleWarning": (event: any, call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent, call: Call) => void;
 
     // LLM / Tool calls
-    "llm.tool_call": (event: ToolCallEvent, call: Call) => void;
+    "llm.toolCall": (event: ToolCallEvent, call: Call) => void;
 
     // Channel events
     "channel.added": (type: string, ref: string) => void;
@@ -94,8 +94,8 @@ export interface AgentEvents {
     "whatsapp.message": (event: Record<string, unknown>) => void;
     "whatsapp.response": (event: Record<string, unknown>) => void;
     "whatsapp.status": (event: Record<string, unknown>) => void;
-    "whatsapp.session_started": (event: Record<string, unknown>) => void;
-    "whatsapp.session_ended": (event: Record<string, unknown>) => void;
+    "whatsapp.sessionStarted": (session: import("./wa-session.js").WhatsAppSession) => void;
+    "whatsapp.sessionEnded": (event: Record<string, unknown>) => void;
 
     // Human-in-the-loop
     "session.paused": (event: { sessionId?: string; contact?: string }) => void;
@@ -362,7 +362,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
             }
             if (phoneChannels.length === 0) {
                 return Promise.reject(new Error(
-                    "No phone numbers registered. Add one with `phoneNumbers: [\"+1...\"]` or pass `from` explicitly.",
+                    "No phone numbers registered. Add one with `phoneNumber: \"+1...\"` or pass `from` explicitly.",
                 ));
             }
             if (phoneChannels.length > 1) {

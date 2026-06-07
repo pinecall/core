@@ -37,6 +37,7 @@ const mara = pc.agent("mara", {
   prompt: "You are Mara, a friendly voice assistant. Be concise.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
 });
 
@@ -122,16 +123,37 @@ You didn't write a single line of WebSocket code, audio handling, or VAD logic. 
 
 ## Add a phone number
 
-Want Mara to answer phone calls too? Add `phoneNumbers`:
+Want Mara to answer phone calls too? Add `phoneNumber`:
 
 ```typescript
 const mara = pc.agent("mara", {
   // ...same as before
-  phoneNumbers: ["+13186330963"],
+  phoneNumber: "+13186330963",
 });
 ```
 
 Now the same agent serves browser **and** phone calls. The events are identical — your code doesn't need to know which transport the call came in over.
+
+### Multiple numbers with per-number config
+
+Use `phoneNumbers` (plural) to attach multiple numbers with per-number overrides — ideal for A/B testing, multi-language support, or regional routing:
+
+```typescript
+const mara = pc.agent("mara", {
+  prompt: "You are Mara, a friendly voice assistant.",
+  llm: "openai/gpt-4.1-mini",
+  phoneNumbers: [
+    // US number: English, fast native turns
+    { number: "+14155551234", language: "en", stt: "deepgram/flux", voice: "elevenlabs/sarah" },
+    // Saudi number: Arabic, requires Nova (Flux doesn't support Arabic)
+    { number: "+966501234567", language: "ar", stt: "deepgram/nova-3", voice: "elevenlabs/ahmad" },
+    // Simple — just a number, inherits agent defaults
+    "+13186330963",
+  ],
+});
+```
+
+Each number can override `language`, `stt`, `voice`, and `ringing`. The agent prompt, LLM, and tools stay the same — only the voice interface changes per number. This lets you test different STT providers, voices, or languages on the same agent without deploying separate instances.
 
 ## Add a tool
 
@@ -152,6 +174,7 @@ const mara = pc.agent("mara", {
   prompt: "You are Mara. Look up orders when asked.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
   language: "en",
   tools: [lookupOrder],
 });

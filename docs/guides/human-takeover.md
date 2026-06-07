@@ -53,7 +53,7 @@ support.addWhatsapp({
 // Track active sessions for the dashboard
 const sessions = new Map<string, { contact: string; name: string }>();
 
-support.on("whatsapp.session_started", (event) => {
+support.on("whatsapp.sessionStarted", (event) => {
   sessions.set(event.sessionId as string, {
     contact: event.contactPhone as string,
     name: event.contactName as string,

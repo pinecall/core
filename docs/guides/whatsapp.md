@@ -65,7 +65,7 @@ support.on("whatsapp.message", (event) => {
 });
 ```
 
-That's it. The first message a new contact sends fires `whatsapp.session_started`, the LLM generates a response, and the SDK sends it back via the Cloud API.
+That's it. The first message a new contact sends fires `whatsapp.sessionStarted`, the LLM generates a response, and the SDK sends it back via the Cloud API.
 
 ## `WhatsAppChannelConfig`
 
@@ -230,7 +230,7 @@ User sends WhatsApp message
    No                  Yes
    │                    │
    Create session       │
-   Emit: session_started│
+   Emit: sessionStarted│
    │                    │
    └────────┬───────────┘
             │
@@ -268,17 +268,17 @@ Sessions end for one of two reasons:
 
 When a session ends:
 
-1. `whatsapp.session_ended` is emitted with the full transcript and metadata
+1. `whatsapp.sessionEnded` is emitted with the full transcript and metadata
 2. If a `HistoryStore` is configured, the conversation is automatically saved
 3. The session is removed from memory
 
-If the same contact writes again after a session ended, a **new session** is created (new ID, fresh LLM history).
+If the same contact writes again after a session ended, a **new session** is created (new ID, fresh LLM history — unless you [restore history](#restoring-prior-conversations)).
 
 ### Session events timeline
 
 ```
 Session created (first message arrives)
-  ├── whatsapp.session_started  { sessionId, contactPhone, contactName }
+  ├── whatsapp.sessionStarted  { sessionId, contactPhone, contactName }
   │
   ├── whatsapp.message          { sessionId, text, paused: false }
   ├── whatsapp.response         { sessionId, text }
@@ -296,7 +296,7 @@ Session created (first message arrives)
   │   ├── whatsapp.response     { sessionId, text, source: "human" } ← human operator
   │   └── session.resumed       { sessionId }
   │
-  └── whatsapp.session_ended    { sessionId, transcript, messages, duration }
+  └── whatsapp.sessionEnded    { sessionId, transcript, messages, duration }
                                       │
                                       ▼
                               HistoryStore.save() (automatic)
@@ -304,7 +304,7 @@ Session created (first message arrives)
 
 ## Conversation history
 
-When a `HistoryStore` is configured, WhatsApp conversations are **automatically saved** on `whatsapp.session_ended` — the same way voice calls are saved on `call.ended`.
+When a `HistoryStore` is configured, WhatsApp conversations are **automatically saved** on `whatsapp.sessionEnded` — the same way voice calls are saved on `call.ended`.
 
 ```typescript
 import { Pinecall, JsonFileHistory } from "@pinecall/sdk";
@@ -354,15 +354,45 @@ const convo = await history.get("wa-a3f2b1c4d5e6");
 
 > **Note:** `JsonFileHistory` is for prototyping. For production, implement `HistoryStore` with your database (MongoDB, Postgres, etc).
 
+### Restoring prior conversations
+
+When your `HistoryStore` implements `findByContact()`, prior conversations are **automatically restored** when a returning contact starts a new session. No code needed — just set `history` in the agent config and the SDK handles everything.
+
+If you need custom restore logic, the `whatsapp.sessionStarted` event passes a `WhatsAppSession` object with history methods:
+
+```typescript
+agent.on("whatsapp.sessionStarted", async (session) => {
+  // Custom: only restore if prior conversation had >5 messages
+  const prior = await history.findByContact(session.contactPhone, 1);
+  if (prior.length > 0 && prior[0].messages.length > 5) {
+    await session.setHistory(prior[0].messages);
+  }
+});
+```
+
+`WhatsAppSession` provides the same history/prompt methods as `Call`:
+
+| Method | Description |
+|---|---|
+| `session.setHistory(messages)` | Replace server-side LLM history |
+| `session.addHistory(messages)` | Append messages to history |
+| `session.getHistory()` | Read current LLM history from server |
+| `session.clearHistory()` | Clear all LLM history |
+| `session.setPrompt(text)` | Replace the system prompt |
+| `session.setPromptVars(vars)` | Set `{{variable}}` values in prompt template |
+| `session.addContext(text)` | Append context after the system prompt |
+
+The session object also exposes `session.id`, `session.contactPhone`, `session.contactName`, and `session.agentId`.
+
 ## All WhatsApp events
 
 | Event | Data fields | When |
 |---|---|---|
-| `whatsapp.session_started` | `sessionId`, `contactPhone`, `contactName` | First message from a new contact |
+| `whatsapp.sessionStarted` | `WhatsAppSession` object with `id`, `contactPhone`, `contactName`, `setHistory()`, etc. | First message from a new contact |
 | `whatsapp.message` | `sessionId`, `from`, `name`, `type`, `text`, `messageId`, `paused` | Incoming message received |
 | `whatsapp.response` | `sessionId`, `to`, `text`, `source?` | Agent or human sent a response |
 | `whatsapp.status` | `status`, `recipient`, `messageId` | Delivery status update |
-| `whatsapp.session_ended` | `sessionId`, `contactPhone`, `transcript`, `messages`, `duration` | Session expired or timed out |
+| `whatsapp.sessionEnded` | `sessionId`, `contactPhone`, `transcript`, `messages`, `duration` | Session expired or timed out |
 | `session.paused` | `sessionId` | AI paused for a session |
 | `session.resumed` | `sessionId` | AI resumed for a session |
 

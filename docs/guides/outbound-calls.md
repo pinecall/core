@@ -35,7 +35,7 @@ await agent.dial({
 });
 ```
 
-After the greeting, the conversation continues normally — `turn.end`, `llm.tool_call`, etc. all fire as on inbound calls.
+After the greeting, the conversation continues normally — `turn.end`, `llm.toolCall`, etc. all fire as on inbound calls.
 
 ## Required fields
 

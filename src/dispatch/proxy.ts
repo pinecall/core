@@ -31,7 +31,7 @@ export const CALL_PROXY_EVENTS = [
     "call.unheld",
     "call.muted",
     "call.unmuted",
-    "llm.tool_call",
+    "llm.toolCall",
     "session.timeout",
 ] as const;
 

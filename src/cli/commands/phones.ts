@@ -10,7 +10,7 @@
  */
 
 import type { CliConfig } from "../config.js";
-import { c, table, info, warn, error, section, kv } from "../ui.js";
+import { c, table, info, error, section, kv } from "../ui.js";
 
 // ── Playground API helper ───────────────────────────────────────────────
 

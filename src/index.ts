@@ -13,7 +13,7 @@
  * const agent = pc.agent("my-agent", {
  *   voice: "elevenlabs:abc",
  *   language: "es",
- *   phoneNumbers: ["+19035551234"],
+ *   phoneNumber: "+19035551234",
  * });
  *
  * agent.on("call.started", (call) => {
@@ -38,6 +38,9 @@ export type { Tool, ToolConfig } from "./tool.js";
 // History persistence
 export { JsonFileHistory } from "./history.js";
 export type { HistoryStore, ConversationRecord } from "./history.js";
+
+// WhatsApp session
+export { WhatsAppSession } from "./domain/wa-session.js";
 
 export { Agent } from "./domain/agent.js";
 export type {

@@ -12,10 +12,10 @@ export const STREAM_EVENTS = [
     ...CALL_PROXY_EVENTS.filter(e =>
         e !== "call.held" && e !== "call.unheld" &&
         e !== "call.muted" && e !== "call.unmuted" &&
-        e !== "llm.tool_call" && e !== "session.timeout"
+        e !== "llm.toolCall" && e !== "session.timeout"
     ),
     // WhatsApp
-    "whatsapp.session_started", "whatsapp.session_ended",
+    "whatsapp.sessionStarted", "whatsapp.sessionEnded",
     "whatsapp.message", "whatsapp.response", "whatsapp.status",
     // Human-in-the-loop
     "session.paused", "session.resumed",

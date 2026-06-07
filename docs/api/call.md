@@ -16,18 +16,29 @@ agent.on("call.started", (call) => {
 ## Properties
 
 ```typescript
-call.id          // "CA7ec979f5..." — unique call ID
-call.from        // "+13186330963" or "sip:..."
-call.to          // destination number / URI
-call.direction   // "inbound" | "outbound"
-call.transport   // "phone" | "webrtc" | "chat" | "whatsapp" | "unknown"
-call.metadata    // custom metadata from the channel or dial()
-call.transcript  // [{ role: "user", content: "..." }, ...] — user + assistant only
-call.messages    // full LLM history (populated on call.ended)
-call.duration    // seconds (populated on call.ended)
-call.startedAt   // epoch seconds
-call.endedAt     // epoch seconds
-call.reason      // "hangup" | "timeout" | ...
+call.id              // "CA7ec979f5..." — unique call ID
+call.from            // "+13186330963" or "sip:..."
+call.to              // destination number / URI
+call.direction       // "inbound" | "outbound"
+call.transport       // "phone" | "webrtc" | "chat" | "whatsapp" | "unknown"
+call.metadata        // custom metadata from the channel or dial()
+call.transcript      // [{ role: "user", content: "..." }, ...] — user + assistant only
+call.messages        // full LLM history (populated on call.ended)
+call.currentBotText  // live preview of what the bot is saying (accumulated bot.word events)
+call.duration        // seconds (populated on call.ended)
+call.startedAt       // epoch seconds
+call.endedAt         // epoch seconds
+call.reason          // "hangup" | "timeout" | ...
+```
+
+### `currentBotText`
+
+A live preview of what the bot is currently saying. Built automatically from `bot.word` events — grows word-by-word as TTS plays, resets on each new `bot.speaking`, clears after `bot.finished` or `bot.interrupted`.
+
+```typescript
+agent.on("bot.word", (event, call) => {
+  updateSubtitle(call.currentBotText); // "¡Hola!" → "¡Hola! Estoy" → "¡Hola! Estoy bien,"
+});
 ```
 
 ## Speech

@@ -266,7 +266,7 @@ export interface ToolCallItem {
 }
 
 export interface ToolCallEvent {
-    event: "llm.tool_call";
+    event: "llm.toolCall";
     callId: string;
     /** Tool calls requested by the LLM. */
     toolCalls: ToolCallItem[];

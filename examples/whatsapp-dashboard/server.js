@@ -41,8 +41,8 @@ agent.addWhatsapp({
 
 // ── Logging ──────────────────────────────────────────────────────────────
 
-agent.on("whatsapp.session_started", (event) => {
-  console.log(`💬 New session: ${event.contactName} (${event.contactPhone})`);
+agent.on("whatsapp.sessionStarted", (session) => {
+  console.log(`💬 New session: ${session.contactName} (${session.contactPhone})`);
 });
 
 agent.on("whatsapp.message", (event) => {

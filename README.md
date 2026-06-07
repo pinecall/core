@@ -28,7 +28,7 @@ npm install @pinecall/sdk
 ```typescript
 import { Pinecall } from "@pinecall/sdk";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
+const pc = new Pinecall();
 await pc.connect();
 
 const mara = pc.agent("mara", {
@@ -36,16 +36,16 @@ const mara = pc.agent("mara", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   language: "es",
-  channels: ["webrtc", "+13186330963"],
+  phoneNumber: "+13186330963",
+  greeting: "¡Hola! ¿En qué puedo ayudarte?",
 });
 
-mara.on("call.started", (call) => call.say("¡Hola! ¿En qué puedo ayudarte?"));
 mara.on("call.ended", (call, reason) =>
   console.log(`Call ended: ${reason} (${call.duration}s)`),
 );
 ```
 
-That's a production-ready voice agent. It accepts calls on a phone number, accepts WebRTC connections from the browser, runs an LLM, and speaks back. No webhooks, no platform dashboard, no infra.
+That's a production-ready voice agent. It answers calls on a phone number, speaks a greeting, runs an LLM, and talks back. No webhooks, no platform dashboard, no infra.
 
 ## Why Pinecall
 
@@ -85,6 +85,20 @@ All four packages talk to the same Pinecall voice server. The same agent (`pc.ag
 | 💬 [**Chat Core**](https://docs.pinecall.io/chat-core/overview) | `@pinecall/chat-core` browser chat client |
 | ⚙️ [**Configuration**](https://docs.pinecall.io/reference/stt-providers) | STT, TTS, LLM providers and tuning |
 | 🔒 [**Security**](https://docs.pinecall.io/security) | Token model and best practices |
+
+## Examples
+
+Runnable examples in [`examples/`](./examples) — clone, `cp .env.example .env`, and run.
+
+| Example | What it shows |
+|---|---|
+| **[`simple/`](./examples/simple)** | Minimal voice agent — phone + history in 30 lines |
+| **[`turn-detection/`](./examples/turn-detection)** | Debug turn events: Flux (native) vs Nova-3 (SmartTurn + Silero) |
+| **[`ringing/`](./examples/ringing)** | Accept or reject calls programmatically with `call.ringing` |
+| **[`history/`](./examples/history)** | Conversation persistence — returning callers get context restored |
+| **[`whatsapp-dashboard/`](./examples/whatsapp-dashboard)** | WhatsApp agent + human takeover dashboard (Express + React + SSE) |
+
+📖 More in the [Examples Guide](https://docs.pinecall.io/examples).
 
 ## Browse the docs offline
 

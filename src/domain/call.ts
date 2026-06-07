@@ -59,7 +59,7 @@ export interface CallEvents {
     "call.unheld": () => void;
     "call.muted": () => void;
     "call.unmuted": (mutedTranscript: string | null) => void;
-    "llm.tool_call": (event: ToolCallEvent) => void;
+    "llm.toolCall": (event: ToolCallEvent) => void;
     "session.timeout": (event: SessionTimeoutEvent) => void;
     "ended": (reason: string) => void;
 }
@@ -83,7 +83,7 @@ export class Call extends TypedEventBus<CallEvents> {
     readonly from: string;
     readonly to: string;
     readonly direction: "inbound" | "outbound";
-    readonly transport: "webrtc" | "phone" | "unknown";
+    readonly transport: "webrtc" | "phone" | "chat" | "whatsapp" | "unknown";
     readonly metadata: Record<string, unknown>;
 
     /** Auto-tracked from the latest user.message. Used as default `in_reply_to`. */
@@ -107,6 +107,20 @@ export class Call extends TypedEventBus<CallEvents> {
     endedAt: number = 0;
     /** End reason (e.g. "hangup", "timeout"). Populated on call.ended. */
     reason: string = "";
+
+    /**
+     * Live preview of what the bot is currently saying.
+     * Accumulated word-by-word from `bot.word` events.
+     * Resets when a new bot message starts, clears when finished/interrupted.
+     */
+    get currentBotText(): string {
+        return this.#botWords.join(" ");
+    }
+
+    /** @internal Word accumulator for current bot message. */
+    #botWords: string[] = [];
+    /** @internal Message ID being tracked for word accumulation. */
+    #botWordMessageId: string | null = null;
 
     /** Outbound greeting (set by dial). Used by streamSSE to send the first transcript entry. */
     greeting: string | null = null;
@@ -145,7 +159,7 @@ export class Call extends TypedEventBus<CallEvents> {
             from: string;
             to: string;
             direction: "inbound" | "outbound";
-            transport?: "webrtc" | "phone" | "unknown";
+            transport?: "webrtc" | "phone" | "chat" | "whatsapp" | "unknown";
             metadata?: Record<string, unknown>;
         },
         send: (data: Record<string, unknown>) => void,
@@ -348,6 +362,27 @@ export class Call extends TypedEventBus<CallEvents> {
     // ── Dispatch-only API (friend methods) ───────────────────────────────
     // Called by dispatch handlers. Prefixed with _ and marked @internal.
     // Not part of the public contract.
+
+    /** @internal Reset word buffer and start tracking a new bot message. */
+    _applyBotSpeaking(event: BotSpeakingEvent): void {
+        this.#botWords = [];
+        this.#botWordMessageId = event.messageId;
+        this.emit("bot.speaking", event);
+    }
+
+    /** @internal Append a word to the live preview buffer. */
+    _applyBotWord(event: BotWordEvent): void {
+        if (event.messageId === this.#botWordMessageId) {
+            this.#botWords.push(event.word);
+        }
+        this.emit("bot.word", event);
+    }
+
+    /** @internal Clear the word buffer (bot finished or interrupted). */
+    _clearBotWords(): void {
+        this.#botWords = [];
+        this.#botWordMessageId = null;
+    }
 
     /** @internal Resolve a pending history request/response promise. */
     _applyHistoryResponse(eventType: string, data: Record<string, unknown>): boolean {
@@ -567,20 +602,12 @@ export class Call extends TypedEventBus<CallEvents> {
             send("bot.confirmed", { text: greeting, messageId: "greeting" });
         }
 
-        // ── Word buffering ──
-        const wordBuffers = new Map<string, string>();
-
         // ── Event listeners ──
-        this.on("bot.word", (event) => {
-            const prev = wordBuffers.get(event.messageId) || "";
-            const sep = prev && !prev.endsWith(" ") ? " " : "";
-            const text = prev + sep + event.word;
-            wordBuffers.set(event.messageId, text);
-            send("bot.word", { text, messageId: event.messageId });
+        this.on("bot.word", () => {
+            send("bot.word", { text: this.currentBotText, messageId: this.#botWordMessageId ?? "" });
         });
 
         this.on("message.confirmed", (event) => {
-            wordBuffers.delete(event.messageId);
             if (event.text) {
                 send("bot.confirmed", { text: event.text, messageId: event.messageId });
             }
@@ -594,7 +621,7 @@ export class Call extends TypedEventBus<CallEvents> {
             send("user.message", { text: event.text, messageId: event.messageId });
         });
 
-        this.on("llm.tool_call", (event) => {
+        this.on("llm.toolCall", (event) => {
             const tools = event.toolCalls ?? [];
             for (const tc of tools) {
                 send("tool.call", { name: tc.name, args: tc.arguments });
