@@ -1,0 +1,14 @@
+{
+  "name": "pinecall-outbound-dispatch-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@pinecall/sdk": "file:../../",
+    "@pinecall/dispatch": "*",
+    "dotenv": "^17.4.2",
+    "zod": "^3.25.0"
+  }
+}

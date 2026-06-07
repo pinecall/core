@@ -124,26 +124,96 @@ for (const r of recipients) {
 
 For production campaigns, add: concurrency limits, retry logic, time-of-day enforcement, do-not-call list filtering, and call result logging.
 
-## Handling no-answer / voicemail
+## Handling no-answer / busy / rejected
 
-When the callee doesn't pick up, the call ends with a reason like `no_answer`, `busy`, or `failed`. Check `reason` in `call.ended`:
+When the callee doesn't pick up or rejects, `dial()` rejects immediately with the Twilio reason — no 30-second timeout:
 
 ```typescript
-call.on("call.ended", async (_, reason) => {
-  switch (reason) {
-    case "hangup":
-      await markCompleted(call);
-      break;
-    case "no_answer":
-    case "busy":
-      await scheduleRetry(call, "1 hour");
-      break;
-    case "failed":
-      await markFailed(call);
-      break;
-  }
+try {
+  const call = await agent.dial({ to: "+14155551234" });
+  // Call connected — run your logic
+} catch (err) {
+  // err.message is one of: "no-answer", "busy", "failed", "canceled", "Dial timeout"
+  console.log(`Call failed: ${err.message}`);
+}
+```
+
+If the call connects and then ends, `call.ended` fires with the reason:
+
+```typescript
+agent.on("call.ended", (call, reason) => {
+  // reason: "hangup", "disconnected", "idle_timeout", "max_duration", etc.
+  console.log(`Call ended: ${reason} (${call.duration}s)`);
 });
 ```
+
+## Running a campaign with `@pinecall/dispatch`
+
+For production outbound campaigns, use the `@pinecall/dispatch` library. It handles rate limiting, concurrency control, deduplication by phone, and call result tracking.
+
+```bash
+npm install @pinecall/dispatch
+```
+
+```typescript
+import { DispatchHub, CsvStrategy } from "@pinecall/dispatch";
+
+const csv = new CsvStrategy({
+  file: "./leads.csv",
+  mapRow: (row) => {
+    if (!row.phone || row.status) return null; // Skip processed rows
+    return {
+      id: `${row.phone}-${row.service}-${row.date}`,
+      phone: row.phone,
+      greeting: `Hi ${row.name}, this is a reminder about your appointment on ${row.date}.`,
+      metadata: { name: row.name, service: row.service },
+    };
+  },
+});
+
+const hub = new DispatchHub({
+  agent,
+  strategies: [csv],
+  from: "+13186330963",
+  maxCallsPerMinute: 5,
+  maxConcurrent: 2,
+  retryAttempts: 1,
+  pollIntervalMs: 5000,
+});
+
+hub.start();
+```
+
+### What `DispatchHub` does
+
+| Feature | Description |
+|---|---|
+| **Hot-reload** | Re-reads the CSV on every poll — add rows while it's running |
+| **Dedup by phone** | Won't call the same phone twice simultaneously |
+| **Dedup by ID** | Won't re-dispatch a record that's already been handled |
+| **Rate limiting** | Configurable calls per minute (sliding window) |
+| **Concurrency** | Max simultaneous active calls |
+| **Lifecycle callbacks** | `onDispatched`, `onCompleted`, `onFailed`, `onSkipped` |
+
+### Strategy callbacks
+
+Override callbacks on the strategy to react to call lifecycle events:
+
+```typescript
+csv.onCompleted = (record, callId, reason) => {
+  writeResultToCsv(record.phone, reason); // "hangup", "no-answer", etc.
+};
+
+csv.onFailed = (record, error) => {
+  writeResultToCsv(record.phone, "no_answer");
+};
+
+csv.onSkipped = (record, reason) => {
+  console.log(`Skipped ${record.phone}: ${reason}`); // "duplicate"
+};
+```
+
+> **See the full working example:** [`examples/outbound-dispatch/`](https://github.com/pinecall/sdk/tree/main/examples/outbound-dispatch) — CSV-driven appointment reminders with a `confirm_appointment` tool that writes results back to the CSV.
 
 ## What's next
 

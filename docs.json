@@ -54,6 +54,7 @@
         "group": "Examples",
         "pages": [
           "examples/index",
+          "examples/outbound-dispatch",
           "examples/turn-detection",
           "examples/headless-agent",
           "examples/multi-channel-bot",

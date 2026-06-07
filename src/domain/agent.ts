@@ -377,6 +377,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
             let settled = false;
             const cleanup = () => {
                 this.off("call.started", onStarted);
+                this.off("call.ended", onEnded);
                 this.off("error" as any, onError);
             };
             const onStarted = (call: Call) => {
@@ -388,6 +389,13 @@ export class Agent extends TypedEventBus<AgentEvents> {
                     resolve(call);
                 }
             };
+            const onEnded = (call: Call | null, reason: string) => {
+                // Outbound call ended before connecting (busy, no-answer, failed, canceled)
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(new Error(reason || "call_rejected"));
+            };
             const onError = (err: Error) => {
                 if (settled) return;
                 settled = true;
@@ -395,6 +403,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 reject(err);
             };
             this.on("call.started", onStarted);
+            this.on("call.ended", onEnded);
             this.on("error" as any, onError);
 
             this._send({
