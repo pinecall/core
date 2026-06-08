@@ -99,8 +99,40 @@ export class LifecycleHandler implements EventHandler {
                 const callId = wire.call_id;
                 if (!callId) return false;
 
-                const call = agent._getCall(callId);
-                if (!call) return true; // Already cleaned up
+                let call = agent._getCall(callId);
+
+                // For outbound calls that were rejected before connecting
+                // (busy, no-answer, failed), call.started never fired so
+                // there's no Call object. Create a temporary one so dial()
+                // can properly reject with the reason.
+                if (!call) {
+                    const reason = (wire.reason ?? "unknown") as string;
+                    const direction = (wire.direction ?? "outbound") as "inbound" | "outbound";
+
+                    if (direction === "outbound" || reason === "busy" || reason === "no-answer" || reason === "failed" || reason === "canceled") {
+                        call = new Call(
+                            {
+                                call_id: callId,
+                                from: (wire.from ?? "") as string,
+                                to: (wire.to ?? "") as string,
+                                direction,
+                                transport: "phone",
+                                metadata: wire.metadata as Record<string, unknown> | undefined,
+                            },
+                            (data) => agent.send(data),
+                        );
+                        call._applyEnd(reason, wire);
+                        agent._emitWire("call.ended", call, reason);
+
+                        ctx.logger.info(`Call ended (never connected): ${callId} (${reason})`, {
+                            agent: agent.id,
+                        });
+
+                        return true;
+                    }
+
+                    return true; // Inbound already cleaned up
+                }
 
                 const reason = (wire.reason ?? "unknown") as string;
                 call._applyEnd(reason, wire);

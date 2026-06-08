@@ -37,6 +37,7 @@
         "pages": [
           "guides/inbound-voice",
           "guides/outbound-calls",
+          "guides/events",
           "guides/live-listening",
           "guides/whatsapp",
           "guides/conversation-history",

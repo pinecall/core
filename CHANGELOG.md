@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.9] — 2026-06-08
+
+### Fixed
+
+- **Outbound call rejection** — `dial()` now properly rejects with `"busy"`, `"no-answer"`, `"failed"`, or `"canceled"` instead of timing out after 30s. Previously, calls that were rejected before connecting (no `call.started`) had their `call.ended` event silently swallowed by the lifecycle handler.
+
+---
+
 ## [0.2.8] — 2026-06-07
 
 ### Added
