@@ -31,9 +31,8 @@ const agent = pc.agent("receptionist", {
   stt: "deepgram/flux",
   language: "en",
   tools: [lookupCustomer],
+  greeting: "Hello, how can I help?",
 });
-
-agent.on("call.started", (call) => call.say("Hello, how can I help?"));
 ```
 
 ### Client-side LLM (bring your own)

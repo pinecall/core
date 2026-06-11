@@ -18,8 +18,7 @@ import { Pinecall, tool } from "@pinecall/sdk";
 import { z } from "zod";
 import { db } from "./db.js";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
+const pc = new Pinecall();
 
 const lookupOrder = tool({
   name: "lookupOrder",
@@ -28,16 +27,15 @@ const lookupOrder = tool({
   execute: async ({ phone }) => await db.orders.findOne({ phone }),
 });
 
-const agent = pc.agent("support", {
+export const agent = pc.agent("support", {
   prompt: "You are a support agent for Acme Corp.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   phoneNumber: "+15551234567",
+  greeting: "Hi, how can I help?",
   tools: [lookupOrder],
 });
-
-agent.on("call.started", (call) => call.say("Hi, how can I help?", { addToHistory: true }));
 ```
 
 No webhooks. No separate tool server. No "upload your tools as JSON". Your tools are just functions with Zod schemas, auto-executed by the SDK.
@@ -76,7 +74,7 @@ Pinecall (one connection)
    └── Agent "intake"   ──── SIP: sip:lobby@...
 ```
 
-No separate infrastructure per agent. No load balancer per channel. One `pc.connect()`, as many agents as you need.
+No separate infrastructure per agent. No load balancer per channel. One `new Pinecall()`, as many agents as you need.
 
 ## Config is code
 

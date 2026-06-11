@@ -32,8 +32,7 @@ const orders = {
 };
 
 // ---- Pinecall client ----
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
-await pc.connect();
+const pc = new Pinecall();
 
 // ---- Tools ----
 import { tool } from "@pinecall/sdk";
@@ -79,6 +78,7 @@ const support = pc.agent("acme-support", {
   language: "en",
   llm: "openai/gpt-4.1-mini",
   stt: "deepgram/flux",
+  phoneNumber: "+13186330963",
   prompt: `You are Nova, a support agent at Acme Corp.
 
 You can:
@@ -89,24 +89,17 @@ You can:
 Be concise. On voice, keep responses to 1-2 sentences.
 On WhatsApp, you can be slightly longer but still brief.`,
   tools: [lookupOrder, transferToHuman, endConversation],
+  greeting: "Hi, this is Nova at Acme. How can I help?",
 });
 
-// ---- Register phone and WhatsApp ----
-support.addPhoneNumber("+13186330963");
+// ---- Register WhatsApp ----
 support.addWhatsapp({
   phoneNumberId: process.env.WA_PHONE_NUMBER_ID,
   accessToken: process.env.WA_TOKEN,
   appSecret: process.env.WA_APP_SECRET,
 });
 
-// ---- Greet on voice channels (not WhatsApp — that's text) ----
-support.on("call.started", (call) => {
-  if (call.transport === "phone" || call.transport === "webrtc") {
-    if (call.direction === "inbound") {
-      call.say("Hi, this is Nova at Acme. How can I help?");
-    }
-  }
-});
+
 
 // ---- Logging (universal) ----
 support.on("call.ended", async (call, reason) => {

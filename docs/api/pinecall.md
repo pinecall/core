@@ -7,6 +7,8 @@ description: "The WebSocket client. Manages auth, reconnection, and agent multip
 
 The WebSocket client. One per process. Manages the connection to `voice.pinecall.io`, handles auth and reconnection, and multiplexes events across multiple agents.
 
+**Auto-connects on construction.** When you create a `Pinecall` instance with an API key, it connects immediately — no need to call `connect()`.
+
 ## Constructor
 
 ```typescript
@@ -15,7 +17,7 @@ new Pinecall(options)
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `apiKey` | `string` | — *(required)* | Your Pinecall API key |
+| `apiKey` | `string` | `PINECALL_API_KEY` env var | Your Pinecall API key. Auto-read from env if not provided. |
 | `url` | `string` | `wss://voice.pinecall.io/client` | WebSocket endpoint |
 | `reconnect` | `boolean` | `true` | Auto-reconnect on disconnect |
 | `pingInterval` | `number` | `30000` | Keepalive interval in ms |
@@ -23,16 +25,34 @@ new Pinecall(options)
 ### Example
 
 ```typescript
-const pc = new Pinecall({
-  apiKey: process.env.PINECALL_API_KEY!,
-});
+// Reads PINECALL_API_KEY from env automatically
+const pc = new Pinecall();
+
+// Or pass explicitly
+const pc = new Pinecall({ apiKey: "pk_..." });
+```
+
+Agents can be created immediately — they queue and register when the connection is ready:
+
+```typescript
+const pc = new Pinecall();
+const agent = pc.agent("support", { /* ... */ }); // works before connected
 ```
 
 ## Methods
 
+### `ready`
+
+`Promise<void>` that resolves when the connection is established. Use it when you need to wait for the connection before proceeding (e.g. before dialing an outbound call).
+
+```typescript
+await pc.ready;
+const call = await agent.dial({ to: "+14155551234" });
+```
+
 ### `connect()`
 
-Open the WebSocket connection and authenticate. Returns a promise that resolves when auth succeeds.
+Manually open the WebSocket connection. **Rarely needed** — the constructor auto-connects when an API key is present. Idempotent (safe to call multiple times).
 
 ```typescript
 await pc.connect();

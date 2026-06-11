@@ -20,7 +20,7 @@ import express from "express";
 import { Pinecall } from "@pinecall/sdk";
 
 const app = express();
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
+const pc = new Pinecall();
 
 const mara = pc.agent("mara", {
   prompt: `You are Mara, a friendly voice assistant.
@@ -30,10 +30,7 @@ Be brief — 1-2 sentences per response.`,
   stt: "deepgram/flux",
   language: "en",
   allowedOrigins: ["http://localhost:*"],
-});
-
-mara.on("call.started", (call) => {
-  call.say("Hi! I'm Mara. How can I help?");
+  greeting: "Hi! I'm Mara. How can I help?",
 });
 
 mara.on("call.ended", (call, reason) => {
@@ -49,7 +46,6 @@ app.get("/api/token", async (req, res) => {
 // SSE event stream
 app.get("/events", (req, res) => mara.stream(res));
 
-await pc.connect();
 app.listen(3000, () => console.log("http://localhost:3000"));
 ```
 

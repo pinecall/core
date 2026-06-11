@@ -10,13 +10,25 @@ Created via `pc.agent(id, config?)`. Owns channels, routes call events, stores d
 ## Creation
 
 ```typescript
+import { tool } from "@pinecall/sdk";
+import { z } from "zod";
+
+const lookupOrder = tool({
+  name: "lookupOrder",
+  description: "Look up an order by ID",
+  schema: z.object({ id: z.string() }),
+  execute: async ({ id }) => ({ status: "shipped", eta: "today" }),
+});
+
 const agent = pc.agent("my-agent", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram/flux",
   llm: "openai/gpt-4.1-mini",
   prompt: "System prompt with {{template_vars}}.",
-  tools: [/* OpenAI function-calling format */],
+  greeting: "Hello! How can I help you today?",
+  phoneNumber: "+13186330963",
+  tools: [lookupOrder],
 });
 ```
 
@@ -26,7 +38,7 @@ const agent = pc.agent("my-agent", {
 | `language` | `string` | BCP-47 language code |
 | `stt` | `string \| STTConfig` | STT provider — shortcut or full config |
 | `llm` | `LLMConfig` | LLM provider, model, prompt, enabled flag |
-| `tools` | `Tool[]` | OpenAI function-calling tool definitions |
+| `tools` | `Tool[]` | Declarative tools created with `tool()` + Zod schemas (auto-executed) |
 | `phoneNumber` | `string \| PhoneNumberConfig` | Phone number to register (E.164 or SIP URI) |
 | `phoneNumbers` | `Array<string \| PhoneNumberConfig>` | Multiple numbers with per-number config |
 | `whatsapp` | `WhatsAppChannelConfig[]` | WhatsApp channels to register |

@@ -40,7 +40,7 @@ import express from "express";
 import { Pinecall } from "@pinecall/sdk";
 
 const app = express();
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
+const pc = new Pinecall();
 
 const florencia = pc.agent("florencia", {
   voice: "elevenlabs/sarah",
@@ -48,9 +48,8 @@ const florencia = pc.agent("florencia", {
   stt: "deepgram/flux-en",
   llm: "openai/gpt-4.1-mini",
   prompt: "...",
+  greeting: "¡Hola!",
 });
-
-florencia.on("call.started", (call) => call.say("¡Hola!"));
 
 // Token endpoint — add your own auth in production
 app.get("/api/token", authMiddleware, async (req, res) => {
@@ -58,7 +57,6 @@ app.get("/api/token", authMiddleware, async (req, res) => {
   res.json(token);
 });
 
-await pc.connect();
 app.listen(3000);
 ```
 

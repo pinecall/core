@@ -118,6 +118,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     readonly #dispatcher: Dispatcher;
     readonly #logger: Logger;
     readonly #waHandler: WhatsAppHandler;
+    #runnerHook: ((agent: Agent) => void) | null = null;
 
     #transport: Transport | null = null;
     #pingInterval: ReturnType<typeof setInterval> | null = null;
@@ -125,6 +126,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     #connected = false;
     #connectResolve: (() => void) | null = null;
     #connectReject: ((err: Error) => void) | null = null;
+    #connectPromise: Promise<void> | null = null;
 
     constructor(opts: PinecallOptions = {}) {
         super();
@@ -163,6 +165,23 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             new HistoryHandler(),
             new FallbackHandler(),
         ]);
+
+        // Auto-attach runner display for `pinecall run`
+        if (this.#getEnv("PINECALL_CLI_RUN") === "1") {
+            import("./runner.js").then((mod) => {
+                this.#runnerHook = mod.attachRunner();
+                // Attach to any agents already created before import resolved
+                for (const agent of this.#agents.values()) {
+                    this.#runnerHook!(agent);
+                }
+            }).catch(() => {});
+        }
+
+        // Auto-connect on instantiation — connect() is idempotent,
+        // so existing `await pc.connect()` calls become a harmless no-op.
+        if (this.#apiKey) {
+            this.connect();
+        }
     }
 
     // ── Public getters ───────────────────────────────────────────────────
@@ -171,7 +190,10 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         return this.#connected;
     }
 
-
+    /** Promise that resolves when the connection is established. */
+    get ready(): Promise<void> {
+        return this.#connectPromise ?? Promise.resolve();
+    }
 
     get agents(): ReadonlyMap<string, Agent> {
         return this.#agents;
@@ -184,6 +206,16 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     // ── Connect / Disconnect ─────────────────────────────────────────────
 
     async connect(): Promise<void> {
+        // Idempotent: if already connecting/connected, return the existing promise
+        if (this.#connectPromise && !this.#intentionalClose) {
+            return this.#connectPromise;
+        }
+
+        this.#connectPromise = this.#doConnect();
+        return this.#connectPromise;
+    }
+
+    async #doConnect(): Promise<void> {
         this.#intentionalClose = false;
 
         // Server endpoint is always /client
@@ -197,7 +229,6 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         this.#transport = transport;
 
         // Wait for the server's "connected" event before resolving.
-        // The old client did this via _connectResolve/_connectReject.
         await new Promise<void>((resolve, reject) => {
             this.#connectResolve = resolve;
             this.#connectReject = reject;
@@ -219,6 +250,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     async disconnect(): Promise<void> {
         this.#intentionalClose = true;
         this.#reconnector.cancel();
+        this.#connectPromise = null;
 
         if (this.#pingInterval) {
             clearInterval(this.#pingInterval);
@@ -311,6 +343,11 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         // If already connected, register immediately
         if (this.#connected) {
             this.#registerAgent(agent);
+        }
+
+        // Runner display hook (pinecall run)
+        if (this.#runnerHook) {
+            this.#runnerHook(agent);
         }
 
         return agent;
@@ -456,6 +493,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     }
 
     async #reconnect(): Promise<void> {
+        // Clear the old promise so connect() creates a fresh connection
+        this.#connectPromise = null;
         try {
             const delay = await this.#reconnector.wait();
             this.emit("reconnecting", this.#reconnector.attempt, delay);

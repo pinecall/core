@@ -23,11 +23,10 @@ Pinecall (the client)
 
 ### `Pinecall` — the client
 
-One per process. Owns the WebSocket connection to `voice.pinecall.io`, handles auth and reconnection, and multiplexes events across multiple agents.
+One per process. Owns the WebSocket connection to `voice.pinecall.io`, handles auth and reconnection, and multiplexes events across multiple agents. **Auto-connects on construction.**
 
 ```typescript
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
-await pc.connect();
+const pc = new Pinecall(); // reads PINECALL_API_KEY from env, connects automatically
 ```
 
 ### `Agent` — a personality

@@ -5,7 +5,7 @@ description: "Runnable examples showing Pinecall SDK features in action."
 
 # Examples
 
-Each example is a self-contained project in `examples/` with its own `package.json` and `.env.example`. Clone, configure, and run.
+Each example is a self-contained project in `examples/` following the `agent/index.js` convention. Clone, configure, and run.
 
 ## Quick Start
 
@@ -13,7 +13,7 @@ Each example is a self-contained project in `examples/` with its own `package.js
 cd examples/<example>
 cp .env.example .env         # edit with your values
 npm install
-npm run dev                   # node --watch server.js
+pinecall run agent/index.js   # or agent/index.ts
 ```
 
 ---
@@ -22,25 +22,57 @@ npm run dev                   # node --watch server.js
 
 ### Simple Agent
 
-**`examples/simple/`** — The minimal Pinecall setup. A voice agent that answers calls, remembers returning callers via `JsonFileHistory`, and saves messages to a JSON file.
+**`examples/simple/`** — The minimal Pinecall setup. A voice agent with `JsonFileHistory` for automatic call persistence.
 
 **What it shows:**
-- `Pinecall` + `Agent` + `phoneNumber` setup
-- `call.started` / `call.ended` lifecycle
+- `agent/index.js` convention — auto-connect, export agent
+- `greeting` in config — no `call.started` handler needed
 - `JsonFileHistory` for automatic call persistence
 - Auto-restored history for returning callers
 
 ```typescript
-const agent = pc.agent("simple-agent", {
+// agent/index.js
+const pc = new Pinecall();
+
+export const agent = pc.agent("simple-agent", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   llm: "openai/gpt-4.1-mini",
-  phoneNumber: "+1...",
+  phoneNumber: process.env.PHONE,
+  greeting: "Hello! How can I help you today?",
   history: new JsonFileHistory("./data/calls.json"),
 });
 ```
 
 📖 Related: [Inbound Voice](/guides/inbound-voice) · [Conversation History](/guides/conversation-history)
+
+---
+
+### Reservations Agent
+
+**`examples/reservations/`** — A restaurant reservation agent with tools. Demonstrates the `tool()` + Zod pattern with `agent/index.ts` and `agent/tools.ts`.
+
+**What it shows:**
+- `tool()` with Zod schemas for type-safe tool definitions
+- Tools in a separate `agent/tools.ts` module
+- Agent exports pattern — `export const agent = pc.agent(...)`
+- `pinecall run agent/index.ts` for live development
+
+```typescript
+// agent/tools.ts
+export const checkAvailability = tool({
+  name: "checkAvailability",
+  description: "Check table availability for a date and party size.",
+  schema: z.object({
+    date: z.string(),
+    time: z.string(),
+    partySize: z.number(),
+  }),
+  execute: async ({ date, time, partySize }) => ({ available: true, table: "garden terrace" }),
+});
+```
+
+📖 Related: [Tool definitions](/api/agent#creation) · [CLI reference](/reference/cli#pinecall-run-file)
 
 ---
 

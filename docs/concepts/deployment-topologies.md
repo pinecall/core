@@ -92,25 +92,24 @@ Agent runs as a separate process from your web app. The web app handles HTTP, th
 No web server at all. Just the agent. Use this when you only need phone/SIP/WhatsApp — no browser channels, no dashboards, no tokens to mint.
 
 ```typescript
-// agent.js — a complete production agent, no web server needed
+// agent/index.js — a complete production agent, no web server needed
 import { Pinecall } from "@pinecall/sdk";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
-await pc.connect();
+const pc = new Pinecall();
 
-const agent = pc.agent("support", {
+export const agent = pc.agent("support", {
   prompt: "You are a support agent for an online store...",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
   phoneNumber: "+13186330963",
+  greeting: "Hi! How can I help?",
   tools: [lookupOrder, processReturn],
 });
-
-agent.on("call.started", (call) => call.say("Hi! How can I help?"));
-console.log("Support agent is live. Ctrl+C to stop.");
 ```
+
+Run it with `pinecall run agent/index.js` for a polished boot banner and live transcript.
 
 **Pros:**
 - Lowest possible complexity

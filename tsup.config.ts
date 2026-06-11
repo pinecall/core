@@ -11,13 +11,25 @@ export default defineConfig([
         clean: true,
         target: "es2020",
         minify: false,
-        external: ["ws"],
+        external: ["ws", "./runner.js", "./runner.cjs"],
     },
     // ── CLI binary ───────────────────────────────────────────────────────
     {
         entry: ["src/cli.ts"],
         format: ["esm"],
         banner: { js: "#!/usr/bin/env node" },
+        dts: false,
+        splitting: false,
+        sourcemap: false,
+        clean: false,
+        target: "es2020",
+        minify: false,
+        external: ["ws"],
+    },
+    // ── Runner display (for `pinecall run`) ──────────────────────────────
+    {
+        entry: ["src/runner.ts"],
+        format: ["esm", "cjs"],
         dts: false,
         splitting: false,
         sourcemap: false,

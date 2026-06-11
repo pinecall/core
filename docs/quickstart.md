@@ -23,42 +23,36 @@ Sign up at [pinecall.io](https://pinecall.io), grab your API key from the dashbo
 export PINECALL_API_KEY=pk_...
 ```
 
-## 3. Deploy your first agent
+## 3. Create your agent
 
-Create `agent.js`:
+Create `agent/index.js`:
 
 ```typescript
 import { Pinecall } from "@pinecall/sdk";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
-await pc.connect();
+const pc = new Pinecall();
 
-const mara = pc.agent("mara", {
+export const agent = pc.agent("mara", {
   prompt: "You are Mara, a friendly voice assistant. Be concise.",
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
+  greeting: "Hello! How can I help?",
 });
-
-mara.on("call.started", (call) => call.say("Hello! How can I help?"));
-mara.on("call.ended", (call, reason) => {
-  console.log(`Call ended: ${reason} (${call.duration}s)`);
-});
-
-console.log("Mara is live. Connect a browser via the widget to talk to her.");
 ```
 
 ## 4. Run it
 
 ```bash
-node agent.js
+pinecall run agent/index.js
 ```
 
 You should see:
 
 ```
-Mara is live. Connect a browser via the widget to talk to her.
+  ⚡ booting mara  ·  gpt-4.1-mini · elevenlabs/sarah
+  ☎ listening (no phone — webrtc/chat only)
 ```
 
 That's a running voice agent. It's connected to Pinecall's voice server, it has a personality, and it's waiting for someone to call.
@@ -176,10 +170,9 @@ const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
+  greeting: "Hello! How can I help?",
   tools: [lookupOrder],
 });
-
-mara.on("call.started", (call) => call.say("Hello! How can I help?"));
 ```
 
 No webhook URL to expose. No manual event handler. Just a function that runs in your process.

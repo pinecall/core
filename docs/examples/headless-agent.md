@@ -7,20 +7,21 @@ description: "Complete runnable example — a phone support agent with zero web 
 
 A complete, production-ready voice agent in a single file. No web server, no frontend, no infrastructure beyond a Node.js process. This pattern is ideal for intercoms, IoT devices, single-purpose phone bots, and WhatsApp-only deployments.
 
+Run it with `pinecall run agent/index.js`.
+
 ## What it does
 
-`support.js` is a phone support agent for an e-commerce store. It answers calls, looks up orders by phone number, and handles returns.
+`agent/index.js` is a phone support agent for an e-commerce store. It answers calls, looks up orders by phone number, and handles returns.
 
 ## The complete file
 
 ```typescript
-// support.js — run with `node support.js`
+// agent/index.js
 import { Pinecall, tool } from "@pinecall/sdk";
 import { z } from "zod";
 import { promises as fs } from "node:fs";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
-await pc.connect();
+const pc = new Pinecall();
 
 const lookupOrder = tool({
   name: "lookupOrder",
@@ -34,7 +35,7 @@ const lookupOrder = tool({
   },
 });
 
-const agent = pc.agent("support", {
+export const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
   llm: "openai/gpt-4.1-mini",
@@ -43,12 +44,8 @@ const agent = pc.agent("support", {
 Help customers check order status and process returns.
 Be friendly, brief, and professional.`,
   phoneNumber: "+13186330963",
+  greeting: "Hi! Thanks for calling. How can I help you today?",
   tools: [lookupOrder],
-});
-
-// Greeting — spoken by the SDK, NOT the server
-agent.on("call.started", (call) => {
-  call.say("Hi! Thanks for calling. How can I help you today?");
 });
 
 // Log every call to disk
@@ -57,17 +54,16 @@ agent.on("call.ended", async (call, reason) => {
     id: call.id, from: call.from, duration: call.duration,
     reason, endedAt: new Date().toISOString(),
   }) + "\n");
-  console.log(`[${call.id}] ${reason} • ${call.duration}s`);
 });
-
-console.log("Support agent is live. Ctrl+C to stop.");
 ```
 
 ## Run it
 
 ```bash
-PINECALL_API_KEY=pk_... node support.js
+pinecall run agent/index.js
 ```
+
+You'll see the boot banner with agent name, model, and phone number. When calls come in, the runner displays a live transcript with tool calls.
 
 That's it. No web server, no token endpoint, no frontend. The agent answers calls to `+13186330963` and logs every call to `calls.jsonl`. When the LLM calls `lookupOrder`, the SDK validates the args with Zod and runs the execute function automatically.
 

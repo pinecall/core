@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.10] — 2026-06-11
+
+### Added
+
+- **Auto-connect** — `new Pinecall()` now calls `connect()` internally on instantiation. The `connect()` method remains public for backward compatibility.
+- **`pinecall run`** — CLI command to boot an agent from a TypeScript file. Resolves `dotenv/config`, watches for `export const agent`, and connects automatically.
+- **`greeting` config** — `pc.agent()` accepts `greeting` as a string, object `{ text, addToHistory }`, or async callback `(call) => string`. Greeting is spoken on every inbound call and added to LLM history by default.
+- **CLI reference docs** — `docs/reference/cli.md` documenting `pinecall run`.
+
+### Changed
+
+- **Docs refresh** — updated quickstart, agent API, examples index, and deployment topologies to reflect auto-connect, `pinecall run`, and greeting config.
+- **`simple` example** — simplified to use `pinecall run` instead of manual server setup.
+
+---
+
 ## [0.2.9] — 2026-06-08
 
 ### Fixed

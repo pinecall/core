@@ -42,6 +42,7 @@ const HELP = `
     calls                  ${c.dim("Call history")}
 
   ${c.bold("Development")}
+    run <file>             ${c.dim("Run an agent file with live output")}
     chat [agent]           ${c.dim("Chat with a connected agent")}
     test <path>            ${c.dim("Run agent specs (YAML test files)")}
 
@@ -63,7 +64,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls"]);
+const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -123,6 +124,13 @@ async function main(): Promise<void> {
         const config = { apiKey: "", server: "", playground: "https://playground.pinecall.io", json: false };
         const { signupCommand } = await import("./cli/commands/signup.js");
         await signupCommand(config, args);
+        return;
+    }
+
+    // Run doesn't need API key at CLI level — the agent file handles it
+    if (command === "run") {
+        const { runCommand } = await import("./cli/commands/run.js");
+        await runCommand({}, args);
         return;
     }
 

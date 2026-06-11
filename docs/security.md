@@ -32,8 +32,7 @@ Browser → Your Backend (your auth: session, JWT, OAuth)
 ```typescript
 import { Pinecall } from "@pinecall/sdk";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
+const pc = new Pinecall();
 
 const agent = pc.agent("florencia", { /* config */ });
 

@@ -18,8 +18,7 @@ import { Pinecall, tool } from "@pinecall/sdk";
 import { z } from "zod";
 import express from "express";
 
-const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
+const pc = new Pinecall();
 
 const getAvailability = tool({
   name: "getAvailability",

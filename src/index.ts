@@ -8,7 +8,6 @@
  * import { Pinecall } from "@pinecall/sdk";
  *
  * const pc = new Pinecall({ apiKey: "pk_..." });
- * await pc.connect();
  *
  * const agent = pc.agent("my-agent", {
  *   voice: "elevenlabs:abc",

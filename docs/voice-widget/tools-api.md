@@ -214,9 +214,8 @@ const agent = pc.agent("booking-demo", {
   llm: "openai/gpt-4.1-mini",
   voice: "elevenlabs/sarah",
   tools: [getAvailableSlots, showContactForm, fillField, confirmBooking],
+  greeting: "Hi! Want to book an appointment?",
 });
-
-agent.on("call.started", (call) => call.say("Hi! Want to book an appointment?"));
 ```
 
 ### Browser — contact form with auto-fill

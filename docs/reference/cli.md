@@ -43,6 +43,31 @@ pinecall agents --server=http://localhost:1337
 
 ## Commands
 
+### `pinecall run <file>`
+
+Run an agent file with a polished terminal display. The primary way to develop and test agents.
+
+```bash
+pinecall run agent/index.ts
+pinecall run agent/index.js
+```
+
+```
+  ⚡ booting pines  ·  gpt-4.1-mini · cartesia/sonic
+  ⚙ tools: checkAvailability, makeReservation, cancelReservation
+  ☎ listening on +14155550177 …
+
+  ☎  incoming call — connecting…
+  caller › Hey, I'd like to reserve a table for Friday.
+  pines  › Of course! How many guests?
+          ⚡ checkAvailability({ date: "2026-06-13", time: "19:00", partySize: 2 })
+          → available · window seat · 1.5 hours
+```
+
+Uses `tsx` for `.ts` files, `node` for `.js`. Sets `PINECALL_CLI_RUN=1` which triggers the SDK's built-in runner display (boot banner, live transcript, tool call formatting). The agent file needs zero changes — `pinecall run` just adds the pretty output.
+
+> **Convention:** Agent code lives in `agent/index.ts` (or `.js`), tools in `agent/tools.ts`. Export the agent: `export const agent = pc.agent(...)`.
+
 ### `pinecall agents`
 
 List all currently connected agents with their phone numbers and channel types.
