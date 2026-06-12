@@ -88,6 +88,27 @@ pinecall agents
 
 > **Note:** This shows **live in-memory state** — only agents that are currently connected to the voice server appear here.
 
+### `pinecall kick <agent>`
+
+Force-disconnect an agent by slug. Useful when an agent process crashed or was killed without cleanly disconnecting, leaving a stale registration that blocks new connections.
+
+```bash
+pinecall kick pines
+```
+
+```
+  ⚡ pines disconnected
+```
+
+**Why you need this:** The server protects production agents from accidental displacement — if you try to connect a new agent with the same slug while the old one is still alive, the new connection is **rejected** with an `AGENT_CONFLICT` error. Use `pinecall kick` to remove the old registration first.
+
+```
+  ✗ Agent "pines" is already connected.
+    Run pinecall kick pines to force disconnect.
+```
+
+> **Note:** `kick` sends a `agent.displaced` event to the old agent's WebSocket before unregistering it. If the process is still running, it will receive the event and can handle cleanup.
+
 ### `pinecall phones`
 
 List phone numbers from your organization. Merges two sources:

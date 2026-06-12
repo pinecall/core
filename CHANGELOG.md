@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.11] — 2026-06-12
+
+### Added
+
+- **`pinecall kick <agent>`** — CLI command to force-disconnect an agent by slug. Calls `DELETE /api/sdk/agents/{slug}`. Use when a stale registration blocks new connections.
+- **Agent conflict protection** — the server now **rejects** new connections if an agent with the same slug already has a live WebSocket (instead of silently kicking the old one). The SDK displays a clear error message: `Agent "pines" is already connected. Run pinecall kick pines to force disconnect.`
+- **`AGENT_CONFLICT` error code** — new wire error code emitted when registration is rejected due to a duplicate live agent. Handled in `ErrorHandler` with a user-friendly message.
+
+### Changed
+
+- **Stale displacement preserved** — if the old agent's WebSocket is dead (failed ping probe), displacement still works automatically. Only live agents are protected.
+
+---
+
 ## [0.2.10] — 2026-06-11
 
 ### Added

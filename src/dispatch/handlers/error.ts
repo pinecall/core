@@ -45,6 +45,17 @@ export class ErrorHandler implements EventHandler {
             return true;
         }
 
+        // AGENT_CONFLICT — another live connection has the same agent slug
+        if (code === "AGENT_CONFLICT") {
+            const agentId = wire.agent_id as string | undefined;
+            console.error(
+                `\n  \x1b[91m✗\x1b[0m Agent "${agentId || "?"}" is already connected.\n` +
+                `    Run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m to force disconnect.\n`,
+            );
+            ctx.client._emitWire("error", new Error(errorMsg));
+            return true;
+        }
+
         // Generic error — emit on client
         ctx.client._emitWire("error", new Error(errorMsg));
         return true;

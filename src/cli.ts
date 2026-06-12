@@ -24,7 +24,7 @@
 import { resolveConfig } from "./cli/config.js";
 import { c, error } from "./cli/ui.js";
 
-const VERSION = "0.2.7";
+const VERSION = "0.2.11";
 
 const HELP = `
   ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${VERSION}`)}
@@ -45,6 +45,7 @@ const HELP = `
     run <file>             ${c.dim("Run an agent file with live output")}
     chat [agent]           ${c.dim("Chat with a connected agent")}
     test <path>            ${c.dim("Run agent specs (YAML test files)")}
+    kick <agent>           ${c.dim("Force-disconnect an agent")}
 
   ${c.bold("Account")}
     signup                 ${c.dim("Create a new organization")}
@@ -64,7 +65,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run"]);
+const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -188,6 +189,11 @@ async function main(): Promise<void> {
             // Top-level alias → delegates to account usage
             const { accountCommand } = await import("./cli/commands/account.js");
             await accountCommand(config, ["account", "usage", ...args.filter(a => a !== "usage")]);
+            break;
+        }
+        case "kick": {
+            const { kickCommand } = await import("./cli/commands/kick.js");
+            await kickCommand(config, args);
             break;
         }
         case "phone": {
