@@ -21,7 +21,7 @@ const pc = new Pinecall();
 
 const agent = pc.agent("mara", {
   prompt: "You are Mara, a friendly booking assistant.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   phoneNumber: "+13186330963",
@@ -100,7 +100,7 @@ Use `phoneNumbers` (plural) to attach several numbers with per-number overrides 
 ```typescript
 const agent = pc.agent("mara", {
   prompt: "You are Mara, a friendly assistant.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   phoneNumbers: [
     { number: "+14155551234", language: "en", stt: "deepgram/flux", voice: "elevenlabs/sarah" },
     { number: "+966501234567", language: "ar", stt: "deepgram/nova-3", voice: "elevenlabs/ahmad" },

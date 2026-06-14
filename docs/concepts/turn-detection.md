@@ -154,12 +154,12 @@ Bot is speaking → user starts talking
 
 ```typescript
 const agent = pc.agent("support", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   // Barge-in config (optional — defaults are good for most cases)
   interruption: {
-    barge_in_energy_threshold_db: -40, // dB threshold (higher = stricter)
-    barge_in_min_duration_ms: 300,     // min speech duration before interrupting
+    energy_threshold_db: -40, // dB threshold (higher = stricter)
+    min_duration_ms: 300,     // min speech duration before interrupting
   },
 });
 ```
@@ -211,7 +211,7 @@ When you have phone numbers in different languages, some may use Flux (native tu
 ```typescript
 const agent = pc.agent("global-support", {
   prompt: "You are a multilingual support agent.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   phoneNumbers: [
     // English — Flux (native turn detection, lowest latency)
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },

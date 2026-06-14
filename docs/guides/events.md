@@ -698,7 +698,7 @@ data: {"callId":"CA123","word":"Hi","messageId":"msg_def","agent":"mara"}
 
 A `:ping` comment is sent every 30s as keepalive.
 
-SSE streams include: `call.started`, `bot.word`, `bot.confirmed`, `user.speaking`, `user.message`, `tool.call`, `call.ended`.
+SSE streams include: `call.started`, `bot.speaking`, `bot.word`, `message.confirmed`, `user.speaking`, `user.message`, `call.ended`.
 
 ---
 

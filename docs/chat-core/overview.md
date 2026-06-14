@@ -94,7 +94,7 @@ Browser                              Server
 ─────────                            ──────
 @pinecall/chat-core      ───────►   voice.pinecall.io  ────► @pinecall/sdk
    ChatSession                                                    │
-                                                              agent.on("chat.message")
+                                                              agent.on("user.message")
                                                               call.reply(...)
 ```
 

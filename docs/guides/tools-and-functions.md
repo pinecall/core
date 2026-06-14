@@ -44,7 +44,7 @@ const scheduleCallback = tool({
 
 const agent = pc.agent("support", {
   prompt: "You are a helpful support agent. Use tools to look up information.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",

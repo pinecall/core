@@ -26,11 +26,10 @@ WebRTC works automatically for any agent — no channel declaration needed.
 import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const mara = pc.agent("mara", {
   prompt: "You are Mara. Be concise and warm.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "es",
@@ -99,16 +98,27 @@ That's the entire frontend. Click the orb, talk, listen.
 
 ## Listening for events in the browser
 
-Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser UIs. The widget exposes them as props:
+Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser UIs. The widget renders its own transcript, and exposes session status plus the full live state via the `useVoice()` hook:
 
 ```tsx
-<VoiceWidget
-  agent="mara"
-  tokenProvider={getToken}
-  onUserMessage={(text) => addToTranscript("user", text)}
-  onBotSpeaking={(text) => addToTranscript("bot", text)}
-  onCallEnded={(reason) => console.log("Done:", reason)}
-/>
+import { VoiceWidget, useVoice } from "@pinecall/voice-widget";
+
+function Transcript() {
+  const { messages, status } = useVoice();
+  return messages.map((m) => <p key={m.id}>{m.role}: {m.text}</p>);
+}
+
+export default function App() {
+  return (
+    <VoiceWidget
+      agent="mara"
+      tokenProvider={getToken}
+      onStatusChange={(status) => console.log("Status:", status)}
+    >
+      <Transcript />
+    </VoiceWidget>
+  );
+}
 ```
 
 For lower-level control, use `@pinecall/voice-core` directly — it gives you the raw event stream.
@@ -118,19 +128,25 @@ For lower-level control, use `@pinecall/voice-core` directly — it gives you th
 If the widget doesn't fit your design, build your own UI with `@pinecall/voice-core`:
 
 ```typescript
-import { PinecallClient } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/voice-core";
 
-const client = new PinecallClient();
+const session = new VoiceSession({
+  agent: "mara",
+  // Fetch the token from your backend instead of hitting the voice server directly
+  tokenProvider: () => fetch("/api/token").then((r) => r.json()),
+});
 
-const { token, server } = await fetch("/api/token").then((r) => r.json());
-await client.connect({ token, server, agentId: "mara" });
+// Re-render whenever the session state changes (messages, status, phase, …)
+session.subscribe(() => {
+  const { status, messages } = session.getState();
+  console.log("Status:", status, "Last:", messages.at(-1)?.text);
+});
 
-client.on("user.message", (e) => console.log("User:", e.text));
-client.on("bot.speaking", (e) => console.log("Bot:", e.text));
-client.on("bot.word", (e) => updateLiveCaption(e.word));
+// connect() fetches the token (via tokenProvider) and negotiates WebRTC
+await session.connect();
 
 // User clicks "End"
-await client.disconnect();
+session.disconnect();
 ```
 
 ## Skipping the backend for demos
@@ -148,10 +164,10 @@ const demo = pc.agent("demo-bot", {
 });
 ```
 
-Then the widget can fetch tokens directly from the voice server, no backend needed:
+Then the widget can fetch tokens directly from the voice server, no backend needed — omit `tokenProvider` and it hits `/webrtc/token` directly:
 
 ```tsx
-<VoiceWidget agent="demo-bot" apiKey="pk_publishable_..." />
+<VoiceWidget agent="demo-bot" />
 ```
 
 > **Warning:** `allowedOrigins` protects against casual embedding but not against a determined attacker (Origin headers can be spoofed from scripts/curl). For production, always use `tokenProvider` with your backend's auth. See [Security](/security).
@@ -171,12 +187,13 @@ app.get("/api/chat-token", authMiddleware, async (req, res) => {
 Connect from the browser via WebSocket:
 
 ```typescript
-const ws = new WebSocket(`${server}/chat/ws?token=${token}`);
+const ws = new WebSocket(`${server}/ws?token=${token}`);
 ws.onmessage = (e) => {
   const event = JSON.parse(e.data);
-  if (event.type === "bot.message") appendBotMessage(event.text);
+  if (event.event === "chat.token") appendBotToken(event.text);   // streaming token
+  if (event.event === "chat.done") finishBotMessage(event.text);  // final text
 };
-ws.send(JSON.stringify({ type: "user.message", text: "Hello" }));
+ws.send(JSON.stringify({ event: "message", text: "Hello" }));
 ```
 
 ## What's next

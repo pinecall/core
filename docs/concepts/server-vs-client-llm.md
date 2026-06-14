@@ -26,7 +26,7 @@ const lookupCustomer = tool({
 
 const agent = pc.agent("receptionist", {
   prompt: "You are a helpful receptionist. Be concise.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
@@ -48,7 +48,7 @@ const agent = pc.agent("my-bot", { voice: "cartesia/yumiko", language: "en" });
 agent.on("turn.end", async (turn, call) => {
   const stream = call.replyStream(turn);
   const completion = await openai.chat.completions.create({
-    llm: "openai/gpt-4.1-mini",
+    llm: "openai/gpt-5-chat-latest",
     messages: [
       { role: "system", content: "You are helpful. Be concise." },
       { role: "user", content: turn.text },
@@ -68,7 +68,7 @@ agent.on("turn.end", async (turn, call) => {
 
 | | Server-side | Client-side |
 |---|---|---|
-| LLM choice | OpenAI, Mistral (more coming) | Any provider, any model, local |
+| LLM choice | OpenAI, Mistral, Google, Anthropic | Any provider, any model, local |
 | You handle conversation history | ❌ Server does it | ✅ You do it |
 | You see tool calls | ✅ Via `llm.toolCall` | ✅ You define them |
 | Easier to ship | ✅ Yes | Slightly more code |
@@ -76,9 +76,9 @@ agent.on("turn.end", async (turn, call) => {
 | Latency | Slightly lower (LLM runs near the audio pipeline) | Depends on your provider |
 | Cost | Pinecall passes through provider cost | You pay your provider directly |
 
-**Pick server-side if**: you're using OpenAI or Mistral, you want the simplest possible code, or you need WhatsApp.
+**Pick server-side if**: you're using OpenAI, Mistral, Google, or Anthropic, you want the simplest possible code, or you need WhatsApp.
 
-**Pick client-side if**: you need a specific LLM Pinecall doesn't host (Anthropic, local Ollama, fine-tuned model), you have an existing LangChain/LlamaIndex pipeline, or you need full control over the prompt-building logic.
+**Pick client-side if**: you need a specific LLM Pinecall doesn't host (local Ollama, a fine-tuned model), you have an existing LangChain/LlamaIndex pipeline, or you need full control over the prompt-building logic.
 
 ## You can mix them
 
@@ -87,17 +87,17 @@ A single `Pinecall` instance can host multiple agents, each with a different LLM
 ```typescript
 // Server-side agent for WhatsApp + phone
 const support = pc.agent("support", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   prompt: "...",
   phoneNumber: "+13186330963",
   whatsapp: [{ phoneNumberId: "123", accessToken: "EAA..." }],
 });
 
-// Client-side agent using Anthropic for a specialized use case
+// Client-side agent using a local Ollama model for a specialized use case
 const research = pc.agent("research", { voice: "elevenlabs/george", language: "en" });
 research.on("turn.end", async (turn, call) => {
-  /* call Anthropic, stream back */
+  /* call your own LLM (Ollama, fine-tuned model, ...), stream back */
 });
 ```
 

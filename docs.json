@@ -4,9 +4,9 @@
   "name": "Pinecall",
   "description": "Build real-time voice & messaging AI agents in TypeScript.",
   "colors": {
-    "primary": "#0EA66B",
-    "light": "#34D399",
-    "dark": "#047857"
+    "primary": "#CD58B2",
+    "light": "#D77FBE",
+    "dark": "#AE3F97"
   },
   "favicon": "/favicon.svg",
   "logo": {
@@ -46,6 +46,7 @@
           "guides/tools-and-functions",
           "guides/multi-tenant",
           "guides/sse-streaming",
+          "guides/ws-streaming",
           "guides/dev-mode",
           "guides/call-ringing",
           "guides/testing-agents"

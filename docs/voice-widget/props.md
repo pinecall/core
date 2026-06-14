@@ -46,7 +46,7 @@ const florencia = pc.agent("florencia", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram/flux-en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "...",
   greeting: "¡Hola!",
 });

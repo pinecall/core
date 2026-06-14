@@ -37,7 +37,7 @@ A configured assistant. Has a name (the agent ID), a voice, an STT provider, an 
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   prompt: "...",
 });
@@ -92,7 +92,7 @@ Pass a phone number directly in the config:
 const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   prompt: "You are Mara. Be concise.",
   phoneNumber: "+13186330963",
@@ -109,7 +109,7 @@ Use `agent.addPhoneNumber()` when you need per-number config overrides:
 const mara = pc.agent("mara", {
   voice: "elevenlabs/sarah",
   language: "es",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   prompt: "You are Mara. Be concise.",
 });
@@ -125,7 +125,7 @@ The agent has defaults. Each phone number can override voice, language, and STT.
 
 ```typescript
 const agent = pc.agent("support", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   voice: "elevenlabs/sarah",
   phoneNumber: { number: "+34911234567", voice: "elevenlabs/valentina", language: "es" },
@@ -137,7 +137,7 @@ For multiple numbers with different overrides — including STT provider — use
 ```typescript
 const agent = pc.agent("global-support", {
   prompt: "You are a multilingual support agent.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   phoneNumbers: [
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },
     { number: "+34612345678", language: "es", voice: "elevenlabs/valentina", stt: "deepgram/flux" },

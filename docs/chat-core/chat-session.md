@@ -48,7 +48,7 @@ const chat = new ChatSession({ agent: "florencia" });
 
 ```typescript
 interface ChatSessionState {
-  status: "idle" | "connecting" | "connected" | "error";
+  status: "idle" | "connecting" | "connected" | "error" | "destroyed";
   error: string | null;
   messages: ChatMessage[];
   typing: boolean;          // true while bot is streaming a response

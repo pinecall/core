@@ -15,7 +15,7 @@ For client-side LLMs, see [ReplyStream](/api/reply-stream).
 const agent = pc.agent("my-bot", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "You are a friendly assistant. Keep responses short.",
 });
 ```
@@ -26,16 +26,16 @@ The `llm` shortcut takes the `provider/model` format. `prompt` is a top-level fi
 
 ```typescript
 // Recommended: provider/model
-llm: "openai/gpt-4.1-mini"
+llm: "openai/gpt-5-chat-latest"
 
 // Bare model name (assumes OpenAI)
-llm: "gpt-4.1-mini"
+llm: "gpt-5-chat-latest"
 
 // Both expand to:
-// { provider: "openai", model: "gpt-4.1-mini", enabled: true }
+// { provider: "openai", model: "gpt-5-chat-latest", enabled: true }
 ```
 
-> The legacy `provider:model` format (e.g. `"openai:gpt-4.1-mini"`) still works but is not recommended.
+> The legacy `provider:model` format (e.g. `"openai:gpt-5-chat-latest"`) still works but is not recommended.
 
 ## Tuning with a full config object
 
@@ -47,7 +47,7 @@ const agent = pc.agent("my-bot", {
   stt: "deepgram/flux",
   llm: {
     provider: "openai",
-    llm: "openai/gpt-4.1-mini",
+    llm: "openai/gpt-5-chat-latest",
     enabled: true,
     temperature: 0.3,      // 0-2. Lower = more deterministic
     max_tokens: 256,        // caps response length
@@ -61,7 +61,7 @@ const agent = pc.agent("my-bot", {
 ## OpenAI
 
 ```typescript
-llm: "openai/gpt-4.1-mini"
+llm: "openai/gpt-5-chat-latest"
 ```
 
 Or with tuning:
@@ -69,7 +69,7 @@ Or with tuning:
 ```typescript
 llm: {
   provider: "openai",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   enabled: true,
   temperature: 0.7,
   max_tokens: 512,
@@ -80,9 +80,8 @@ llm: {
 
 | Model | Best for |
 |---|---|
-| `gpt-4.1-nano` | Highest-volume, simple flows; lowest cost |
-| `gpt-4.1-mini` | Most agents — strong reasoning, good cost (recommended default) |
-| `gpt-4.1` | Complex multi-step reasoning, sensitive flows |
+| `gpt-5-chat-latest` | Most agents — strong reasoning, good cost (recommended default) |
+| `gpt-5-chat-mini` | Highest-volume, simple flows; lowest cost |
 
 ## Mistral
 
@@ -101,6 +100,62 @@ llm: {
   max_tokens: 512,
 }
 ```
+
+## Google (Gemini)
+
+```typescript
+llm: "google/gemini-2.0-flash"
+```
+
+Or with tuning:
+
+```typescript
+llm: {
+  provider: "google",
+  model: "gemini-2.0-flash",
+  enabled: true,
+  temperature: 0.7,
+  max_tokens: 512,
+}
+```
+
+> `gemini` is accepted as an alias for `google` (e.g. `llm: "gemini/gemini-2.5-flash"`).
+
+**Model picker:**
+
+| Model | Best for |
+|---|---|
+| `gemini-2.0-flash` | Most voice agents — fast and low cost (recommended default) |
+| `gemini-2.5-flash` | Stronger reasoning at a modest cost bump |
+
+## Anthropic
+
+```typescript
+llm: "anthropic/claude-haiku-4-5"
+```
+
+Or with tuning:
+
+```typescript
+llm: {
+  provider: "anthropic",
+  model: "claude-haiku-4-5",
+  enabled: true,
+  temperature: 0.7,
+  max_tokens: 512,
+}
+```
+
+> `claude` is accepted as an alias for `anthropic` (e.g. `llm: "claude/claude-sonnet-4-6"`).
+
+**Model picker:**
+
+| Model | Best for |
+|---|---|
+| `claude-haiku-4-5` | Most voice agents — fast and low cost (recommended default) |
+| `claude-sonnet-4-6` | Higher reasoning quality when latency/cost matter less |
+
+> Opus is intentionally **not** offered for voice agents — it's the premium tier (too slow/costly for real-time). Sonnet 4.6 and Haiku 4.5 are the supported Anthropic models. Set your `ANTHROPIC_API_KEY` on the server (managed) or add an Anthropic credential to your org (BYOK).
 
 ## The `enabled` field
 
@@ -128,7 +183,7 @@ Define a prompt with `{{placeholders}}`. The server resolves them before each LL
 const agent = pc.agent("support-bot", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: `You are {{agent_name}}, support agent at {{company}}.
 Today is {{date}}. Customer: {{customer_name}}.`,
 });
@@ -157,13 +212,13 @@ Standard parameters supported by all providers:
 
 ```typescript
 // Short, deterministic answers (IVR, routing)
-llm: { provider: "openai", model: "gpt-4.1-nano", temperature: 0.2, max_tokens: 128 }
+llm: { provider: "openai", model: "gpt-5-chat-mini", temperature: 0.2, max_tokens: 128 }
 
 // Natural conversation
-llm: { provider: "openai", model: "gpt-4.1-mini", temperature: 0.7, max_tokens: 512 }
+llm: { provider: "openai", model: "gpt-5-chat-latest", temperature: 0.7, max_tokens: 512 }
 
 // Creative, open-ended
-llm: { provider: "openai", model: "gpt-4.1", temperature: 1.0, max_tokens: 1024 }
+llm: { provider: "openai", model: "gpt-5-chat-latest", temperature: 1.0, max_tokens: 1024 }
 ```
 
 ## Tools
@@ -193,7 +248,7 @@ Swap models or providers at runtime:
 
 ```typescript
 // Agent-wide (all future calls)
-agent.update({ llm: "openai/gpt-4.1" });
+agent.update({ llm: "openai/gpt-5-chat-latest" });
 
 // One call only
 call.update({ llm: "mistral/mistral-medium" });

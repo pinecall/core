@@ -140,7 +140,7 @@ When you have different phone numbers per language/region, set per-number STT ov
 ```typescript
 const agent = pc.agent("global-support", {
   prompt: "You are a multilingual support agent.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   phoneNumbers: [
     // English — Flux (fastest, native turn detection)
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },

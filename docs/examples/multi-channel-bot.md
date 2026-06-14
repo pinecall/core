@@ -76,7 +76,7 @@ const endConversation = tool({
 const support = pc.agent("acme-support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   phoneNumber: "+13186330963",
   prompt: `You are Nova, a support agent at Acme Corp.

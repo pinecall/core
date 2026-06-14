@@ -45,11 +45,10 @@ Subscribe to the `messages` field.
 import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const support = pc.agent("support", {
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "You are a helpful support agent on WhatsApp. Be concise.",
 });
 
@@ -92,7 +91,7 @@ const lookupOrder = tool({
 });
 
 const support = pc.agent("support", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "...",
   tools: [lookupOrder],
 });
@@ -106,14 +105,13 @@ The same agent can serve WhatsApp **and** phone calls. The LLM config, tools, an
 const support = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "...",
   tools: [lookupOrder],
 });
 
 support.addWhatsapp({ phoneNumberId: "123", accessToken: "EAA..." });
 support.addPhoneNumber("+13186330963");
-
 
 // Voice greeting (WhatsApp doesn't use this)
 support.on("call.started", (call) => {
@@ -310,12 +308,11 @@ When a `HistoryStore` is configured, WhatsApp conversations are **automatically 
 import { Pinecall, JsonFileHistory } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const history = new JsonFileHistory("./data/conversations.json");
 
 const support = pc.agent("support", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "You are a support agent.",
   history,
 });

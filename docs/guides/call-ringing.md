@@ -24,10 +24,12 @@ Without ringing enabled, the flow goes directly from ring → `call.started` (au
 
 ## Enable ringing
 
-Pass `ringing: true` in the channel overrides:
+Pass `ringing: true` in the phone number config:
 
 ```typescript
-agent.addPhoneNumber("+13186330963", { ringing: true });
+const agent = pc.agent("receptionist", {
+  phoneNumber: { number: "+13186330963", ringing: true },
+});
 ```
 
 > **Warning:** Only phone channels support ringing. WebRTC and chat channels don't have a ringing phase.
@@ -74,11 +76,11 @@ agent.on("call.ringing", (call) => {
 |--------|-------------------|
 | `"busy"` | Hears busy tone |
 | `"rejected"` | Call is dropped immediately |
-| _(none)_ | Defaults to `"rejected"` |
+| _(none)_ | Defaults to `"busy"` |
 
 ## Default behavior
 
-If you don't call `accept()` or `reject()` within the timeout (configurable on the server, default ~15s), the call is **auto-accepted**. This prevents calls from hanging indefinitely if your handler crashes.
+If you don't call `accept()` or `reject()` within the timeout (configurable on the server, default ~5s), the call is **auto-accepted**. This prevents calls from hanging indefinitely if your handler crashes.
 
 > **Note:** If you don't register a `call.ringing` handler at all, calls are auto-accepted immediately — same as before this feature existed. Ringing is fully opt-in.
 
@@ -88,7 +90,6 @@ If you don't call `accept()` or `reject()` within the timeout (configurable on t
 import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY });
-await pc.connect();
 
 const BLACKLIST = new Set(["+15551234567", "+15559876543"]);
 
@@ -96,12 +97,11 @@ const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   language: "en",
   stt: "deepgram/flux",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "You are a receptionist. Be brief and helpful.",
+  // Enable ringing on the phone channel
+  phoneNumber: { number: "+13186330963", ringing: true },
 });
-
-// Enable ringing on the phone channel
-agent.addPhoneNumber("+13186330963", { ringing: true });
 
 // Screen calls before answering
 agent.on("call.ringing", (call) => {

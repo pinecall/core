@@ -37,11 +37,10 @@ Resume follows the same pattern. Global `agent.resume()` clears all levels.
 import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const support = pc.agent("support", {
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "You are a helpful support agent.",
 });
 

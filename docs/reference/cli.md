@@ -53,7 +53,7 @@ pinecall run agent/index.js
 ```
 
 ```
-  ⚡ booting pines  ·  gpt-4.1-mini · cartesia/sonic
+  ⚡ booting pines  ·  gpt-5-chat-latest · cartesia/sonic
   ⚙ tools: checkAvailability, makeReservation, cancelReservation
   ☎ listening on +14155550177 …
 
@@ -247,7 +247,7 @@ pinecall test agent/specs/
 pinecall test agent/specs/date-handling.spec.yaml
 
 # Override the judge model
-pinecall test agent/specs/ --judge openai/gpt-4.1-nano
+pinecall test agent/specs/ --judge anthropic/claude-haiku-4-5
 
 # List specs without running
 pinecall test agent/specs/ --list
@@ -257,7 +257,7 @@ pinecall test agent/specs/ --list
   ⚡ pinecall test
 
   Agent:  florencia
-  Judge:  openai/gpt-4.1-nano
+  Judge:  anthropic/claude-haiku-4-5
   Specs:  2 file(s)
   Server: wss://voice.pinecall.io
 
@@ -290,8 +290,8 @@ agent: florencia
 description: "Date math and calendar awareness"
 
 judge:
-  provider: openai
-  model: gpt-4.1-nano
+  provider: anthropic
+  model: claude-haiku-4-5
   maxTurns: 10
 
 workflow: |
@@ -309,17 +309,17 @@ The judge is the LLM that evaluates your agent. Override with `--judge provider/
 | Provider | Model | Cost (in/out per 1M) | Notes |
 |----------|-------|---------------------|-------|
 | `anthropic` | `claude-haiku-4-5-20251001` | $0.80 / $4.00 | Default. Reliable. |
-| `openai` | `gpt-4.1-nano` | $0.10 / $0.40 | **10x cheaper**, recommended. |
+| `openai` | `gpt-5-chat-mini` | $0.10 / $0.40 | **10x cheaper**, recommended. |
 | `deepseek` | `deepseek-v4-flash` | $0.14 / $0.28 | Cheapest cloud option. |
 | `ollama` | `gemma3:4b` | Free (local) | Requires Ollama running. |
 
-> **Tip:** `gpt-4.1-nano` is the best balance of cost and reliability for automated testing.
+> **Tip:** `claude-haiku-4-5` is the best balance of cost and reliability for automated testing.
 
 #### Options
 
 | Option | Description |
 |--------|-------------|
-| `--judge provider/model` | Override judge LLM (e.g. `openai/gpt-4.1-nano`) |
+| `--judge provider/model` | Override judge LLM (e.g. `anthropic/claude-haiku-4-5`) |
 | `--agent <id>` | Override agent name from spec |
 | `--grep <pattern>` | Run only specs matching pattern |
 | `--verbose` | Show full agent responses |
@@ -328,24 +328,24 @@ The judge is the LLM that evaluates your agent. Override with `--judge provider/
 
 ### `pinecall balance`
 
-Show your Twilio account balance.
+Show your Pinecall credit balance and plan info.
 
 ```bash
 pinecall balance
 ```
 
-> **Warning:** The balance is displayed in red when below $10 as a low-balance warning.
+> **Warning:** Credits are displayed in red when below 10% of your limit, and yellow below 25%, as a low-balance warning.
 
 ### `pinecall signup`
 
-Create a new organization with a free trial plan.
+Open the Pinecall signup page in your browser to create a new organization.
 
 ```bash
-pinecall signup "My Company" --email=admin@company.com
+pinecall signup
 ```
 
-- Assigns the **Free Trial** plan (14 days, 3,500 credits)
-- Generates your first API key
+- Opens `https://playground.pinecall.io/signup` in your default browser
+- Sign up there to create your org and get your first API key
 - No authentication needed — this is the first step
 
 ### `pinecall account`

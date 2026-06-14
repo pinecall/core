@@ -37,7 +37,6 @@ In your existing app database, track which agents belong to which tenant:
 import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const tenants = await db.tenants.findAll();
 
@@ -122,25 +121,28 @@ app.get("/api/token", authMiddleware, async (req, res) => {
 
 ## Per-tenant tool isolation
 
-Tools also need to be tenant-aware. Since `execute` receives the `call` object, you can look up the tenant from the agent ID:
+Tools also need to be tenant-aware. Since tools are registered per agent, build them with a factory that closes over the tenant — each agent gets its own tenant-scoped tool:
 
 ```typescript
 import { tool } from "@pinecall/sdk";
 import { z } from "zod";
 
-function tenantForAgent(agentId) {
-  return agentToTenant.get(agentId);
+function lookupOrderTool(tenantId) {
+  const tenantDb = db.scope(tenantId);
+  return tool({
+    name: "lookupOrder",
+    description: "Look up an order by ID",
+    schema: z.object({ orderId: z.string() }),
+    execute: async ({ orderId }) => {
+      return await tenantDb.orders.findOne(orderId);
+    },
+  });
 }
 
-const lookupOrder = tool({
-  name: "lookupOrder",
-  description: "Look up an order by ID",
-  schema: z.object({ orderId: z.string() }),
-  execute: async ({ orderId }, call) => {
-    const tenantId = tenantForAgent(call.agentId);
-    const tenantDb = db.scope(tenantId);
-    return await tenantDb.orders.findOne(orderId);
-  },
+// When spinning up each agent, pass its tenant-scoped tools:
+pc.agent(agentId, {
+  prompt: config.prompt,
+  tools: [lookupOrderTool(tenant.id)],
 });
 ```
 
@@ -151,7 +153,6 @@ A single `Pinecall` instance handles dozens to hundreds of agents on one WebSock
 - **Split by region** — run one `Pinecall` instance per geographic region, route tenants to the nearest
 - **Split by tier** — separate processes for free/paid tiers to isolate resource limits
 - **Split by capability** — one process for voice-only tenants, another for WhatsApp-heavy tenants
-
 
 ## What's next
 

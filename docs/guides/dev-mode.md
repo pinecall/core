@@ -42,11 +42,10 @@ const isDev = process.env.NODE_ENV === "development";
 const agentId = isDev ? `dev-${userInfo().username}-florencia` : "florencia";
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const agent = pc.agent(agentId, {
   prompt: "...",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   phoneNumber: "+13186330963", // shared with prod!

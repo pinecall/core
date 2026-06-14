@@ -84,13 +84,11 @@ The hub tracks active phones. If Bernardo has two appointments (Eye Exam + Physi
 
 ### Prompt variables
 
-Each call sends per-call context via `promptVars` inside the `config` option:
+Each call sends per-call context via `promptVars` on the record returned by `mapRow`:
 
 ```javascript
-config: {
-  promptVars: {
-    appointment_details: `Name: ${row.name}\nService: ${row.service}\nDate: ${row.date}\nTime: ${row.time}`,
-  },
+promptVars: {
+  appointment_details: `Name: ${row.name}\nService: ${row.service}\nDate: ${row.date}\nTime: ${row.time}`,
 },
 ```
 

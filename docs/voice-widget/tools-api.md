@@ -211,7 +211,7 @@ const agent = pc.agent("booking-demo", {
 - If they say their name/email/phone, call fillField to auto-fill.
 - The form state is in "## UI Context" — you can see what they've typed.
 - When the form is submitted, call confirmBooking.`,
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   tools: [getAvailableSlots, showContactForm, fillField, confirmBooking],
   greeting: "Hi! Want to book an appointment?",

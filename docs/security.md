@@ -102,7 +102,7 @@ const agent = pc.agent("demo-bot", {
 When `allowedOrigins` is set, the token endpoint accepts browser requests from matching origins **without** an API key. The `Origin` header is browser-enforced (real browsers can't spoof it).
 
 ```tsx
-<VoiceWidget agent="demo-bot" apiKey="pk_publishable_..." />
+<VoiceWidget agent="demo-bot" />
 ```
 
 > **Warning:** `allowedOrigins` protects against casual embedding but **not** against a determined attacker — Origin headers can be spoofed from scripts/curl. For production with real users, always use `tokenProvider` with your backend auth.

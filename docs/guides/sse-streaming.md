@@ -15,7 +15,6 @@ import { Pinecall } from "@pinecall/sdk";
 
 const app = express();
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 // Stream all events from all agents
 app.get("/events", (req, res) => pc.stream(res));
@@ -202,6 +201,7 @@ fastify.get("/events", (req, reply) => {
 
 ## What's next
 
+- [WebSocket Streaming](/guides/ws-streaming) — bidirectional alternative with session scoping
 - [Events reference](/reference/events) — every event with payload shapes
 - [Deployment Topologies](/concepts/deployment-topologies) — when SSE is available
 - [Multi-tenant](/guides/multi-tenant) — scope streams per customer

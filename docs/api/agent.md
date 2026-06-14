@@ -24,7 +24,7 @@ const agent = pc.agent("my-agent", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram/flux",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "System prompt with {{template_vars}}.",
   greeting: "Hello! How can I help you today?",
   phoneNumber: "+13186330963",
@@ -109,7 +109,7 @@ Hot-reload the agent's defaults. Affects all **future** calls — existing calls
 ```typescript
 agent.update({ voice: "elevenlabs/claire", language: "fr" });
 agent.update({ stt: "gladia" });
-agent.update({ llm: "openai/gpt-4.1", prompt: "..." });
+agent.update({ llm: "openai/gpt-5-chat-latest", prompt: "..." });
 ```
 
 ### `configureSession(callId, opts)`

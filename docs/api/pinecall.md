@@ -18,9 +18,9 @@ new Pinecall(options)
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `apiKey` | `string` | `PINECALL_API_KEY` env var | Your Pinecall API key. Auto-read from env if not provided. |
-| `url` | `string` | `wss://voice.pinecall.io/client` | WebSocket endpoint |
-| `reconnect` | `boolean` | `true` | Auto-reconnect on disconnect |
-| `pingInterval` | `number` | `30000` | Keepalive interval in ms |
+| `apiUrl` | `string` | `wss://voice.pinecall.io` | Server URL |
+| `autoReconnect` | `boolean` | `true` | Auto-reconnect on disconnect |
+| `promptsDir` | `string` | `"prompts"` | Prompts directory for `setPromptFile` |
 
 ### Example
 
@@ -74,7 +74,7 @@ Create or retrieve an agent. If an agent with this ID already exists, returns it
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   prompt: "You are a support agent. Be concise.",
   greeting: "Hi! How can I help you today?",
@@ -89,7 +89,7 @@ const agent = pc.agent("support", {
 | `voice` | `string \| VoiceConfig` | TTS voice shortcut (e.g. `elevenlabs/sarah`) |
 | `language` | `string` | BCP-47 language code |
 | `stt` | `string \| STTConfig` | STT shortcut (e.g. `deepgram/flux`) |
-| `llm` | `string \| LLMConfig` | LLM shortcut (e.g. `openai/gpt-4.1-mini`) or full config |
+| `llm` | `string \| LLMConfig` | LLM shortcut (e.g. `openai/gpt-5-chat-latest`) or full config |
 | `prompt` | `string` | System prompt for the LLM |
 | `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
 | `tools` | `Tool[]` | Declarative tool definitions created with `tool()` |
@@ -169,7 +169,7 @@ Subscribe via `pc.on(event, handler)`.
 |---|---|---|
 | `connected` | `()` | WebSocket auth succeeded |
 | `disconnected` | `(reason)` | Connection closed |
-| `reconnecting` | `(attempt)` | Auto-reconnect attempt N |
+| `reconnecting` | `(attempt, delay)` | Auto-reconnect attempt N |
 | `error` | `(err)` | Protocol or transport error |
 
 ```typescript

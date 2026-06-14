@@ -68,7 +68,7 @@ voice: {
 
 Shortcut: `"elevenlabs/sarah"`
 
-The server always uses `eleven_flash_v2_5` (the fastest model, optimized for real-time streaming). This is not configurable.
+The server defaults to `eleven_flash_v2_5` (the fastest model, optimized for real-time streaming). Override it with the optional `model` field (e.g. `model: "eleven_turbo_v2_5"`).
 
 **Tuning notes:**
 
@@ -82,7 +82,7 @@ The server always uses `eleven_flash_v2_5` (the fastest model, optimized for rea
 voice: {
   provider: "cartesia",
   voice_id: "a0e99841-438c-4a64-b679-ae501e7d6091",
-  model: "sonic",
+  model: "sonic-3",
   speed: 1.0,
   volume: 1.0,
   emotion: null,
@@ -94,7 +94,7 @@ Shortcut: `"cartesia/yumiko"`
 
 **Tuning notes:**
 
-- `model: "sonic"` — fastest Cartesia model, designed for streaming
+- `model: "sonic-3"` — fastest Cartesia model, designed for streaming
 - `emotion` accepts named emotion presets (check Cartesia docs for the current list)
 
 ## AWS Polly
@@ -123,7 +123,7 @@ Shortcut: `"polly/joanna"`
 | **Cartesia** | Real-time streaming, low latency | Smaller voice library |
 | **Polly** | Cheap IVR, simple flows | Less natural |
 
-For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic`). Use Polly only for high-volume, low-engagement flows.
+For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic-3`). Use Polly only for high-volume, low-engagement flows.
 
 ## Hot-reloading voices
 

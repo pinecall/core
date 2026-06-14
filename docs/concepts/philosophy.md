@@ -29,7 +29,7 @@ const lookupOrder = tool({
 
 export const agent = pc.agent("support", {
   prompt: "You are a support agent for Acme Corp.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   phoneNumber: "+15551234567",
@@ -83,7 +83,7 @@ There is no dashboard to configure. Agent config lives in your source code, vers
 ```typescript
 const agent = pc.agent("mara", {
   prompt: fs.readFileSync("./prompts/mara.md", "utf-8"),
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   language: "es",
   stt: { provider: "deepgram-flux", keyterms: ["Acme", "checkout"] },

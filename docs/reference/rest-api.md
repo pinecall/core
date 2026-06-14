@@ -83,7 +83,7 @@ const token = await agent.createToken("webrtc");
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `channel` | `"webrtc" \| "chat"` | ✅ | Token type |
+| `channel` | `"webrtc" \| "chat" \| "stream"` | ✅ | Token type |
 | `agentId` | `string` | ✅ | Agent slug |
 | `apiKey` | `string` | ✅ | API key for authentication |
 | `apiUrl` | `string` | — | Custom server URL |

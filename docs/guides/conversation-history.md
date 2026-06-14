@@ -15,10 +15,9 @@ import { Pinecall, JsonFileHistory } from "@pinecall/sdk";
 const history = new JsonFileHistory("./data/calls.json");
 
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
-await pc.connect();
 
 const agent = pc.agent("my-agent", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   prompt: "You are a helpful assistant with memory of past conversations.",
@@ -63,6 +62,7 @@ You never need to write a `call.ended` handler for saving — it happens automat
 | `endedAt` | number | Epoch seconds |
 | `duration` | number | Call duration in seconds |
 | `reason` | string | Why the call ended (hangup, timeout, etc.) |
+| `status` | string | `"active"` while in progress, `"ended"` after `call.ended` |
 | `transcript` | array | User/assistant messages (clean text) |
 | `messages` | array | Full LLM messages (including tool calls, system prompt) |
 | `metadata` | object | Any metadata attached to the call |

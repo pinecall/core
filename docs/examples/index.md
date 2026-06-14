@@ -37,7 +37,7 @@ const pc = new Pinecall();
 export const agent = pc.agent("simple-agent", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   phoneNumber: process.env.PHONE,
   greeting: "Hello! How can I help you today?",
   history: new JsonFileHistory("./data/calls.json"),
@@ -155,7 +155,7 @@ agent.on("call.ringing", (call) => {
 
 ```typescript
 const agent = pc.agent("support", {
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   prompt: "You are a helpful customer support agent on WhatsApp.",
   history: new JsonFileHistory("./data/conversations.json"),
 });

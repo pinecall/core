@@ -15,7 +15,7 @@ Add `media` to your agent config to enable live listening, recording, or both:
 const agent = pc.agent("support", {
   prompt: "You are a support agent.",
   voice: "elevenlabs/sarah",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   media: {
     live: true,       // enables real-time WebSocket stream

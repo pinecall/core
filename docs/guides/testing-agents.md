@@ -77,8 +77,8 @@ timeout: 45s                         # Per-turn timeout (default: 30s)
 
 # Optional: override judge model
 judge:
-  provider: openai                   # anthropic | openai | deepseek | ollama
-  model: gpt-4.1-nano               # Model name
+  provider: anthropic                # anthropic | openai | google | deepseek | ollama
+  model: claude-haiku-4-5            # Model name
   maxTurns: 10                       # Max conversation turns (default: 20)
 ```
 
@@ -139,6 +139,7 @@ The judge is the LLM that evaluates your agent. Choose based on cost and reliabi
 |----------|-------|---------------------|-------|
 | `anthropic` | `claude-haiku-4-5-20251001` | $0.80 in / $4.00 out | Default. Most reliable. |
 | `openai` | `gpt-4.1-nano` | $0.10 in / $0.40 out | **Recommended.** 10x cheaper than Haiku. |
+| `google` | `gemini-2.5-flash` | — | Fast, low cost. |
 | `deepseek` | `deepseek-v4-flash` | $0.14 in / $0.28 out | Cheapest cloud option. |
 | `ollama` | `gemma3:4b` | Free | Local. Requires Ollama running. |
 
@@ -146,7 +147,7 @@ Set the judge in the spec file or override with CLI:
 
 ```bash
 # Override all specs to use OpenAI
-pinecall test agent/specs/ --judge openai/gpt-4.1-nano
+pinecall test agent/specs/ --judge anthropic/claude-haiku-4-5
 ```
 
 ### Environment variables
@@ -157,6 +158,7 @@ Each provider needs its API key:
 |----------|----------|
 | `ANTHROPIC_API_KEY` | Anthropic (default) |
 | `OPENAI_API_KEY` | OpenAI |
+| `GOOGLE_API_KEY` | Google |
 | `DEEPSEEK_API_KEY` | DeepSeek |
 | `OLLAMA_HOST` | Ollama (default: `http://localhost:11434`) |
 
@@ -170,7 +172,7 @@ pinecall test agent/specs/
 pinecall test agent/specs/date-handling.spec.yaml
 
 # Override judge model
-pinecall test agent/specs/ --judge openai/gpt-4.1-nano
+pinecall test agent/specs/ --judge anthropic/claude-haiku-4-5
 
 # Override agent name
 pinecall test agent/specs/ --agent dev-berna-florencia
@@ -197,7 +199,7 @@ pinecall test agent/specs/ --verbose
 export PINECALL_API_KEY="pk_..."
 export OPENAI_API_KEY="sk-..."
 
-pinecall test agent/specs/ --judge openai/gpt-4.1-nano --json
+pinecall test agent/specs/ --judge anthropic/claude-haiku-4-5 --json
 ```
 
 JSON output structure:

@@ -38,7 +38,7 @@ const lookupOrder = tool({
 export const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   stt: "deepgram/flux",
   prompt: `You are a support agent for an online store.
 Help customers check order status and process returns.

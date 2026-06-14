@@ -19,6 +19,7 @@ interface VoiceSessionState {
   agentSpeaking: boolean;
   duration: number;             // seconds since connected
   messages: TranscriptMessage[];
+  toolCalls: ToolUI[];          // active tool UI entries (only for tracked tools)
   idleWarning: number | null;   // seconds until idle timeout (null = no warning)
 }
 ```
@@ -64,12 +65,13 @@ The `messages` array contains the full conversation history. Each message is str
 ```typescript
 interface TranscriptMessage {
   id: number;
-  role: "user" | "bot";
+  role: "user" | "bot" | "system";
   text: string;
   isInterim?: boolean;     // user only: STT is still processing
   speaking?: boolean;      // bot only: TTS is playing this message
   interrupted?: boolean;   // bot only: user barged in
   messageId?: string;      // bot only: server-assigned ID
+  toolCallId?: string;     // system only: tool call ID (for updating with result)
 }
 ```
 

@@ -34,7 +34,7 @@ const pc = new Pinecall();
 
 export const agent = pc.agent("mara", {
   prompt: "You are Mara, a friendly voice assistant. Be concise.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
@@ -51,7 +51,7 @@ pinecall run agent/index.js
 You should see:
 
 ```
-  ⚡ booting mara  ·  gpt-4.1-mini · elevenlabs/sarah
+  ⚡ booting mara  ·  gpt-5-chat-latest · elevenlabs/sarah
   ☎ listening (no phone — webrtc/chat only)
 ```
 
@@ -135,7 +135,7 @@ Use `phoneNumbers` (plural) to attach multiple numbers with per-number overrides
 ```typescript
 const mara = pc.agent("mara", {
   prompt: "You are Mara, a friendly voice assistant.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   phoneNumbers: [
     // US number: English, fast native turns
     { number: "+14155551234", language: "en", stt: "deepgram/flux", voice: "elevenlabs/sarah" },
@@ -166,7 +166,7 @@ const lookupOrder = tool({
 
 const mara = pc.agent("mara", {
   prompt: "You are Mara. Look up orders when asked.",
-  llm: "openai/gpt-4.1-mini",
+  llm: "openai/gpt-5-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
