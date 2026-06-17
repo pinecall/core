@@ -76,33 +76,33 @@
       {
         "group": "@pinecall/web/core (Voice)",
         "pages": [
-          "voice-core/overview",
-          "voice-core/voice-session",
-          "voice-core/state-and-phases",
-          "voice-core/datachannel-protocol"
+          "web/core/overview",
+          "web/core/voice-session",
+          "web/core/state-and-phases",
+          "web/core/datachannel-protocol"
         ]
       },
       {
         "group": "@pinecall/web (React Widget)",
         "pages": [
-          "voice-widget/overview",
-          "voice-widget/props",
-          "voice-widget/theming",
-          "voice-widget/use-voice-session-hook",
-          "voice-widget/tools-api"
+          "web/widget/overview",
+          "web/widget/props",
+          "web/widget/theming",
+          "web/widget/use-voice-session-hook",
+          "web/widget/tools-api"
         ]
       },
       {
         "group": "@pinecall/web/chat (Chat)",
         "pages": [
-          "chat-core/overview",
-          "chat-core/chat-session"
+          "web/chat/overview",
+          "web/chat/chat-session"
         ]
       },
       {
         "group": "@pinecall/web (Web Components)",
         "pages": [
-          "web-components/overview"
+          "web/components/overview"
         ]
       },
       {

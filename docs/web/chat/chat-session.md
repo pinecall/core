@@ -189,5 +189,5 @@ Browser                                  Voice Server
 | Package | Description |
 |---|---|
 | [`@pinecall/sdk`](/api/pinecall) | Server-side SDK — agent, call, tools, channels |
-| [`@pinecall/web/core`](/voice-core/overview) | WebRTC voice session (framework-agnostic) |
-| [`@pinecall/web`](/voice-widget/overview) | React voice widget with animated orb |
+| [`@pinecall/web/core`](/web/core/overview) | WebRTC voice session (framework-agnostic) |
+| [`@pinecall/web`](/web/widget/overview) | React voice widget with animated orb |

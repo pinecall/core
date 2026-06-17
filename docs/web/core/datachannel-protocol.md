@@ -90,7 +90,7 @@ The client sends these through the DataChannel:
 | Inject Text | `{ "action": "inject_text", "text": "..." }` | Send text as if the user spoke it (for tool UI interactions) |
 | Set Context | `{ "action": "set_context", "key": "...", "value": "..." }` | Inject/update keyed context in the LLM prompt |
 
-Most of these have helper methods on `VoiceSession` (`toggleMute`, `configure`). The lower-level commands (`inject_text`, `set_context`) are used by `@pinecall/web` to power the [Tools API](/voice-widget/tools-api) and dynamic context injection.
+Most of these have helper methods on `VoiceSession` (`toggleMute`, `configure`). The lower-level commands (`inject_text`, `set_context`) are used by `@pinecall/web` to power the [Tools API](/web/widget/tools-api) and dynamic context injection.
 
 ## Worked examples
 
@@ -134,7 +134,7 @@ document.getElementById("yes-btn").onclick = () => {
 };
 ```
 
-The `@pinecall/web` exposes this as the `sendText()` helper — see [Tools API](/voice-widget/tools-api).
+The `@pinecall/web` exposes this as the `sendText()` helper — see [Tools API](/web/widget/tools-api).
 
 ## WebRTC connection flow
 
@@ -167,6 +167,6 @@ Browser                              Voice Server
 
 ## What's next
 
-- [`VoiceSession`](/voice-core/voice-session) — the high-level API
-- [State and phases](/voice-core/state-and-phases) — how raw events map to state
-- [Tools API](/voice-widget/tools-api) — building UI that responds to `llm.toolCall`
+- [`VoiceSession`](/web/core/voice-session) — the high-level API
+- [State and phases](/web/core/state-and-phases) — how raw events map to state
+- [Tools API](/web/widget/tools-api) — building UI that responds to `llm.toolCall`

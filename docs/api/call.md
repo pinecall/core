@@ -180,7 +180,7 @@ Sets SSE headers automatically. Streams: `call.started`, `bot.word`, `bot.confir
 |---|---|---|
 | `greeting` | `string` | Override the greeting text sent as first `bot.confirmed`. Defaults to `call.greeting` (set by `dial()`). |
 
-See [Voice Widget → Call Me](/voice-widget/props#callmeendpoint--outbound-calls) for the full pattern.
+See [Voice Widget → Call Me](/web/widget/props#callmeendpoint--outbound-calls) for the full pattern.
 
 ## Mid-call configuration
 

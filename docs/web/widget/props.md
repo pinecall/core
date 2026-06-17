@@ -270,7 +270,7 @@ Map tool names to React render functions. When a server-side tool completes, the
 />
 ```
 
-See [Tools API](/voice-widget/tools-api) for the full pattern.
+See [Tools API](/web/widget/tools-api) for the full pattern.
 
 ## `onStatusChange` — observability
 
@@ -286,6 +286,6 @@ See [Tools API](/voice-widget/tools-api) for the full pattern.
 
 ## What's next
 
-- [Theming](/voice-widget/theming) — all CSS variables and preset values
-- [Tools API](/voice-widget/tools-api) — interactive UI from tool calls
-- [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — bypass the orb, build custom UI
+- [Theming](/web/widget/theming) — all CSS variables and preset values
+- [Tools API](/web/widget/tools-api) — interactive UI from tool calls
+- [`useVoiceSession` hook](/web/widget/use-voice-session-hook) — bypass the orb, build custom UI

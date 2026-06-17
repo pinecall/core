@@ -151,9 +151,9 @@ session.subscribe(() => {
 });
 ```
 
-The `@pinecall/web` package follows exactly this pattern — see [its theming guide](/voice-widget/theming) for the full set of CSS classes.
+The `@pinecall/web` package follows exactly this pattern — see [its theming guide](/web/widget/theming) for the full set of CSS classes.
 
 ## What's next
 
-- [DataChannel protocol](/voice-core/datachannel-protocol) — the raw events that drive state changes
-- [`VoiceSession` class](/voice-core/voice-session) — methods and constructor
+- [DataChannel protocol](/web/core/datachannel-protocol) — the raw events that drive state changes
+- [`VoiceSession` class](/web/core/voice-session) — methods and constructor

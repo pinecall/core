@@ -5,7 +5,7 @@ description: "Framework-agnostic <pinecall-orb> and <pinecall-modal> Custom Elem
 
 # Web Components
 
-`@pinecall/web` ships native **Custom Elements** so you can drop a Pinecall voice agent into **any** framework — React, Vue, Svelte, Angular, Astro, or plain HTML — with no React dependency. They wrap the same vanilla [`VoiceSession`](/voice-core/overview) as the React widget, render in Shadow DOM, and are SSR-safe.
+`@pinecall/web` ships native **Custom Elements** so you can drop a Pinecall voice agent into **any** framework — React, Vue, Svelte, Angular, Astro, or plain HTML — with no React dependency. They wrap the same vanilla [`VoiceSession`](/web/core/overview) as the React widget, render in Shadow DOM, and are SSR-safe.
 
 | Import | Element | Needs React |
 |---|---|---|
@@ -92,6 +92,6 @@ Same model as everything else — mint a short-lived token from your backend and
 
 ## Related
 
-- [`@pinecall/web` (React widget)](/voice-widget/overview)
-- [`@pinecall/web/core` — VoiceSession](/voice-core/overview)
-- [`@pinecall/web/chat` — text chat](/chat-core/overview)
+- [`@pinecall/web` (React widget)](/web/widget/overview)
+- [`@pinecall/web/core` — VoiceSession](/web/core/overview)
+- [`@pinecall/web/chat` — text chat](/web/chat/overview)

@@ -83,7 +83,7 @@ Returns the current state snapshot. The returned object is **stable by identity*
 const { status, phase, messages, isMuted, duration } = session.getState();
 ```
 
-See [State and Phases](/voice-core/state-and-phases) for the full shape.
+See [State and Phases](/web/core/state-and-phases) for the full shape.
 
 ### `subscribe(listener)`
 
@@ -219,7 +219,7 @@ function useVoiceSession(agent: string) {
 }
 ```
 
-> If you're using React and want a ready-made widget instead of building UI, use [`@pinecall/web`](/voice-widget/overview) — it wraps this pattern and ships an animated orb UI.
+> If you're using React and want a ready-made widget instead of building UI, use [`@pinecall/web`](/web/widget/overview) — it wraps this pattern and ships an animated orb UI.
 
 ### Vue 3
 
@@ -274,6 +274,6 @@ import type {
 
 ## What's next
 
-- [State and phases](/voice-core/state-and-phases) — the reactive state model in detail
-- [DataChannel protocol](/voice-core/datachannel-protocol) — every event the server emits
-- [`@pinecall/web`](/voice-widget/overview) — the React widget built on top
+- [State and phases](/web/core/state-and-phases) — the reactive state model in detail
+- [DataChannel protocol](/web/core/datachannel-protocol) — every event the server emits
+- [`@pinecall/web`](/web/widget/overview) — the React widget built on top

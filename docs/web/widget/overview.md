@@ -11,7 +11,7 @@ A React voice widget for Pinecall agents. Animated orb, live transcript, theme p
 npm install @pinecall/web react react-dom
 ```
 
-> Built on top of [`@pinecall/web/core`](/voice-core/overview). React ≥18 is a peer dependency.
+> Built on top of [`@pinecall/web/core`](/web/core/overview). React ≥18 is a peer dependency.
 
 ## Quick start
 
@@ -55,13 +55,13 @@ These are **not** wired into `<VoiceWidget>` — you compose them yourself in yo
 |---|---|
 | Drop a voice button on your site | `<VoiceWidget />` |
 | Build a fully custom UI in React | `useVoiceSession()` hook |
-| Build a fully custom UI in Vue/Svelte/vanilla | [`@pinecall/web/core`](/voice-core/overview) directly |
+| Build a fully custom UI in Vue/Svelte/vanilla | [`@pinecall/web/core`](/web/core/overview) directly |
 | Render interactive UI from agent tool calls | `<VoiceWidget>` + `tools` prop or `useVoice()` + `trackedTools` |
 | Add multi-channel contact menu | Import `ContactHub` and compose it in your layout |
 
 ## What's next
 
-- [Props reference](/voice-widget/props) — every prop with type and default
-- [Theming](/voice-widget/theming) — presets, CSS variables, custom themes
-- [`useVoiceSession` hook](/voice-widget/use-voice-session-hook) — for custom UIs
-- [Tools API](/voice-widget/tools-api) — render interactive components from tool calls
+- [Props reference](/web/widget/props) — every prop with type and default
+- [Theming](/web/widget/theming) — presets, CSS variables, custom themes
+- [`useVoiceSession` hook](/web/widget/use-voice-session-hook) — for custom UIs
+- [Tools API](/web/widget/tools-api) — render interactive components from tool calls

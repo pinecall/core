@@ -201,6 +201,6 @@ Open `http://localhost:3000`. Click the orb. Talk.
 ## What's next
 
 - [Security](/security) — production token auth
-- [Tools API](/voice-widget/tools-api) — full interactive tool UI reference
+- [Tools API](/web/widget/tools-api) — full interactive tool UI reference
 - [Headless agent example](/examples/headless-agent) — backend-only agents
 
