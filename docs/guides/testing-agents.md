@@ -57,6 +57,56 @@ The judge has two tools:
 
 The judge's text messages are sent directly to your agent as user messages. It acts like a real customer following a script.
 
+## Voice Mode
+
+By default `pinecall test` talks to your agent over **text** (fast and cheap). To exercise the **real voice pipeline** — STT, turn detection, TTS, barge-in — run the spec as an actual voice call.
+
+In voice mode the judge is a **real Pinecall agent** (server-rendered voice) **bridged** to your agent: two agents, two WebSockets, one call. Each side runs the full STT → LLM → TTS → turn-detection pipeline, and neither side knows the other is a bot — to your agent it's a normal inbound call. The CLI records both voices to a WAV, opens a live browser player, and resolves the verdict when the judge calls `test_passed()` / `test_failed()`.
+
+### Run it
+
+```bash
+# Force voice mode with the flag…
+pinecall test agent/specs/greeting.spec.yaml --voice
+
+# …or declare `mode: voice` in the spec and run it normally
+pinecall test agent/specs/greeting.spec.yaml
+```
+
+**Requirements:** `PINECALL_API_KEY` + the judge LLM key (e.g. `ANTHROPIC_API_KEY`). No TTS/STT key needed — the judge's voice is rendered server-side.
+
+### Voice spec fields
+
+```yaml
+agent: pines
+description: "Pines greets and answers a question (voice)"
+mode: voice                          # run as a real voice call
+voice: elevenlabs/professional-male  # judge's TTS voice (default)
+stt: flux                            # judge's STT (default: deepgram-flux)
+language: en                         # optional language override
+greeting: "Hi!"                      # optional: judge opens the call;
+                                     # omit → your agent greets first, judge waits
+timeout: 45s                         # voice turns are slower than text
+
+workflow: |
+  1. Greet the agent and ask what it can help with.
+  2. Verify it responds coherently and offers to help.
+  3. Ask "What is Pinecall?" and verify the answer is on-topic.
+  4. PASS if the conversation was coherent and helpful.
+```
+
+### Voice CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--voice <p/v>` | Judge's TTS voice (e.g. `elevenlabs/professional-male`). Passing it also forces voice mode. |
+| `--stt <prov>` | Judge's STT (e.g. `flux`). Default: `deepgram-flux`. |
+| `--record <file>` | WAV output path. Default: `<spec>.wav` next to the spec. |
+| `--no-listen` | Don't auto-open the live browser player. |
+| `--lang <code>` | Language override (e.g. `es`). |
+
+The judge speaks one short sentence per turn (it behaves like a real caller), the mixed call is recorded to a WAV next to the spec, and the transcript shows both sides per utterance.
+
 ## Writing Specs
 
 ### Spec format

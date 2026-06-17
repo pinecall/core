@@ -251,7 +251,12 @@ pinecall test agent/specs/ --judge anthropic/claude-haiku-4-5
 
 # List specs without running
 pinecall test agent/specs/ --list
+
+# Voice mode — run the spec as a REAL voice call (judge agent ↔ your agent)
+pinecall test agent/specs/greeting.spec.yaml --voice
 ```
+
+**Voice mode** (`--voice` or `mode: voice` in the spec) runs the spec as a real bridged voice call instead of text — exercising STT, turn detection, TTS and barge-in. Extra flags: `--voice <p/v>` (judge TTS, default `elevenlabs/professional-male`), `--stt <prov>` (default `flux`), `--record <file>` (WAV out), `--no-listen` (don't open the live player), `--lang <code>`. See [Testing Agents → Voice Mode](/guides/testing-agents#voice-mode).
 
 ```
   ⚡ pinecall test

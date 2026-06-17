@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] — 2026-06-17
+
 ### Added
 
 - **`agent.bridge(target, opts?)`** — place a **voice call to another Pinecall agent** (no phone, no WebRTC). The server cross-wires the two agents' audio so both run their real STT/turn-detection/TTS pipelines; the calling agent is driven manually via `call.say()` and reads the target via `user.message` / `turn.end`. Powers the voice judge.
