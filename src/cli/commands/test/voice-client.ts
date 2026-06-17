@@ -1,363 +1,239 @@
 /**
- * pinecall test — Voice Client (synthetic caller over WebRTC)
+ * pinecall test — Voice mode (agent-to-agent)
  *
- * Mirrors ChatClient's interface (connect / sendMessage / waitForResponse /
- * close) but drives a REAL voice call:
+ * The judge is a NORMAL Pinecall agent: server-side LLM (Anthropic), its prompt
+ * is the test workflow, and it carries local `test_passed`/`test_failed` tools.
+ * It's bridged to the target agent — two independent agents, two WebSockets, one
+ * call. Both run the full server pipeline (STT → LLM → TTS → turn-detection), so
+ * turn-taking is real and the target can't tell the caller is a bot.
  *
- *   judge text → ElevenLabs TTS → PCM → RTCAudioSource → WebRTC → server STT
- *   agent reply → bot.word/bot.finished events (data channel) → judge
+ *   target ↔ (bridged audio) ↔ judge(LLM)         the server runs BOTH pipelines
+ *   judge LLM calls test_passed/test_failed  →  SDK runs the local tool → verdict
  *
- * In parallel it opens the live-listen WebSocket (mixed audio of both sides),
- * plays it through the speakers, and records it to a WAV file.
- *
- * Audio is 16-bit PCM, mono, 16kHz throughout (the WebRTC pipeline format).
+ * The CLI just observes: it streams the transcript, records the mixed call to a
+ * WAV, opens the hosted live player, and waits for the verdict (tool / hangup /
+ * timeout). Needs only PINECALL_API_KEY (+ the server's Anthropic key for the
+ * judge LLM). No ElevenLabs, no client-side turn logic.
  */
 
 import WebSocket from "ws";
-import type { ToolCallInfo } from "./types.js";
-import type { TesterVoice } from "./tts.js";
-import { synthesize } from "./tts.js";
+import { writeFileSync, appendFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { Pinecall, tool } from "../../../index.js";
+import { c } from "../../ui.js";
+
+/** Debug trace to /tmp/debug.log (CLIENT side) to correlate with the server's. */
+function cdbg(msg: string): void {
+    try { appendFileSync("/tmp/debug.log", `${(Date.now() / 1000).toFixed(3)} CLIENT ${msg}\n`); } catch { /* ignore */ }
+}
 import { WavWriter } from "./wav.js";
-
-// @roamhq/wrtc (WebRTC) and speaker (audio out) are native, optional deps —
-// loaded dynamically so the text-mode `pinecall test` works without them.
-async function loadWrtc(): Promise<any> {
-    try {
-        const mod: any = await import("@roamhq/wrtc");
-        return mod.default ?? mod;
-    } catch {
-        throw new Error(
-            'Voice mode needs "@roamhq/wrtc". Install it: npm i -g @roamhq/wrtc (or add it to your project).',
-        );
-    }
-}
-
-async function loadSpeaker(): Promise<any | null> {
-    try {
-        const mod: any = await import("speaker");
-        return mod.default ?? mod;
-    } catch {
-        return null; // playback is best-effort
-    }
-}
+import type { Spec, SpecResult, JudgeConfig } from "./types.js";
 
 const SAMPLE_RATE = 16000;
-const FRAME_MS = 10;
-const FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS) / 1000; // 160 samples / 10ms
-const FRAME_BYTES = FRAME_SAMPLES * 2; // 320 bytes (s16le)
-/** Silence after the last bot activity before a turn is considered complete. */
-const TURN_QUIET_MS = 1500;
 
-export interface VoiceClientOptions {
-    /** HTTPS base, e.g. https://voice.pinecall.io */
-    server: string;
+/**
+ * Minimal Zod-like schema for tool() — the SDK only needs `.parse()` + `._def`
+ * (it duck-types Zod), so we avoid adding zod as a dependency. Builds an object
+ * schema of required string fields.
+ */
+function stringObjectSchema(fields: Record<string, string>): any {
+    const shape: Record<string, any> = {};
+    for (const [key, description] of Object.entries(fields)) {
+        shape[key] = { _def: { typeName: "ZodString", description }, parse: (x: unknown) => x };
+    }
+    return { _def: { typeName: "ZodObject", shape: () => shape }, parse: (x: unknown) => x };
+}
+
+export interface VoiceBridgeOptions {
+    spec: Spec;
+    /** Target agent slug (the agent under test). */
+    target: string;
+    /** Judge LLM, e.g. { provider: "anthropic", model: "claude-haiku-4-5-20251001" }. */
+    judge: JudgeConfig;
     apiKey: string;
-    agentId: string;
-    /** Tester's spoken voice (ElevenLabs). */
-    voice: TesterVoice;
-    /** STT provider the session uses to transcribe the tester (e.g. deepgram-flux). */
+    /** HTTPS/WSS base, e.g. https://voice.pinecall.io */
+    server: string;
+    voice: string;
     stt: string;
-    /** Where to write the WAV recording. */
     recordPath: string;
-    /** Play the live mixed audio through the speakers. */
     play: boolean;
-    /** Optional language override for STT/session. */
     language?: string;
-    /** Tester greeting (spoken on connect to open the call). */
+    /** Tester greeting — judge opens. Omit to let the target greet first. */
     greeting?: string;
-    /** Ask the server to emit the agent's turn.end to us. Default true. */
-    detectTurnEnd?: boolean;
+    /** Max call duration before giving up on a verdict (ms). */
+    maxDurationMs?: number;
     log?: (msg: string) => void;
 }
 
-interface BotSegment {
-    text: string;
-    done: boolean;
+function buildVoicePrompt(spec: Spec, target: string): string {
+    const today = new Date().toLocaleDateString("en-US", {
+        weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+    return [
+        `You are a QA tester on a live VOICE call with the AI agent "${target}". You are testing it by talking to it like a real customer would.`,
+        `Today is ${today}.`,
+        ``,
+        `## How to behave`,
+        `- Speak naturally and KEEP IT SHORT — one short sentence per turn. You are a caller, not a robot.`,
+        `- Do NOT say you are a tester. Just behave like a real caller.`,
+        `- Always reply in the same language the agent speaks.`,
+        `- Work through the workflow below in order, evaluating each agent response.`,
+        ``,
+        `## Reporting the result (tools)`,
+        `- Call \`test_passed(summary)\` as soon as the whole workflow is verified.`,
+        `- Call \`test_failed(reason)\` the moment the agent says something wrong or fails a step.`,
+        ``,
+        `## Workflow to test`,
+        spec.workflow,
+    ].join("\n");
 }
 
-export class VoiceClient {
-    private opts: VoiceClientOptions;
-    private pc: any = null;
-    private source: any = null;
-    private dc: any = null;
-    private liveWs: WebSocket | null = null;
-    private speaker: any = null;
-    private SpeakerClass: any = null;
-    private wav: WavWriter | null = null;
-    private ping: ReturnType<typeof setInterval> | null = null;
-    private callId: string | null = null;
-    private closed = false;
+/**
+ * Run a spec as a real voice call (judge agent ↔ target agent). Returns a
+ * SpecResult just like the chat runner.
+ */
+export async function runVoiceBridge(opts: VoiceBridgeOptions): Promise<SpecResult> {
+    const log = opts.log ?? (() => {});
+    const startTime = Date.now();
+    const wssBase = opts.server.replace(/^https:/, "wss:").replace(/^http:/, "ws:").replace(/\/$/, "");
+    const httpBase = opts.server.replace(/^wss:/, "https:").replace(/^ws:/, "http:").replace(/\/$/, "");
+    const judgeModel = `${opts.judge.provider}/${opts.judge.model}`;
 
-    // Accumulated agent output since the last waitForResponse() drain.
-    private botWords: Record<string, string[]> = {};
-    private segments: BotSegment[] = [];
-    private pendingTools: ToolCallInfo[] = [];
-    private lastBotActivity = 0;
-    /** Set when the server emits the agent's turn.end (detectTurnEnd). */
-    private peerTurnEnded = false;
+    const pc = new Pinecall({ apiKey: opts.apiKey, apiUrl: wssBase });
 
-    constructor(opts: VoiceClientOptions) {
-        this.opts = opts;
+    // ── Verdict: the judge LLM calls these local tools ──
+    let resolveVerdict!: (v: { passed: boolean; summary: string }) => void;
+    const verdictP = new Promise<{ passed: boolean; summary: string }>((r) => { resolveVerdict = r; });
+    const testPassed = tool({
+        name: "test_passed",
+        description: "Call this when the workflow test has PASSED — all expected behaviors were observed.",
+        schema: stringObjectSchema({ summary: "Brief summary of what was verified" }),
+        execute: async ({ summary }: { summary: string }) => { resolveVerdict({ passed: true, summary }); return { ok: true }; },
+    });
+    const testFailed = tool({
+        name: "test_failed",
+        description: "Call this when the workflow test has FAILED — an expected behavior was NOT observed.",
+        schema: stringObjectSchema({ reason: "What failed and why" }),
+        execute: async ({ reason }: { reason: string }) => { resolveVerdict({ passed: false, summary: reason }); return { ok: true }; },
+    });
+
+    const judgeName = `judge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const judge = pc.agent(judgeName, {
+        llm: judgeModel,
+        prompt: buildVoicePrompt(opts.spec, opts.target),
+        voice: opts.voice,
+        stt: opts.stt,
+        ...(opts.language ? { language: opts.language } : {}),
+        tools: [testPassed, testFailed],
+    } as any);
+
+    // ── Transcript display ──
+    // For a server-LLM agent the spoken line arrives as `message.confirmed`
+    // (the confirmed assistant message), NOT bot.word — so:
+    //   🗣 judge  ← message.confirmed (what the judge said)
+    //   🎧 <target> ← user.message  (what the judge heard the target say)
+
+    cdbg(`runVoiceBridge target=${opts.target} judgeModel=${judgeModel} voice=${opts.voice} stt=${opts.stt}`);
+    for (const ev of ["call.started", "bot.speaking", "bot.word", "bot.finished", "user.speaking", "user.message", "turn.end", "message.confirmed", "llm.toolCall", "call.ended"]) {
+        judge.on(ev as any, (a: any) => {
+            const t = typeof a?.text === "string" ? ` text=${JSON.stringify(a.text.slice(0, 50))}`
+                : typeof a?.word === "string" ? ` word=${a.word}` : "";
+            cdbg(`recv ${ev}${t}`);
+        });
     }
 
-    get recordingPath(): string { return this.opts.recordPath; }
-    get recordingDuration(): number { return this.wav?.durationSeconds ?? 0; }
+    const transcript: Array<{ who: string; text: string }> = [];
+    // Color the speakers and leave a blank line whenever the floor changes hands,
+    // so each turn reads as its own block instead of one dense wall of text.
+    const judgeLabel = c.bold(c.purple("🗣  judge"));
+    const targetLabel = c.bold(c.cyan(`🎧 ${opts.target}`));
+    let lastWho = "";
+    const speak = (who: string, label: string, text: string) => {
+        if (lastWho && lastWho !== who) log("");
+        lastWho = who;
+        log(`  ${label}${c.dim(":")} ${text}`);
+    };
+    judge.on("message.confirmed", (e: any) => {
+        if (e?.text) { speak("judge", judgeLabel, e.text); transcript.push({ who: "judge", text: e.text }); }
+    });
+    judge.on("user.message", (e: any) => {
+        if (e?.text) { speak("target", targetLabel, e.text); transcript.push({ who: opts.target, text: e.text }); }
+    });
 
-    private log(msg: string): void { this.opts.log?.(msg); }
+    let endedReason = "";
+    const endedP = new Promise<void>((r) => { judge.on("call.ended", (_c: any, reason: string) => { endedReason = reason || "ended"; r(); }); });
+    const timeoutP = new Promise<void>((r) => setTimeout(r, opts.maxDurationMs ?? 180000));
 
-    // ── Connect ──────────────────────────────────────────────
+    let liveWs: WebSocket | null = null;
+    let wav: WavWriter | null = null;
 
-    async connect(): Promise<void> {
-        const wrtc = await loadWrtc();
-        const RTCPeerConnection = wrtc.RTCPeerConnection;
-        const nonstandard = wrtc.nonstandard;
-        this.SpeakerClass = this.opts.play ? await loadSpeaker() : null;
-
-        const base = this.opts.server.replace(/\/$/, "");
-
-        // 1. Token (API-key auth → backend-trusted mode).
-        const tokRes = await fetch(`${base}/webrtc/token?agent_id=${encodeURIComponent(this.opts.agentId)}`, {
-            headers: { Authorization: `Bearer ${this.opts.apiKey}` },
+    try {
+        await pc.ready;
+        const call = await judge.bridge(opts.target, {
+            greeting: opts.greeting,
+            media: { live: true, recording: true },
         });
-        if (!tokRes.ok) {
-            const body = await tokRes.text().catch(() => "");
-            throw new Error(`WebRTC token failed (${tokRes.status}): ${body.slice(0, 200)}`);
-        }
-        const { token, server } = await tokRes.json() as any;
-        const voiceServer = (server || base).replace(/\/$/, "");
 
-        // 2. ICE servers (best-effort; fall back to a public STUN).
-        let iceServers: any[] = [{ urls: "stun:stun.l.google.com:19302" }];
-        try {
-            const r = await fetch(`${voiceServer}/webrtc/ice-servers`);
-            if (r.ok) {
-                const d = await r.json() as any;
-                iceServers = d.iceServers || d.ice_servers || iceServers;
-            }
-        } catch { /* keep STUN fallback */ }
+        // Hosted live player (clean browser playback).
+        const playerUrl = `${httpBase}/live/${call.id}/player?token=${encodeURIComponent(opts.apiKey)}`;
+        log(`  ${c.dim("🔊 live:")} ${c.cyan(playerUrl)}`);
+        log("");
+        if (opts.play) openInBrowser(playerUrl);
 
-        // 3. Peer connection + outbound audio track (the tester's voice).
-        const pc = new RTCPeerConnection({ iceServers });
-        this.pc = pc;
-        this.source = new nonstandard.RTCAudioSource();
-        const track = this.source.createTrack();
-        pc.addTrack(track);
+        // Record the mixed call to a WAV.
+        const wsUrl = httpBase.replace(/^http/, "ws") + `/live/${call.id}/ws?token=${encodeURIComponent(opts.apiKey)}`;
+        liveWs = new WebSocket(wsUrl);
+        liveWs.binaryType = "nodebuffer";
+        wav = new WavWriter(opts.recordPath, SAMPLE_RATE, 1);
+        liveWs.on("message", (data: Buffer, isBinary: boolean) => {
+            if (isBinary && data.length >= 4) wav?.write(data);
+        });
+        liveWs.on("error", () => { /* non-fatal */ });
 
-        // 4. Events data channel (transcripts, bot speech, tool calls).
-        const dc = pc.createDataChannel("events", { ordered: true });
-        this.dc = dc;
-        dc.onopen = () => {
-            this.ping = setInterval(() => {
-                if (dc.readyState === "open") dc.send("ping");
-            }, 1000);
+        // Wait for a verdict (tool), the call ending, or a timeout.
+        const verdict = await Promise.race([
+            verdictP,
+            endedP.then(() => ({ passed: false, summary: `Call ended (${endedReason}) before a verdict` })),
+            timeoutP.then(() => ({ passed: false, summary: "Timed out before the judge reached a verdict" })),
+        ]);
+
+        try { call.hangup?.(); } catch { /* ignore */ }
+
+        return {
+            file: opts.spec._file ?? "unknown",
+            agent: opts.target,
+            description: opts.spec.description ?? "",
+            passed: verdict.passed,
+            summary: verdict.summary,
+            turns: transcript.map((t) => ({ testerMessage: t.who === "judge" ? t.text : "", agentResponse: t.who !== "judge" ? t.text : "", agentToolCalls: [] })),
+            durationMs: Date.now() - startTime,
+            recordingPath: opts.recordPath,
+            recordingDuration: wav?.durationSeconds ?? 0,
         };
-        dc.onmessage = (msg: any) => this.handleDataChannel(msg.data);
-
-        const connectedPromise = new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error("WebRTC connect timeout (20s)")), 20000);
-            pc.onconnectionstatechange = () => {
-                if (pc.connectionState === "connected") { clearTimeout(timer); resolve(); }
-                else if (pc.connectionState === "failed") { clearTimeout(timer); reject(new Error("WebRTC connection failed")); }
-            };
-        });
-
-        // 5. Offer → wait for ICE gathering → POST → answer.
-        const offer = await pc.createOffer({ offerToReceiveAudio: true });
-        await pc.setLocalDescription(offer);
-        await this.waitIceComplete(pc);
-
-        const offerRes = await fetch(`${voiceServer}/webrtc/offer`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                sdp: pc.localDescription.sdp,
-                type: pc.localDescription.type,
-                token,
-                config: {
-                    stt: { provider: this.opts.stt, ...(this.opts.language ? { language: this.opts.language } : {}) },
-                    ...(this.opts.language ? { language: this.opts.language } : {}),
-                    // Enable the server-side mixer for live listening + recording.
-                    media: { recording: { enabled: true }, live: { enabled: true } },
-                    // Ask the server to emit the AGENT's turn.end to us (so the
-                    // judge knows when to reply). Default on for voice tests.
-                    ...(this.opts.detectTurnEnd !== false ? { detect_turn_end: true } : {}),
-                },
-            }),
-        });
-        if (!offerRes.ok) {
-            const body = await offerRes.text().catch(() => "");
-            throw new Error(`WebRTC offer failed (${offerRes.status}): ${body.slice(0, 200)}`);
+    } catch (err: any) {
+        return {
+            file: opts.spec._file ?? "unknown",
+            agent: opts.target,
+            description: opts.spec.description ?? "",
+            passed: false,
+            summary: "",
+            turns: [],
+            durationMs: Date.now() - startTime,
+            error: err?.message ?? String(err),
+        };
+    } finally {
+        try { liveWs?.close(); } catch { /* ignore */ }
+        wav?.close();
+        try { pc.disconnect(); } catch { /* ignore */ }
+        if (transcript.length) {
+            const lines = transcript.map((t) => `${t.who}: ${t.text}`).join("\n");
+            try { writeFileSync(opts.recordPath.replace(/\.wav$/i, "") + ".transcript.txt", lines + "\n"); } catch { /* ignore */ }
         }
-        const answer = await offerRes.json() as any;
-        this.callId = answer.session_id;
-        await pc.setRemoteDescription({ sdp: answer.sdp, type: answer.type });
-
-        await connectedPromise;
-
-        // 6. Live listen → speaker + WAV.
-        this.startLiveListen(voiceServer);
-    }
-
-    private waitIceComplete(pc: any): Promise<void> {
-        if (pc.iceGatheringState === "complete") return Promise.resolve();
-        return new Promise((resolve) => {
-            const check = () => {
-                if (pc.iceGatheringState === "complete") {
-                    pc.removeEventListener?.("icegatheringstatechange", check);
-                    resolve();
-                }
-            };
-            pc.addEventListener?.("icegatheringstatechange", check);
-            pc.onicecandidate = (e: any) => { if (!e.candidate) resolve(); };
-            // Safety: don't wait forever for relay candidates.
-            setTimeout(resolve, 3000);
-        });
-    }
-
-    // ── Live listen (mixed audio) → speakers + WAV ──────────
-
-    private startLiveListen(voiceServer: string): void {
-        if (!this.callId) return;
-        const wsUrl = voiceServer.replace(/^http/, "ws") + `/live/${this.callId}/ws?token=${encodeURIComponent(this.opts.apiKey)}`;
-        const ws = new WebSocket(wsUrl);
-        this.liveWs = ws;
-        ws.binaryType = "nodebuffer";
-
-        this.wav = new WavWriter(this.opts.recordPath, SAMPLE_RATE, 1);
-        if (this.opts.play && this.SpeakerClass) {
-            try {
-                this.speaker = new this.SpeakerClass({ channels: 1, bitDepth: 16, sampleRate: SAMPLE_RATE });
-            } catch (err: any) {
-                this.log(`    (speaker unavailable: ${err.message} — recording only)`);
-                this.speaker = null;
-            }
-        } else if (this.opts.play && !this.SpeakerClass) {
-            this.log(`    (speaker module not installed — recording only)`);
-        }
-
-        ws.on("message", (data: Buffer, isBinary: boolean) => {
-            if (!isBinary) return;       // first frame = JSON metadata
-            if (data.length < 4) return; // keepalive / silence marker
-            this.wav?.write(data);
-            try { this.speaker?.write(data); } catch { /* speaker closed */ }
-        });
-        ws.on("error", () => { /* non-fatal: keep the test running */ });
-    }
-
-    // ── Data channel: collect agent output ──────────────────
-
-    private handleDataChannel(raw: any): void {
-        let d: any;
-        try { d = JSON.parse(typeof raw === "string" ? raw : raw.toString()); } catch { return; }
-
-        switch (d.event) {
-            case "bot.speaking":
-                if (d.message_id) this.botWords[d.message_id] = [];
-                this.lastBotActivity = Date.now();
-                break;
-            case "bot.word":
-                if (d.message_id && d.word) {
-                    const arr = this.botWords[d.message_id] ?? (this.botWords[d.message_id] = []);
-                    arr[d.word_index ?? arr.length] = d.word;
-                    this.lastBotActivity = Date.now();
-                }
-                break;
-            case "bot.finished":
-                if (d.message_id) {
-                    const text = (d.text || (this.botWords[d.message_id] ?? []).filter(Boolean).join(" ")).trim();
-                    this.segments.push({ text, done: true });
-                }
-                this.lastBotActivity = Date.now();
-                break;
-            case "llm.tool_call":
-                for (const tc of d.tool_calls ?? []) {
-                    this.pendingTools.push({
-                        name: tc.name,
-                        arguments: typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments ?? {}),
-                    });
-                }
-                this.lastBotActivity = Date.now();
-                break;
-            case "turn.end":
-                // The server emits turn.end about the AGENT (source: "bot") only
-                // when detect_turn_end is on. Our OWN turn.end has no source — ignore it.
-                if (d.source === "bot") this.peerTurnEnded = true;
-                break;
-        }
-    }
-
-    // ── Speak (judge text → TTS → WebRTC) ───────────────────
-
-    async sendMessage(text: string): Promise<void> {
-        const pcm = await synthesize(text, this.opts.voice);
-        await this.streamPcm(pcm);
-    }
-
-    private async streamPcm(pcm: Buffer): Promise<void> {
-        for (let off = 0; off < pcm.length; off += FRAME_BYTES) {
-            let frame = pcm.subarray(off, off + FRAME_BYTES);
-            if (frame.length < FRAME_BYTES) {
-                const padded = Buffer.alloc(FRAME_BYTES);
-                frame.copy(padded);
-                frame = padded;
-            }
-            const samples = new Int16Array(FRAME_SAMPLES);
-            for (let i = 0; i < FRAME_SAMPLES; i++) samples[i] = frame.readInt16LE(i * 2);
-            this.source.onData({
-                samples,
-                sampleRate: SAMPLE_RATE,
-                bitsPerSample: 16,
-                channelCount: 1,
-                numberOfFrames: FRAME_SAMPLES,
-            });
-            await sleep(FRAME_MS); // pace to real time so the server VAD hears natural speech
-        }
-    }
-
-    // ── Wait for the agent's turn ───────────────────────────
-
-    waitForResponse(timeoutMs = 30000): Promise<{ text: string; toolCalls: ToolCallInfo[] }> {
-        const startedAt = Date.now();
-        return new Promise((resolve) => {
-            const tick = setInterval(() => {
-                const sawTurn = this.segments.length > 0 || this.pendingTools.length > 0;
-                // Authoritative: server told us the agent's turn ended (detectTurnEnd).
-                const peerDone = this.peerTurnEnded && sawTurn;
-                // Fallback when detect_turn_end isn't available: bot.finished + silence.
-                const quietDone = sawTurn && (Date.now() - this.lastBotActivity >= TURN_QUIET_MS);
-                const timedOut = Date.now() - startedAt >= timeoutMs;
-                if (peerDone || quietDone || timedOut) {
-                    clearInterval(tick);
-                    resolve(this.drain());
-                }
-            }, 150);
-        });
-    }
-
-    private drain(): { text: string; toolCalls: ToolCallInfo[] } {
-        const text = this.segments.map((s) => s.text).filter(Boolean).join(" ").trim();
-        const toolCalls = this.pendingTools.slice();
-        this.segments = [];
-        this.pendingTools = [];
-        this.botWords = {};
-        this.peerTurnEnded = false;
-        return { text, toolCalls };
-    }
-
-    // ── Teardown ─────────────────────────────────────────────
-
-    close(): void {
-        if (this.closed) return;
-        this.closed = true;
-        if (this.ping) { clearInterval(this.ping); this.ping = null; }
-        try { this.liveWs?.close(); } catch { /* ignore */ }
-        try { this.dc?.close?.(); } catch { /* ignore */ }
-        try { this.pc?.close?.(); } catch { /* ignore */ }
-        try { this.speaker?.end(); } catch { /* ignore */ }
-        this.wav?.close();
     }
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise((r) => setTimeout(r, ms));
+function openInBrowser(url: string): void {
+    const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+    const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+    try { spawn(cmd, args, { stdio: "ignore", detached: true }).unref(); } catch { /* ignore */ }
 }

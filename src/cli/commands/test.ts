@@ -33,13 +33,14 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
     pinecall test <path> --list       ${c.dim("List specs without running")}
     pinecall test <path> --json       ${c.dim("JSON output for CI")}
 
-  ${c.bold("Voice mode")} ${c.dim("(real voice call — judge speaks, agent answers):")}
-    pinecall test <path> --voice <p/v>${c.dim("Tester voice, e.g. elevenlabs/sarah")}
-    pinecall test <path> --stt <prov> ${c.dim("Session STT, e.g. flux (default)")}
+  ${c.bold("Voice mode")} ${c.dim("(real voice call — judge agent ↔ target agent):")}
+    pinecall test <path> --voice <p/v>${c.dim("Judge agent voice, e.g. elevenlabs/professional-male")}
+    pinecall test <path> --stt <prov> ${c.dim("Judge agent STT, e.g. flux (default)")}
     pinecall test <path> --record <f> ${c.dim("WAV output path (default <spec>.wav)")}
-    pinecall test <path> --no-listen  ${c.dim("Don't play live audio on speakers")}
+    pinecall test <path> --no-listen  ${c.dim("Don't auto-open the live browser player")}
     pinecall test <path> --lang <code>${c.dim("Language override (e.g. es)")}
-    ${c.dim("Voice mode records both sides to WAV and plays it live. Needs ELEVENLABS_API_KEY.")}
+    ${c.dim("The judge is a Pinecall agent (server-rendered voice) bridged to the target.")}
+    ${c.dim("Records both voices to WAV + plays live. Needs only PINECALL_API_KEY + judge LLM key.")}
 
   ${c.bold("Spec format:")} YAML files ending in .spec.yaml
 
@@ -168,19 +169,15 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
     const voiceMode = voiceFlag || filtered.some((s) => s.mode === "voice");
     const voiceServer = (config.server || "https://voice.pinecall.io")
         .replace(/^wss:/, "https:").replace(/^ws:/, "http:").replace(/\/client$/, "").replace(/\/$/, "");
-    if (voiceMode && !process.env.ELEVENLABS_API_KEY) {
-        error("Voice mode needs ELEVENLABS_API_KEY in the environment (the tester's spoken voice).");
-        return;
-    }
 
     if (!json) {
         console.log(`\n  ${c.purple("⚡")} ${c.bold("pinecall test")}${voiceMode ? c.purple(" · voice") : ""}\n`);
         console.log(`  ${c.dim("Agent:")}  ${c.bold(agentOverride ?? filtered[0].agent)}`);
         console.log(`  ${c.dim("Judge:")}  ${judgeName}`);
         if (voiceMode) {
-            console.log(`  ${c.dim("Voice:")}  ${voiceSpec ?? filtered[0].voice ?? "elevenlabs/sarah"} ${c.dim("(tester)")}`);
+            console.log(`  ${c.dim("Voice:")}  ${voiceSpec ?? filtered[0].voice ?? "elevenlabs/professional-male"} ${c.dim("(tester)")}`);
             console.log(`  ${c.dim("STT:")}    ${normalizeStt(sttFlag ?? filtered[0].stt ?? "deepgram-flux")}`);
-            console.log(`  ${c.dim("Listen:")} ${noListen ? "off" : "live (speakers)"} · ${c.dim("recording → WAV")}`);
+            console.log(`  ${c.dim("Listen:")} ${noListen ? "off" : "live (browser player, opens automatically)"} · ${c.dim("recording → WAV")}`);
         }
         console.log(`  ${c.dim("Specs:")}  ${filtered.length} file(s)`);
         console.log(`  ${c.dim("Server:")} ${voiceMode ? voiceServer : (config.server || "wss://voice.pinecall.io")}`);
@@ -212,7 +209,7 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
             judgeOverride: judgeConfig,
             log: json ? undefined : (msg) => console.log(msg),
             voice: specVoice ? {
-                spec: voiceSpec ?? spec.voice ?? "elevenlabs/sarah",
+                spec: voiceSpec ?? spec.voice ?? "elevenlabs/professional-male",
                 stt: normalizeStt(sttFlag ?? spec.stt ?? "deepgram-flux"),
                 server: voiceServer,
                 recordPath: wavPath,
@@ -234,6 +231,7 @@ export async function testCommand(config: CliConfig, argv: string[]): Promise<vo
             console.log(`  ${c.dim(`(${(result.durationMs / 1000).toFixed(1)}s, ${result.turns.length} turns)`)}`);
             if (result.recordingPath) {
                 console.log(`  ${c.dim("Recording:")} ${result.recordingPath} ${c.dim(`(${result.recordingDuration?.toFixed(1)}s)`)}`);
+                console.log(`  ${c.dim("Transcript:")} ${result.recordingPath.replace(/\.wav$/i, "")}.transcript.txt`);
             }
             console.log();
         }

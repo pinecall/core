@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`dial({ detectTurnEnd })`** — when `true`, the server also detects the OTHER party's end-of-turn and emits `turn.end` to the initiating side. Default `false`. Enables automated callers (e.g. a test/judge agent talking to another agent) to know when to speak. Server-side: emitted on `bot.finished` with `source: "bot"`.
-- **`pinecall test` voice mode** — run specs as a **real voice call** instead of text chat. New spec fields (`mode: voice`, `voice`, `stt`, `greeting`, `detectTurnEnd`, `language`) and CLI flags (`--voice <p/v>`, `--stt <prov>`, `--record <file>`, `--no-listen`, `--lang`). The judge speaks via ElevenLabs TTS over WebRTC, the call plays live on the speakers and is recorded to WAV. Needs `ELEVENLABS_API_KEY`; optional native deps `@roamhq/wrtc` + `speaker`.
+- **`agent.bridge(target, opts?)`** — place a **voice call to another Pinecall agent** (no phone, no WebRTC). The server cross-wires the two agents' audio so both run their real STT/turn-detection/TTS pipelines; the calling agent is driven manually via `call.say()` and reads the target via `user.message` / `turn.end`. Powers the voice judge.
+- **`dial({ detectTurnEnd })` / `bridge({ detectTurnEnd })`** — when `true`, the server detects the OTHER party's end-of-turn and emits `turn.end` to the initiating side (on `bot.finished`, `source: "bot"`). Default `false` for `dial`, `true` for `bridge`. Lets an automated caller know when to speak.
+- **`pinecall test` voice mode** — run specs as a **real voice call** instead of text chat. The judge becomes a Pinecall agent (server-rendered voice) bridged to the target. New spec fields (`mode: voice`, `voice`, `stt`, `greeting`, `detectTurnEnd`, `language`) + CLI flags (`--voice`, `--stt`, `--record`, `--no-listen`, `--lang`). The bridged call plays live on the speakers and is recorded to WAV. Needs only `PINECALL_API_KEY` + the judge LLM key (no ElevenLabs); `speaker` is an optional native dep for playback.
 
 ## [0.2.11] — 2026-06-12
 

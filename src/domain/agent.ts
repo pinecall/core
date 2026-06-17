@@ -452,6 +452,80 @@ export class Agent extends TypedEventBus<AgentEvents> {
         });
     }
 
+    // ── Bridge (agent-to-agent voice) ─────────────────────────────────────
+
+    /**
+     * Place a VOICE call to ANOTHER Pinecall agent (no phone, no WebRTC).
+     *
+     * The server cross-wires the two agents' audio: this agent's TTS becomes the
+     * target's incoming audio and vice-versa, so both run their real
+     * STT/turn-detection/TTS pipelines. This agent is driven manually — speak
+     * with `call.say()` and read the target via `user.message` / `turn.end`.
+     * Typically the calling agent has no server-side LLM (it's puppeted by your
+     * code), e.g. the `pinecall test` voice judge.
+     *
+     * @param target - The target agent's slug (must be online in the same org).
+     */
+    bridge(target: string, options: {
+        greeting?: string;
+        /** Detect the target's end-of-turn and emit `turn.end` to this side. Default true. */
+        detectTurnEnd?: boolean;
+        /** Per-call config override for THIS (calling) agent — voice, STT, language. */
+        config?: Record<string, unknown>;
+        /** Enable live listening / recording on the bridged call. */
+        media?: { live?: boolean; recording?: boolean };
+        metadata?: Record<string, unknown>;
+    } = {}): Promise<Call> {
+        return new Promise<Call>((resolve, reject) => {
+            let settled = false;
+            const cleanup = () => {
+                this.off("call.started", onStarted);
+                this.off("call.ended", onEnded);
+                this.off("error" as any, onError);
+            };
+            const onStarted = (call: Call) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                if (options.greeting) call.greeting = options.greeting;
+                resolve(call);
+            };
+            const onEnded = (_call: Call | null, reason: string) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(new Error(reason || "bridge_rejected"));
+            };
+            const onError = (err: Error) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(err);
+            };
+            this.on("call.started", onStarted);
+            this.on("call.ended", onEnded);
+            this.on("error" as any, onError);
+
+            this._send({
+                event: "call.bridge",
+                agent_id: this.id,
+                target,
+                ...(options.greeting ? { greeting: options.greeting } : {}),
+                ...(options.config ? { config: options.config } : {}),
+                ...(options.media ? { media: options.media } : {}),
+                ...(options.metadata ? { metadata: options.metadata } : {}),
+                detect_turn_end: options.detectTurnEnd !== false,
+            });
+
+            setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(new Error("Bridge timeout"));
+            }, 30000);
+        });
+    }
+
     // ── Human-in-the-loop ─────────────────────────────────────────────────
 
     /**

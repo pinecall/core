@@ -1,23 +1,24 @@
-# pinecall test — VOICE mode (real WebRTC call)
+# pinecall test — VOICE mode (real agent-to-agent voice call)
 #
-# Run:  ELEVENLABS_API_KEY=... pinecall test examples/agent-tests/pines-intro.voice.spec.yaml
+# Run:  pinecall test examples/agent-tests/pines-intro.voice.spec.yaml
+#       (needs PINECALL_API_KEY + the judge LLM key, e.g. ANTHROPIC_API_KEY — no ElevenLabs)
 #
-# Same workflow as pines-intro.spec.yaml, but driven as a real voice call:
-#   judge (Haiku) → ElevenLabs TTS (the tester's voice) → WebRTC → the agent
-#   agent speech → STT/turn-detection → back to the judge
+# The judge is a Pinecall AGENT (server-rendered voice) bridged to the target:
+#   judge (Haiku brain) → call.say → server TTS (judge voice) → target hears
+#   target speech → judge STT → user.message → back to the judge brain
 #
-# The call is played live on your speakers and recorded to a WAV next to here.
-# `detectTurnEnd: true` asks the server to tell the judge when the agent
-# finished its turn (so the judge knows when to reply).
+# The bridged call (both voices) is played live on your speakers and recorded to
+# a WAV next to here. `detectTurnEnd: true` makes the server tell the judge when
+# the target finished its turn (so the judge knows when to reply).
 
 agent: pines
 description: Pines introduces itself and offers help (voice)
 mode: voice
 
-# Tester (judge) side
-voice: elevenlabs/sarah     # the judge's spoken voice
-stt: flux                   # how the session transcribes the judge
-detectTurnEnd: true         # server emits the agent's turn.end to the judge
+# Judge agent side (voice rendered server-side)
+voice: elevenlabs/professional-male   # the judge agent's voice (Daniel — male broadcaster)
+stt: flux                   # the judge agent's STT (transcribes what it hears)
+detectTurnEnd: true         # server emits the target's turn.end to the judge
 # greeting: "Hi!"           # uncomment to have the judge open the call;
                             # omitted → the agent greets first, judge waits.
 # language: en

@@ -50,32 +50,29 @@ After the greeting, the conversation continues normally — `turn.end`, `llm.too
 
 > **Tip:** If your agent has exactly one phone channel, you can omit `from` — the SDK auto-resolves it. Only pass `from` explicitly when the agent has multiple phone numbers.
 
-## Talking to another bot (`detectTurnEnd`)
+## Agent-to-agent voice (`agent.bridge`)
 
-Turn detection normally runs only on the **caller's** audio — so the side that
-*initiates* a call (or a raw WebRTC client) doesn't get a `turn.end` about the
-party it's talking to. That's fine when a human is on the other end, but breaks
-down when **both sides are automated** (e.g. an automated tester/judge agent
-calling your agent): the caller has no signal for when to speak.
-
-Set `detectTurnEnd: true` to have the server also emit the other party's
-end-of-turn back to the initiator:
+To have one Pinecall agent hold a **voice** conversation with **another** Pinecall
+agent — no phone, no WebRTC — use `agent.bridge(target)`. The server cross-wires
+the two agents' audio (each side's TTS becomes the other's incoming audio), so
+both run their real STT/turn-detection/TTS pipelines. The calling agent is driven
+manually: speak with `call.say()`, read the target via `user.message` / `turn.end`.
 
 ```typescript
-const call = await agent.dial({
-  to: "+14155551234",
-  greeting: "Hi, this is an automated check-in call.",
-  detectTurnEnd: true,
-});
+// The judge has voice + STT but no server-side LLM — your code is its brain.
+const judge = pc.agent("judge", { voice: "elevenlabs/sarah", stt: "deepgram/flux" });
+await pc.ready;
 
-// Now the initiator receives turn.end about the callee's turns.
-agent.on("turn.end", (turn, call) => {
-  // the other party finished speaking → take your turn
-});
+const call = await judge.bridge("pines", { detectTurnEnd: true });
+
+call.on("user.message", (e) => {/* what the judge HEARD the target say */});
+call.on("turn.end", () => {/* target finished → take your turn */ call.say("…"); });
 ```
 
-This is what powers voice-mode `pinecall test` (the judge speaks via TTS, then
-waits for the agent's `turn.end` before replying).
+`detectTurnEnd` (default `true` for `bridge`, `false` for `dial`) makes the server
+emit the other party's end-of-turn (`turn.end`, `source: "bot"`) to the initiator,
+so an automated caller knows when to speak. This is what powers voice-mode
+`pinecall test`.
 
 ## Attaching metadata
 

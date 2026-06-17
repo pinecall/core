@@ -73,7 +73,6 @@
     "ws": "^8.19.0"
   },
   "optionalDependencies": {
-    "@roamhq/wrtc": "^0.8.0",
     "speaker": "^0.5.5"
   }
 }
