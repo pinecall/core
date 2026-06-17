@@ -10,7 +10,7 @@ An Express backend + React frontend. Users click the orb, talk to your agent —
 ## Install
 
 ```bash
-npm install @pinecall/sdk @pinecall/voice-widget express
+npm install @pinecall/sdk @pinecall/web express
 ```
 
 ## Backend — `server.js`
@@ -52,7 +52,7 @@ app.listen(3000, () => console.log("http://localhost:3000"));
 ## Frontend — React
 
 ```tsx
-import { VoiceWidget } from "@pinecall/voice-widget";
+import { VoiceWidget } from "@pinecall/web";
 
 function App() {
   return (
@@ -113,7 +113,7 @@ const mara = pc.agent("mara", {
 Pass `trackedTools` to tell the widget which results to capture. Use `useVoice()` inside a child component to render them:
 
 ```tsx
-import { VoiceWidget, useVoice } from "@pinecall/voice-widget";
+import { VoiceWidget, useVoice } from "@pinecall/web";
 
 function SlotPicker() {
   const { toolCalls, sendText, dismissTool } = useVoice();

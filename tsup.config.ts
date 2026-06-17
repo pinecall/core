@@ -24,7 +24,7 @@ export default defineConfig([
         clean: false,
         target: "es2020",
         minify: false,
-        external: ["ws"],
+        external: ["ws", "@roamhq/wrtc", "speaker"],
     },
     // ── Runner display (for `pinecall run`) ──────────────────────────────
     {

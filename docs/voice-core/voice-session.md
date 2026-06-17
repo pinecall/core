@@ -5,7 +5,7 @@ description: "The core class: constructor, methods, and framework integration pa
 
 # VoiceSession
 
-The main class exported by `@pinecall/voice-core`. Manages the WebRTC peer connection, mic stream, DataChannel events, and a reactive state object.
+The main class exported by `@pinecall/web/core`. Manages the WebRTC peer connection, mic stream, DataChannel events, and a reactive state object.
 
 ## Constructor
 
@@ -170,7 +170,7 @@ The `event` listener is the power-user escape hatch. Every JSON message from the
 ### Vanilla JS
 
 ```typescript
-import { VoiceSession } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/web/core";
 
 const session = new VoiceSession({ agent: "florencia" });
 const btn = document.getElementById("call-btn");
@@ -203,7 +203,7 @@ session.addEventListener("phase", (e) => {
 
 ```tsx
 import { useSyncExternalStore, useCallback, useState, useEffect } from "react";
-import { VoiceSession } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/web/core";
 
 function useVoiceSession(agent: string) {
   const [session] = useState(() => new VoiceSession({ agent }));
@@ -219,13 +219,13 @@ function useVoiceSession(agent: string) {
 }
 ```
 
-> If you're using React and want a ready-made widget instead of building UI, use [`@pinecall/voice-widget`](/voice-widget/overview) — it wraps this pattern and ships an animated orb UI.
+> If you're using React and want a ready-made widget instead of building UI, use [`@pinecall/web`](/voice-widget/overview) — it wraps this pattern and ships an animated orb UI.
 
 ### Vue 3
 
 ```typescript
 import { ref, onUnmounted } from "vue";
-import { VoiceSession } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/web/core";
 
 export function useVoiceSession(agent: string) {
   const session = new VoiceSession({ agent });
@@ -245,7 +245,7 @@ export function useVoiceSession(agent: string) {
 
 ```typescript
 import { readable } from "svelte/store";
-import { VoiceSession } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/web/core";
 
 export function createVoiceSession(agent: string) {
   const session = new VoiceSession({ agent });
@@ -269,11 +269,11 @@ import type {
   SessionStatus,      // "idle" | "connecting" | "connected" | "error"
   CallPhase,          // "idle" | "listening" | "speaking" | "pause" | "thinking"
   TranscriptMessage,
-} from "@pinecall/voice-core";
+} from "@pinecall/web/core";
 ```
 
 ## What's next
 
 - [State and phases](/voice-core/state-and-phases) — the reactive state model in detail
 - [DataChannel protocol](/voice-core/datachannel-protocol) — every event the server emits
-- [`@pinecall/voice-widget`](/voice-widget/overview) — the React widget built on top
+- [`@pinecall/web`](/voice-widget/overview) — the React widget built on top

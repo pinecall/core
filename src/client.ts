@@ -364,7 +364,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
     // ── Token generation ─────────────────────────────────────────────────
 
-    async createToken(channel: "webrtc" | "chat", agentId: string): Promise<TokenResponse> {
+    async createToken(channel: "webrtc" | "chat" | "stream", agentId: string): Promise<TokenResponse> {
         return createTokenApi({
             channel,
             agentId,

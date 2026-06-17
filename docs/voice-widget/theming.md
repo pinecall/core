@@ -28,7 +28,7 @@ Every visual aspect of the widget is controlled by CSS custom properties. You ca
 Access preset values programmatically:
 
 ```tsx
-import { PRESETS } from "@pinecall/voice-widget";
+import { PRESETS } from "@pinecall/web";
 console.log(PRESETS.midnight); // full theme object
 ```
 
@@ -112,8 +112,8 @@ The idle warning state is driven by the server's `session.idleWarning` event and
 Start from a preset and modify selectively:
 
 ```tsx
-import { PRESETS } from "@pinecall/voice-widget";
-import type { VoiceWidgetTheme } from "@pinecall/voice-widget";
+import { PRESETS } from "@pinecall/web";
+import type { VoiceWidgetTheme } from "@pinecall/web";
 
 const brandTheme: Partial<VoiceWidgetTheme> = {
   ...PRESETS.midnight,

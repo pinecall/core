@@ -14,6 +14,8 @@ import { Call } from "./call.js";
 import { RingingCall } from "./ringing-call.js";
 import { buildShortcutPayload } from "../protocol/shortcuts.js";
 import { createAgentStream } from "../sse/stream.js";
+import { createAgentWS } from "../stream/ws-stream.js";
+import type { WSLike, WSStreamOptions } from "../stream/ws-stream.js";
 import type { ServerResponse } from "node:http";
 import type { Turn } from "./turn.js";
 import type { AgentConfig, ChannelConfig, WhatsAppChannelConfig } from "../config/agent.js";
@@ -120,7 +122,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     #devCallers: string[] = [];
     /** @internal Reference to parent Pinecall client (for createToken). */
     #client: {
-        createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<TokenResponse>;
+        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string) => Promise<TokenResponse>;
     } | null = null;
 
     /** @internal — created by Pinecall.agent() */
@@ -324,9 +326,26 @@ export class Agent extends TypedEventBus<AgentEvents> {
         return createAgentStream(this);
     }
 
+    /**
+     * Pipe agent events to a WebSocket connection.
+     *
+     * WebSocket equivalent of `stream()`. Each event is sent as a JSON
+     * message: `{ event: "bot.word", word: "hello", agent: "pines" }`.
+     *
+     * @example
+     * ```ts
+     * import { WebSocketServer } from "ws";
+     * const wss = new WebSocketServer({ server, path: "/ws/events" });
+     * wss.on("connection", (ws) => pines.ws(ws));
+     * ```
+     */
+    ws(socket: WSLike, opts?: WSStreamOptions): void {
+        createAgentWS(this, socket, opts);
+    }
+
     // ── Token generation ─────────────────────────────────────────────────
 
-    async createToken(channel: "webrtc" | "chat"): Promise<TokenResponse> {
+    async createToken(channel: "webrtc" | "chat" | "stream"): Promise<TokenResponse> {
         if (!this.#client) {
             throw new Error(
                 "Cannot create token: agent is not connected to a Pinecall client. " +
@@ -338,7 +357,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     /** @internal Set the parent Pinecall client reference. */
     _setClient(client: {
-        createToken: (channel: "webrtc" | "chat", agentId: string) => Promise<TokenResponse>;
+        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string) => Promise<TokenResponse>;
     }): void {
         this.#client = client;
     }
@@ -352,6 +371,13 @@ export class Agent extends TypedEventBus<AgentEvents> {
         greeting?: string;
         metadata?: Record<string, unknown>;
         config?: Record<string, unknown>;
+        /**
+         * When true, the server also detects the OTHER party's end-of-turn and
+         * emits `turn.end` to this (initiating) side — so an automated caller
+         * (e.g. a test/judge agent talking to another agent) knows when to
+         * speak. Default false (a normal caller is a human and doesn't need it).
+         */
+        detectTurnEnd?: boolean;
     }): Promise<Call> {
         // Auto-resolve `from` if not provided
         let from = options.from;
@@ -414,6 +440,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 ...(options.greeting ? { greeting: options.greeting } : {}),
                 ...(options.metadata ? { metadata: options.metadata } : {}),
                 ...(options.config ? { config: options.config } : {}),
+                ...(options.detectTurnEnd ? { detect_turn_end: true } : {}),
             });
 
             setTimeout(() => {

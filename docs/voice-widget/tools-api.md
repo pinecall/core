@@ -63,7 +63,7 @@ interface ToolUI {
 Reads from `<VoiceWidget>` context. Use it in any component that lives inside the widget.
 
 ```tsx
-import { useVoice } from "@pinecall/voice-widget";
+import { useVoice } from "@pinecall/web";
 
 function SlotPicker() {
   const { toolCalls, sendText, dismissTool } = useVoice();
@@ -222,7 +222,7 @@ const agent = pc.agent("booking-demo", {
 
 ```tsx
 import { useState, useEffect } from "react";
-import { VoiceWidget, useVoice } from "@pinecall/voice-widget";
+import { VoiceWidget, useVoice } from "@pinecall/web";
 
 function ContactForm({ tool }) {
   const { sendText, dismissTool, setContext, toolCalls } = useVoice();

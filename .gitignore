@@ -3,3 +3,4 @@ dist/
 *.tgz
 .brainbank/
 src.bkp/
+.megabrain

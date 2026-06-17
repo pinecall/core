@@ -140,8 +140,8 @@ function attachAgentDisplay(agent: Agent): void {
         for (const item of items) {
             const name = item.name || "unknown";
             const args = item.arguments || {};
-            const argsStr = formatArgs(args);
-            console.log(`          ${yellow("⚡")} ${bold(name)}(${dim(argsStr)})`);
+            const argsStr = colorizeJson(args, true);
+            console.log(`          ${yellow("⚡")} ${yellow(bold(name))}(${argsStr})`);
         }
     });
 
@@ -160,55 +160,54 @@ function wrapToolResults(agent: Agent): void {
         const originalExecute = tool.execute;
         (tool as any).execute = async (args: any, call: any) => {
             const result = await originalExecute(args, call);
-            const display = formatResult(result);
+            const display = colorizeJson(result);
             if (display) {
-                console.log(`          ${dim("→")} ${display}`);
+                console.log(`          ${green("✓")} ${display}`);
             }
             return result;
         };
     }
 }
 
-// ── Formatters ───────────────────────────────────────────────────────────
+// ── JSON colorizer ──────────────────────────────────────────────────────
 
 /**
- * Format tool arguments for inline display.
- * { id: "48213" } → 'id: "48213"'
+ * Colorize a JSON value for terminal display.
+ * Keys in cyan, strings in green, numbers in yellow, booleans in purple.
+ * Inline mode (compact) for tool args, pretty mode for results.
  */
-function formatArgs(args: Record<string, unknown>): string {
-    const entries = Object.entries(args);
-    if (entries.length === 0) return "";
-    return entries
-        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
-        .join(", ");
-}
+function colorizeJson(value: unknown, inline = false): string {
+    if (value === null || value === undefined) return dim("null");
+    if (typeof value === "string") return green(`"${value}"`);
+    if (typeof value === "number") return yellow(String(value));
+    if (typeof value === "boolean") return purple(String(value));
 
-/**
- * Format tool result for inline display.
- * Flatten simple objects into "key · key · key" format.
- */
-function formatResult(result: unknown): string {
-    if (result === null || result === undefined) return "";
-    if (typeof result === "string") return result;
-    if (typeof result === "number" || typeof result === "boolean") return String(result);
-
-    if (typeof result === "object" && !Array.isArray(result)) {
-        const entries = Object.entries(result as Record<string, unknown>);
-        if (entries.length === 0) return "";
-
-        // For simple flat objects, join values with ·
-        const values: string[] = [];
-        for (const [_k, v] of entries) {
-            if (v === null || v === undefined || v === false) continue;
-            if (v === true) continue; // skip boolean true, usually "confirmed: true"
-            if (typeof v === "object") {
-                values.push(JSON.stringify(v));
-            } else {
-                values.push(String(v));
-            }
-        }
-        return values.join(dim(" · "));
+    if (Array.isArray(value)) {
+        if (value.length === 0) return dim("[]");
+        const items = value.map(v => colorizeJson(v, inline));
+        if (inline) return `[${items.join(dim(", "))}]`;
+        return `[${items.join(dim(", "))}]`;
     }
 
-    return JSON.stringify(result);
+    if (typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>);
+        if (entries.length === 0) return dim("{}");
+
+        if (inline) {
+            // Compact: { city: "New York" }
+            const parts = entries.map(([k, v]) =>
+                `${cyan(k)}${dim(":")} ${colorizeJson(v, true)}`
+            );
+            return parts.join(dim(", "));
+        }
+
+        // Pretty: multiline indented
+        const parts = entries.map(([k, v]) => {
+            const val = colorizeJson(v, false);
+            return `            ${cyan(k)}${dim(":")} ${val}`;
+        });
+        return `\n${parts.join("\n")}`;
+    }
+
+    return String(value);
 }

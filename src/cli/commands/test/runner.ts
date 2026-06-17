@@ -14,6 +14,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Spec, JudgeConfig, JudgeMessage, SpecResult, TurnRecord, ToolCallInfo } from "./types.js";
 import { ChatClient } from "./chat-client.js";
+import { VoiceClient } from "./voice-client.js";
+import { parseTesterVoice } from "./tts.js";
 import { callJudge, DEFAULT_JUDGE, type JudgeResponse } from "./judge.js";
 import { c } from "../../ui.js";
 
@@ -94,6 +96,8 @@ export function parseSpec(content: string): Spec {
         // Quoted or unquoted string
         if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
             spec[key] = val.slice(1, -1);
+        } else if (val === "true" || val === "false") {
+            spec[key] = val === "true";
         } else if (val.endsWith("s") && !isNaN(Number(val.slice(0, -1)))) {
             // Duration like "30s" → ms
             spec[key] = Number(val.slice(0, -1)) * 1000;
@@ -202,6 +206,27 @@ export interface RunOptions {
     timeout?: number;
     /** Log callback for real-time output */
     log?: (msg: string) => void;
+    /** Voice-mode config — when set, the test runs as a real voice call. */
+    voice?: VoiceRunOptions;
+}
+
+export interface VoiceRunOptions {
+    /** Tester voice spec, e.g. "elevenlabs/sarah". */
+    spec: string;
+    /** Session STT provider (e.g. "deepgram-flux"). */
+    stt: string;
+    /** HTTPS server base, e.g. https://voice.pinecall.io */
+    server: string;
+    /** Where to write the WAV recording. */
+    recordPath: string;
+    /** Play live mixed audio through the speakers. */
+    play: boolean;
+    /** Optional language override. */
+    language?: string;
+    /** Tester greeting (judge opens the call). Omit to let the agent greet first. */
+    greeting?: string;
+    /** Ask the server to emit the agent's turn.end to the judge. Default true. */
+    detectTurnEnd?: boolean;
 }
 
 export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult> {
@@ -213,16 +238,31 @@ export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult>
     const startTime = Date.now();
     const turns: TurnRecord[] = [];
 
-    // Connect to agent
-    const client = new ChatClient({
-        apiKey: opts.apiKey,
-        agentId,
-        server: opts.server,
-    });
+    // Connect to agent — text chat by default, real voice call when opts.voice is set.
+    const client: ChatClient | VoiceClient = opts.voice
+        ? new VoiceClient({
+            apiKey: opts.apiKey,
+            agentId,
+            server: opts.voice.server,
+            voice: parseTesterVoice(opts.voice.spec),
+            stt: opts.voice.stt,
+            recordPath: opts.voice.recordPath,
+            play: opts.voice.play,
+            language: opts.voice.language,
+            greeting: opts.voice.greeting,
+            detectTurnEnd: opts.voice.detectTurnEnd ?? true,
+            log,
+        })
+        : new ChatClient({
+            apiKey: opts.apiKey,
+            agentId,
+            server: opts.server,
+        });
 
     try {
         await client.connect();
     } catch (err: any) {
+        try { client.close(); } catch { /* ignore */ }
         return {
             file: spec._file ?? "unknown",
             agent: agentId,
@@ -235,10 +275,35 @@ export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult>
         };
     }
 
+    // ── Voice pre-step: greeting + capture the agent's opening ──
+    // In a real call the agent usually greets first. We optionally have the
+    // judge speak an opening greeting, then capture whatever the agent says so
+    // the judge's first message is a natural REPLY, not a blind opener.
+    let opening = "";
+    if (opts.voice) {
+        if (opts.voice.greeting) {
+            log(`    ${c.cyan("┌ Tester [greeting]")}`);
+            log(`    ${c.cyan("│")} ${c.dim(opts.voice.greeting)}`);
+            log(`    ${c.cyan("└")}`);
+            await (client as VoiceClient).sendMessage(opts.voice.greeting);
+        }
+        const greetWait = Math.min(timeout, 12000);
+        const first = await client.waitForResponse(greetWait).catch(() => ({ text: "", toolCalls: [] }));
+        if (first.text || first.toolCalls.length) {
+            opening = formatAgentResponse(first.text, first.toolCalls);
+            log(`    ${c.purple("┌ Agent [greeting]")}`);
+            for (const ml of (first.text || "(tool call)").split("\n").slice(0, 6)) log(`    ${c.purple("│")} ${ml}`);
+            log(`    ${c.purple("└")}`);
+        }
+    }
+
     // Build judge conversation
+    const beginContent = opening
+        ? `The agent opened the call with:\n\n${opening}\n\nNow begin the workflow test by responding as a realistic user.`
+        : "Begin the workflow test now. Send your first message to the agent.";
     const messages: JudgeMessage[] = [
         { role: "system", content: buildSystemPrompt(spec) },
-        { role: "user", content: "Begin the workflow test now. Send your first message to the agent." },
+        { role: "user", content: beginContent },
     ];
 
     let result: { passed: boolean; summary: string } | null = null;
@@ -281,8 +346,10 @@ export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult>
 
             messages.push({ role: "assistant", content: testerMsg });
 
-            // 4. Send to agent and wait for response
-            client.sendMessage(testerMsg);
+            // 4. Send to agent and wait for response.
+            // In voice mode we speak only the user message (the last paragraph),
+            // never the judge's internal notes.
+            await client.sendMessage(opts.voice ? userMsg : testerMsg);
             const agentRes = await client.waitForResponse(timeout);
 
             // ── Agent response ──
@@ -322,6 +389,7 @@ export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult>
         client.close();
     }
 
+    const isVoice = client instanceof VoiceClient;
     return {
         file: spec._file ?? "unknown",
         agent: agentId,
@@ -330,5 +398,6 @@ export async function runSpec(spec: Spec, opts: RunOptions): Promise<SpecResult>
         summary: result.summary,
         turns,
         durationMs: Date.now() - startTime,
+        ...(isVoice ? { recordingPath: client.recordingPath, recordingDuration: client.recordingDuration } : {}),
     };
 }

@@ -75,11 +75,11 @@ Tokens are single-use, scoped to the agent, and expire in 60 seconds. See [Secur
 ## 3. Drop in the widget
 
 ```bash
-npm install @pinecall/voice-widget
+npm install @pinecall/web
 ```
 
 ```tsx
-import { VoiceWidget } from "@pinecall/voice-widget";
+import { VoiceWidget } from "@pinecall/web";
 
 export default function App() {
   return (
@@ -101,7 +101,7 @@ That's the entire frontend. Click the orb, talk, listen.
 Events arrive over the WebRTC DataChannel — you don't need SSE for in-browser UIs. The widget renders its own transcript, and exposes session status plus the full live state via the `useVoice()` hook:
 
 ```tsx
-import { VoiceWidget, useVoice } from "@pinecall/voice-widget";
+import { VoiceWidget, useVoice } from "@pinecall/web";
 
 function Transcript() {
   const { messages, status } = useVoice();
@@ -121,14 +121,14 @@ export default function App() {
 }
 ```
 
-For lower-level control, use `@pinecall/voice-core` directly — it gives you the raw event stream.
+For lower-level control, use `@pinecall/web/core` directly — it gives you the raw event stream.
 
 ## Custom UI without the widget
 
-If the widget doesn't fit your design, build your own UI with `@pinecall/voice-core`:
+If the widget doesn't fit your design, build your own UI with `@pinecall/web/core`:
 
 ```typescript
-import { VoiceSession } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/web/core";
 
 const session = new VoiceSession({
   agent: "mara",

@@ -15,12 +15,12 @@ If the orb UI doesn't fit your design, use the `useVoiceSession()` hook directly
 | You need theming via presets | You're styling everything yourself anyway |
 | You want the Tools API context (`useVoice()`) | You're building a transcript-first interface |
 
-The hook wraps `VoiceSession` from `@pinecall/voice-core` with `useSyncExternalStore` for efficient React rendering. The session is created once on mount and destroyed on unmount.
+The hook wraps `VoiceSession` from `@pinecall/web/core` with `useSyncExternalStore` for efficient React rendering. The session is created once on mount and destroyed on unmount.
 
 ## Quick start
 
 ```tsx
-import { useVoiceSession } from "@pinecall/voice-widget";
+import { useVoiceSession } from "@pinecall/web";
 
 function CustomVoice() {
   const {
@@ -79,11 +79,11 @@ The hook returns the full session state **plus** action methods:
 
 ## Accessing raw events
 
-For tool calls or other low-level events the state machine doesn't expose, drop down to `@pinecall/voice-core` directly and listen to the `event` listener:
+For tool calls or other low-level events the state machine doesn't expose, drop down to `@pinecall/web/core` directly and listen to the `event` listener:
 
 ```tsx
 import { useState, useEffect } from "react";
-import { VoiceSession } from "@pinecall/voice-core";
+import { VoiceSession } from "@pinecall/web/core";
 
 function AdvancedVoice() {
   const [session] = useState(() => new VoiceSession({ agent: "mara" }));
@@ -127,4 +127,4 @@ Use `useVoiceSession()` for fully custom UIs that replace the widget entirely. U
 
 - [Props reference](/voice-widget/props) — if you want the orb after all
 - [Tools API](/voice-widget/tools-api) — interactive UI for tool calls
-- [`@pinecall/voice-core`](/voice-core/overview) — for non-React frameworks
+- [`@pinecall/web/core`](/voice-core/overview) — for non-React frameworks

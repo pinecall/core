@@ -29,7 +29,10 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
 
     // ── Node.js ServerResponse mode ──
     if (res) {
+        // Disable TCP Nagle — critical for real-time SSE delivery
+        (res as any).socket?.setNoDelay?.(true);
         res.writeHead(200, SSE_HEADERS);
+        res.flushHeaders();
         res.write(formatSSE("connected", { agent: agent.id }));
 
         for (const evt of STREAM_EVENTS) {
@@ -127,6 +130,7 @@ export function createMultiAgentStream(
     // ── Node.js ServerResponse mode ──
     if (res) {
         res.writeHead(200, SSE_HEADERS);
+        res.flushHeaders();
         res.write(formatSSE("connected", { agents: agentIds }));
 
         for (const agent of targetAgents) {

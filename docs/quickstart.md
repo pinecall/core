@@ -76,14 +76,14 @@ This uses the same LLM, prompt, and tools as a voice call — just over text.
 
 ### From the browser
 
-For voice, connect from the browser using the [`@pinecall/voice-widget`](https://github.com/pinecall/voice-widget):
+For voice, connect from the browser using the [`@pinecall/web`](https://github.com/pinecall/web):
 
 ```bash
-npm install @pinecall/voice-widget
+npm install @pinecall/web
 ```
 
 ```tsx
-import { VoiceWidget } from "@pinecall/voice-widget";
+import { VoiceWidget } from "@pinecall/web";
 
 export default function App() {
   return (

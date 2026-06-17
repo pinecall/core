@@ -1,22 +1,22 @@
 ---
-title: "@pinecall/voice-widget"
+title: "@pinecall/web"
 description: "Drop-in React voice widget with animated orb UI, live transcript, themes, and multi-language support."
 ---
 
-# @pinecall/voice-widget
+# @pinecall/web
 
 A React voice widget for Pinecall agents. Animated orb, live transcript, theme presets, multi-language selector, and an interactive tools API for rendering UI in response to LLM tool calls.
 
 ```bash
-npm install @pinecall/voice-widget react react-dom
+npm install @pinecall/web react react-dom
 ```
 
-> Built on top of [`@pinecall/voice-core`](/voice-core/overview). React ≥18 is a peer dependency.
+> Built on top of [`@pinecall/web/core`](/voice-core/overview). React ≥18 is a peer dependency.
 
 ## Quick start
 
 ```tsx
-import { VoiceWidget } from "@pinecall/voice-widget";
+import { VoiceWidget } from "@pinecall/web";
 
 export default function App() {
   return <VoiceWidget agent="mara" name="Mara" />;
@@ -55,7 +55,7 @@ These are **not** wired into `<VoiceWidget>` — you compose them yourself in yo
 |---|---|
 | Drop a voice button on your site | `<VoiceWidget />` |
 | Build a fully custom UI in React | `useVoiceSession()` hook |
-| Build a fully custom UI in Vue/Svelte/vanilla | [`@pinecall/voice-core`](/voice-core/overview) directly |
+| Build a fully custom UI in Vue/Svelte/vanilla | [`@pinecall/web/core`](/voice-core/overview) directly |
 | Render interactive UI from agent tool calls | `<VoiceWidget>` + `tools` prop or `useVoice()` + `trackedTools` |
 | Add multi-channel contact menu | Import `ContactHub` and compose it in your layout |
 

@@ -83,7 +83,7 @@ agent.on("session.timeout", (event, call) => {
 
 ## Widget integration
 
-The `@pinecall/voice-widget` automatically responds to `session.idleWarning` by switching the orb to a blinking amber state (`.idle-warning` CSS class, configurable via `colorWarning` theme prop). On `session.timeout`, the widget auto-disconnects.
+The `@pinecall/web` automatically responds to `session.idleWarning` by switching the orb to a blinking amber state (`.idle-warning` CSS class, configurable via `colorWarning` theme prop). On `session.timeout`, the widget auto-disconnects.
 
 ## Common configs
 

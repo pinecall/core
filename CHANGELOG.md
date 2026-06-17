@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`dial({ detectTurnEnd })`** — when `true`, the server also detects the OTHER party's end-of-turn and emits `turn.end` to the initiating side. Default `false`. Enables automated callers (e.g. a test/judge agent talking to another agent) to know when to speak. Server-side: emitted on `bot.finished` with `source: "bot"`.
+- **`pinecall test` voice mode** — run specs as a **real voice call** instead of text chat. New spec fields (`mode: voice`, `voice`, `stt`, `greeting`, `detectTurnEnd`, `language`) and CLI flags (`--voice <p/v>`, `--stt <prov>`, `--record <file>`, `--no-listen`, `--lang`). The judge speaks via ElevenLabs TTS over WebRTC, the call plays live on the speakers and is recorded to WAV. Needs `ELEVENLABS_API_KEY`; optional native deps `@roamhq/wrtc` + `speaker`.
+
 ## [0.2.11] — 2026-06-12
 
 ### Added
@@ -14,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`pinecall kick <agent>`** — CLI command to force-disconnect an agent by slug. Calls `DELETE /api/sdk/agents/{slug}`. Use when a stale registration blocks new connections.
 - **Agent conflict protection** — the server now **rejects** new connections if an agent with the same slug already has a live WebSocket (instead of silently kicking the old one). The SDK displays a clear error message: `Agent "pines" is already connected. Run pinecall kick pines to force disconnect.`
 - **`AGENT_CONFLICT` error code** — new wire error code emitted when registration is rejected due to a duplicate live agent. Handled in `ErrorHandler` with a user-friendly message.
+- **`agent.ws(socket)`** — WebSocket equivalent of `agent.stream()`. Pipes agent events as JSON to any WebSocket connection. Supports session scoping (`{ sessionId }`) and tool results (`{ toolResults: true }`).
+- **`createEventStream(opts)`** — browser/Node.js client for consuming WebSocket event streams. Auto-reconnect, typed event handlers (`on`/`off`/`*`), and bidirectional messaging (`send()`). Supports direct URL mode (`{ url }`) for your own server or token-based mode for remote connections.
+- **`"stream"` channel type** — `createToken("stream", agentId)` now accepted alongside `"webrtc"` and `"chat"`.
 
 ### Changed
 

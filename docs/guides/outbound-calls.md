@@ -46,8 +46,36 @@ After the greeting, the conversation continues normally — `turn.end`, `llm.too
 | `greeting` | `string` | — | Text the server speaks when the callee picks up |
 | `metadata` | `object` | — | Custom data attached to the call (visible on the `Call` object) |
 | `config` | `object` | — | Per-call config override (voice, STT, language) |
+| `detectTurnEnd` | `boolean` | — | Detect the OTHER party's end-of-turn and emit `turn.end` to this side. Default `false`. |
 
 > **Tip:** If your agent has exactly one phone channel, you can omit `from` — the SDK auto-resolves it. Only pass `from` explicitly when the agent has multiple phone numbers.
+
+## Talking to another bot (`detectTurnEnd`)
+
+Turn detection normally runs only on the **caller's** audio — so the side that
+*initiates* a call (or a raw WebRTC client) doesn't get a `turn.end` about the
+party it's talking to. That's fine when a human is on the other end, but breaks
+down when **both sides are automated** (e.g. an automated tester/judge agent
+calling your agent): the caller has no signal for when to speak.
+
+Set `detectTurnEnd: true` to have the server also emit the other party's
+end-of-turn back to the initiator:
+
+```typescript
+const call = await agent.dial({
+  to: "+14155551234",
+  greeting: "Hi, this is an automated check-in call.",
+  detectTurnEnd: true,
+});
+
+// Now the initiator receives turn.end about the callee's turns.
+agent.on("turn.end", (turn, call) => {
+  // the other party finished speaking → take your turn
+});
+```
+
+This is what powers voice-mode `pinecall test` (the judge speaks via TTS, then
+waits for the agent's `turn.end` before replying).
 
 ## Attaching metadata
 

@@ -1,11 +1,11 @@
 ---
 title: "Example: Chat Bot"
-description: "Text chat agent using @pinecall/chat-core — same agent, text instead of voice."
+description: "Text chat agent using @pinecall/web/chat — same agent, text instead of voice."
 ---
 
 # Example: Chat Bot
 
-A text-based chat agent using `@pinecall/chat-core`. Same Pinecall agent, same prompt, same tools — but text over WebSocket instead of audio over WebRTC.
+A text-based chat agent using `@pinecall/web/chat`. Same Pinecall agent, same prompt, same tools — but text over WebSocket instead of audio over WebRTC.
 
 ## What it does
 
@@ -51,7 +51,7 @@ app.listen(3000, () => console.log("http://localhost:3000"));
 ## Frontend — React chat widget
 
 ```tsx
-import { usePinecallChat } from "@pinecall/chat-core/react";
+import { usePinecallChat } from "@pinecall/web/chat/react";
 
 function Chat() {
   const { messages, send, connected, typing } = usePinecallChat({
@@ -96,7 +96,7 @@ Tools execute on the backend — the agent calls `getAvailability`, gets slots, 
 Use `setContext` to sync frontend state into the agent's prompt, so it knows what the user is seeing:
 
 ```tsx
-import { usePinecallChat } from "@pinecall/chat-core/react";
+import { usePinecallChat } from "@pinecall/web/chat/react";
 import { useState, useEffect } from "react";
 
 function BookingChat() {
@@ -178,7 +178,7 @@ The same agent handles **both** text (chat) and voice (WebRTC) automatically. Sa
 
 ## What's next
 
-- [`@pinecall/chat-core` reference](/chat-core/overview) — full ChatSession API
+- [`@pinecall/web/chat` reference](/chat-core/overview) — full ChatSession API
 - [Browser Widget example](/examples/browser-widget) — the voice equivalent with interactive tool UI
 - [SSE Event Streaming](/guides/sse-streaming) — build a live dashboard
 

@@ -30,6 +30,12 @@ export { Pinecall, PinecallError } from "./client.js";
 export type { PinecallOptions, PinecallEvents } from "./client.js";
 export type { StreamOptions } from "./sse/stream.js";
 
+// Event streaming (WebSocket)
+export { EventStream, createEventStream } from "./stream/event-stream.js";
+export type { EventStreamOptions, EventStreamStatus } from "./stream/event-stream.js";
+export { createAgentWS } from "./stream/ws-stream.js";
+export type { WSLike, WSStreamOptions } from "./stream/ws-stream.js";
+
 // Tool definition
 export { tool } from "./tool.js";
 export type { Tool, ToolConfig } from "./tool.js";

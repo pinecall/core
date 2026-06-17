@@ -176,7 +176,7 @@ These examples live in the docs as full code walkthroughs — no separate `examp
 
 | Example | What it covers |
 |---|---|
-| [Browser Widget](/examples/browser-widget) | WebRTC `@pinecall/voice-widget` integration |
+| [Browser Widget](/examples/browser-widget) | WebRTC `@pinecall/web` integration |
 | [Chat Bot](/examples/chat-bot) | Text-only LLM chat (no audio) |
 | [Headless Agent](/examples/headless-agent) | Server-side agent without UI |
 | [Multi-Channel Bot](/examples/multi-channel-bot) | Voice + WhatsApp + chat on one agent |

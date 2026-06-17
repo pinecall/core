@@ -22,7 +22,7 @@ export interface FetchWebRTCTokenOptions {
 }
 
 export interface CreateTokenOptions {
-    channel: "webrtc" | "chat";
+    channel: "webrtc" | "chat" | "stream";
     agentId: string;
     apiKey: string;
     apiUrl?: string;
@@ -61,7 +61,12 @@ export async function fetchWebRTCToken(opts: FetchWebRTCTokenOptions): Promise<W
 
 export async function createToken(opts: CreateTokenOptions): Promise<TokenResponse> {
     const apiUrl = opts.apiUrl ?? DEFAULT_API_URL;
-    const endpoint = opts.channel === "chat" ? "/chat/token" : "/webrtc/token";
+    const endpoints: Record<string, string> = {
+        webrtc: "/webrtc/token",
+        chat: "/chat/token",
+        stream: "/stream/token",
+    };
+    const endpoint = endpoints[opts.channel] || "/webrtc/token";
     const url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(opts.agentId)}`;
 
     let res: Response;

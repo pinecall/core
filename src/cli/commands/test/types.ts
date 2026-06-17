@@ -15,6 +15,27 @@ export interface Spec {
     judge?: JudgeConfig;
     /** Natural language workflow for the tester LLM */
     workflow: string;
+
+    // ── Voice mode (real voice call) ──
+    /** "chat" (default, text) or "voice" (real WebRTC voice call). */
+    mode?: "chat" | "voice";
+    /** Tester's spoken voice for voice mode, e.g. "elevenlabs/sarah". */
+    voice?: string;
+    /** Session STT provider for voice mode, e.g. "flux". */
+    stt?: string;
+    /** Language override (e.g. "es"). */
+    language?: string;
+    /**
+     * Tester greeting (voice mode): the judge speaks this to OPEN the call.
+     * Omit to let the agent greet first and have the judge wait for it.
+     */
+    greeting?: string;
+    /**
+     * Detect the agent's end-of-turn so the judge knows when to reply.
+     * Default true in voice mode. See dial({ detectTurnEnd }).
+     */
+    detectTurnEnd?: boolean;
+
     /** Source file path (set at load time) */
     _file?: string;
 }
@@ -62,6 +83,10 @@ export interface SpecResult {
     turns: TurnRecord[];
     durationMs: number;
     error?: string;
+    /** Voice mode: path to the WAV recording of the call. */
+    recordingPath?: string;
+    /** Voice mode: recorded duration in seconds. */
+    recordingDuration?: number;
 }
 
 export interface TurnRecord {

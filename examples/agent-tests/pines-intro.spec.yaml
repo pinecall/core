@@ -1,0 +1,17 @@
+# pinecall test — text (chat) mode
+#
+# Run:  pinecall test examples/agent-tests/pines-intro.spec.yaml
+#
+# Default mode is "chat": the judge (Haiku) talks to the agent over the text
+# chat protocol. No audio, no extra deps — fast and deterministic.
+
+agent: pines
+description: Pines introduces itself and offers help (text)
+mode: chat
+
+workflow: |
+  1. Greet the agent and ask what it can help you with.
+  2. Verify the agent responds coherently and offers to help (no error, stays in character).
+  3. Ask one simple question, e.g. "What is Pinecall?".
+  4. Verify the answer is on-topic and helpful.
+  5. Thank the agent and end. PASS if the conversation was coherent and helpful.

@@ -124,7 +124,7 @@ const florencia = pc.agent("florencia", {
 />
 ```
 
-When `tokenProvider` is set, the widget uses it. When it's not set (or fails), `voice-core` falls back to fetching directly from the server using `allowedOrigins`.
+When `tokenProvider` is set, the widget uses it. When it's not set (or fails), `@pinecall/web/core` falls back to fetching directly from the server using `allowedOrigins`.
 
 > **Security note:** `allowedOrigins` alone is origin-header based — real browsers can't spoof it, but scripts/curl can. Always pair it with `tokenProvider` in production.
 

@@ -74,7 +74,7 @@
         ]
       },
       {
-        "group": "@pinecall/voice-core (Browser)",
+        "group": "@pinecall/web/core (Voice)",
         "pages": [
           "voice-core/overview",
           "voice-core/voice-session",
@@ -83,7 +83,7 @@
         ]
       },
       {
-        "group": "@pinecall/voice-widget (React)",
+        "group": "@pinecall/web (React Widget)",
         "pages": [
           "voice-widget/overview",
           "voice-widget/props",
@@ -93,10 +93,16 @@
         ]
       },
       {
-        "group": "@pinecall/chat-core (Browser)",
+        "group": "@pinecall/web/chat (Chat)",
         "pages": [
           "chat-core/overview",
           "chat-core/chat-session"
+        ]
+      },
+      {
+        "group": "@pinecall/web (Web Components)",
+        "pages": [
+          "web-components/overview"
         ]
       },
       {

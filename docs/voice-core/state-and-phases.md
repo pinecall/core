@@ -151,7 +151,7 @@ session.subscribe(() => {
 });
 ```
 
-The `voice-widget` package follows exactly this pattern — see [its theming guide](/voice-widget/theming) for the full set of CSS classes.
+The `@pinecall/web` package follows exactly this pattern — see [its theming guide](/voice-widget/theming) for the full set of CSS classes.
 
 ## What's next
 

@@ -12,7 +12,7 @@ The `ChatSession` class is the framework-agnostic core. For React there's also t
 ### Constructor
 
 ```typescript
-import { ChatSession } from "@pinecall/chat-core";
+import { ChatSession } from "@pinecall/web/chat";
 
 const chat = new ChatSession({ agent: "florencia" });
 ```
@@ -82,7 +82,7 @@ unsubscribe();
 
 ### Injecting dynamic context
 
-Same pattern as `voice-widget`'s `setContext()` — inject live UI state into the LLM's system prompt:
+Same pattern as `@pinecall/web`'s `setContext()` — inject live UI state into the LLM's system prompt:
 
 ```typescript
 chat.setContext("cart", JSON.stringify({
@@ -104,12 +104,12 @@ The agent's system prompt picks this up automatically:
 
 ## `usePinecallChat` (React)
 
-React-only hook exported from `@pinecall/chat-core/react`. Wraps `ChatSession` with `useSyncExternalStore` for efficient rendering. Session is created once on mount and destroyed on unmount.
+React-only hook exported from `@pinecall/web/chat/react`. Wraps `ChatSession` with `useSyncExternalStore` for efficient rendering. Session is created once on mount and destroyed on unmount.
 
 ### Quick usage
 
 ```tsx
-import { usePinecallChat } from "@pinecall/chat-core/react";
+import { usePinecallChat } from "@pinecall/web/chat/react";
 
 function Chat() {
   const { messages, send, connected, typing, streamingText } = usePinecallChat({
@@ -189,5 +189,5 @@ Browser                                  Voice Server
 | Package | Description |
 |---|---|
 | [`@pinecall/sdk`](/api/pinecall) | Server-side SDK — agent, call, tools, channels |
-| [`@pinecall/voice-core`](/voice-core/overview) | WebRTC voice session (framework-agnostic) |
-| [`@pinecall/voice-widget`](/voice-widget/overview) | React voice widget with animated orb |
+| [`@pinecall/web/core`](/voice-core/overview) | WebRTC voice session (framework-agnostic) |
+| [`@pinecall/web`](/voice-widget/overview) | React voice widget with animated orb |

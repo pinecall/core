@@ -1,0 +1,31 @@
+# pinecall test — VOICE mode (real WebRTC call)
+#
+# Run:  ELEVENLABS_API_KEY=... pinecall test examples/agent-tests/pines-intro.voice.spec.yaml
+#
+# Same workflow as pines-intro.spec.yaml, but driven as a real voice call:
+#   judge (Haiku) → ElevenLabs TTS (the tester's voice) → WebRTC → the agent
+#   agent speech → STT/turn-detection → back to the judge
+#
+# The call is played live on your speakers and recorded to a WAV next to here.
+# `detectTurnEnd: true` asks the server to tell the judge when the agent
+# finished its turn (so the judge knows when to reply).
+
+agent: pines
+description: Pines introduces itself and offers help (voice)
+mode: voice
+
+# Tester (judge) side
+voice: elevenlabs/sarah     # the judge's spoken voice
+stt: flux                   # how the session transcribes the judge
+detectTurnEnd: true         # server emits the agent's turn.end to the judge
+# greeting: "Hi!"           # uncomment to have the judge open the call;
+                            # omitted → the agent greets first, judge waits.
+# language: en
+timeout: 45s                # voice turns are slower than text
+
+workflow: |
+  1. Greet the agent and ask what it can help you with.
+  2. Verify the agent responds coherently and offers to help (no error, stays in character).
+  3. Ask one simple question, e.g. "What is Pinecall?".
+  4. Verify the answer is on-topic and helpful.
+  5. Thank the agent and end. PASS if the conversation was coherent and helpful.
