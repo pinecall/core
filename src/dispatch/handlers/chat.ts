@@ -16,6 +16,7 @@ import type { WireEvent } from "../../protocol/wire.js";
 import { Call } from "../../domain/call.js";
 import { decodeEvent } from "../../protocol/codec.js";
 import { forwardCallEvents } from "../proxy.js";
+import { autoExecuteTools } from "./tool.js";
 import type { ToolCallItem } from "../../protocol/events.js";
 
 
@@ -162,12 +163,18 @@ export class ChatHandler implements EventHandler {
                     arguments: (tc.arguments ?? (tc.function as any)?.arguments ?? "{}") as string,
                 }));
 
-                call._emitWire("llm.toolCall", {
-                    event: "llm.toolCall",
+                const toolEvent = {
+                    event: "llm.toolCall" as const,
                     callId,
                     toolCalls,
                     msgId: (wire.msg_id ?? "") as string,
-                });
+                };
+                call._emitWire("llm.toolCall", toolEvent);
+
+                // Auto-execute registered tools (chat does NOT go through ToolHandler).
+                // Without this, chat tool calls never get a result → server times out.
+                const tools = agent._getTools();
+                if (tools.length > 0) void autoExecuteTools(tools, toolEvent, call);
 
                 return true;
             }

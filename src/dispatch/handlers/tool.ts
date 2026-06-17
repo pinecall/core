@@ -88,10 +88,10 @@ export class ToolHandler implements EventHandler {
         const tools = agent._getTools();
         if (tools.length > 0) {
             if (call) {
-                this.#autoExecute(tools, event, call);
+                void autoExecuteTools(tools, event, call);
             } else {
                 // WhatsApp: build a lightweight proxy with toolResult
-                this.#autoExecute(tools, event, {
+                void autoExecuteTools(tools, event, {
                     toolResult: (mId: string, results: Array<{ toolCallId: string; result: unknown }>) => {
                         ctx.send({
                             event: "llm.tool_result",
@@ -127,48 +127,54 @@ export class ToolHandler implements EventHandler {
         return null;
     }
 
-    async #autoExecute(
-        tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown> }>,
-        event: ToolCallEvent,
-        call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown }>) => void },
-    ): Promise<void> {
-        const toolMap = new Map(tools.map(t => [t.name, t]));
-        const names = event.toolCalls.map(tc => tc.name);
-        console.log(`🔧 tool_call [${names.join(", ")}] msgId=${event.msgId.slice(0, 12)}`);
+}
 
-        const results = await Promise.all(
-            event.toolCalls.map(async (tc) => {
-                const t = toolMap.get(tc.name);
-                if (!t) {
-                    console.log(`  ❌ ${tc.name} → unknown tool`);
-                    return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` } };
-                }
+/**
+ * Auto-execute registered Tool objects for a tool-call event and send the
+ * results back via `call.toolResult`. Shared by the voice/WhatsApp ToolHandler
+ * and the ChatHandler (chat tool calls auto-execute the same way).
+ */
+export async function autoExecuteTools(
+    tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown> }>,
+    event: ToolCallEvent,
+    call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown }>) => void },
+): Promise<void> {
+    const toolMap = new Map(tools.map(t => [t.name, t]));
+    const names = event.toolCalls.map(tc => tc.name);
+    console.log(`🔧 tool_call [${names.join(", ")}] msgId=${event.msgId.slice(0, 12)}`);
 
-                try {
-                    const args = t.schema.parse(JSON.parse(tc.arguments));
-                    console.log(`  ⚙️  ${tc.name}(${JSON.stringify(args).slice(0, 120)})`);
-                    const result = await t.execute(args, call as any);
-                    const preview = JSON.stringify(result).slice(0, 200);
-                    console.log(`  ✅ ${tc.name} → ${preview}`);
-                    return { toolCallId: tc.id, result };
-                } catch (err: any) {
-                    console.log(`  ❌ ${tc.name} → error: ${err.message ?? err}`);
-                    return { toolCallId: tc.id, result: { error: err.message ?? String(err) } };
-                }
-            }),
-        );
-
-        call.toolResult(event.msgId, results);
-
-        // Push tool results to incremental history
-        if ("_pushMessage" in call) {
-            for (const r of results) {
-                (call as any)._pushMessage({
-                    role: "tool",
-                    tool_call_id: r.toolCallId,
-                    content: typeof r.result === "string" ? r.result : JSON.stringify(r.result),
-                });
+    const results = await Promise.all(
+        event.toolCalls.map(async (tc) => {
+            const t = toolMap.get(tc.name);
+            if (!t) {
+                console.log(`  ❌ ${tc.name} → unknown tool`);
+                return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` } };
             }
+
+            try {
+                const args = t.schema.parse(JSON.parse(tc.arguments));
+                console.log(`  ⚙️  ${tc.name}(${JSON.stringify(args).slice(0, 120)})`);
+                const result = await t.execute(args, call as any);
+                const preview = JSON.stringify(result).slice(0, 200);
+                console.log(`  ✅ ${tc.name} → ${preview}`);
+                return { toolCallId: tc.id, result };
+            } catch (err: any) {
+                console.log(`  ❌ ${tc.name} → error: ${err.message ?? err}`);
+                return { toolCallId: tc.id, result: { error: err.message ?? String(err) } };
+            }
+        }),
+    );
+
+    call.toolResult(event.msgId, results);
+
+    // Push tool results to incremental history
+    if ("_pushMessage" in call) {
+        for (const r of results) {
+            (call as any)._pushMessage({
+                role: "tool",
+                tool_call_id: r.toolCallId,
+                content: typeof r.result === "string" ? r.result : JSON.stringify(r.result),
+            });
         }
     }
 }
