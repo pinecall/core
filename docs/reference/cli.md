@@ -436,6 +436,56 @@ pinecall twilio unlink <SID>              # Remove a Twilio account
 
 > **BYOC phones are inbound only.** Outbound calls require a managed number from a verified account.
 
+### `pinecall knowledge`
+
+Manage knowledge bases (RAG) — the documents an agent grounds its answers on.
+Attach a knowledge base to an agent with [`knowledgeBase`](/guides/knowledge-bases),
+then upload, query, and re-train it from the terminal.
+
+> **Paid feature.** Knowledge bases require a paid plan (Starter or higher). On a
+> free trial the CLI prints an upgrade prompt.
+
+```bash
+pinecall knowledge                              # List knowledge bases
+pinecall knowledge create "Product docs"        # Create one (prints its id)
+pinecall knowledge docs <kbId>                  # List documents in a KB
+pinecall knowledge push <kbId> ./docs/*.md      # Upload local .md / .txt files
+pinecall knowledge get <kbId> <docId>           # Print a document's text
+pinecall knowledge query <kbId> "how do I dial" # Semantic search — no LLM
+pinecall knowledge reindex <kbId>               # Re-train (rebuild) the index
+pinecall knowledge rm <kbId> <docId>            # Delete a document
+pinecall knowledge delete <kbId>                # Delete the knowledge base
+```
+
+Listing knowledge bases:
+
+```
+  ▸ Knowledge bases (1)
+  ID                        NAME           DOCS  STATUS
+  ────────────────────────  ─────────────  ────  ──────
+  6a342d8665460d8af75d5757  Product docs   42    ready
+```
+
+`knowledge query` runs **retrieval only** (embeddings, no LLM) — it returns the
+top matching chunks with a relevance score, useful for debugging what an agent
+will retrieve:
+
+```bash
+pinecall knowledge query 6a342d8665460d8af75d5757 "how do I add a tool"
+```
+
+```
+  ▸ Matches for "how do I add a tool" (6)
+  0.476  Tools and Functions › Adding a tool
+         To add a tool to an agent, call pc.tool and pass it in the tools array…
+  0.459  Events › Tools
+         The server-side LLM is requesting one or more tool calls…
+```
+
+Uploading reads each file's text locally and stores it in the knowledge base,
+then the index re-trains automatically. Documents can also be managed in the
+dashboard under **Knowledge**.
+
 ## Global Options
 
 | Option | Description |

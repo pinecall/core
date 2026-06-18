@@ -9,17 +9,7 @@ The Pinecall SDK has four nouns. Understanding them is most of understanding the
 
 ## The four nouns
 
-```
-Pinecall (the client)
-   │
-   └── Agent (a personality)
-            │
-            ├── Phone: +1-555-123-4567
-            ├── WhatsApp: +51-987-654-321
-            │
-            └── Call (a live session)
-            (WebRTC + Chat: work via tokens, no declaration)
-```
+![The four nouns — Pinecall, Agent, Channel, Call](/assets/diagrams/four-nouns-hierarchy.png)
 
 ### `Pinecall` — the client
 

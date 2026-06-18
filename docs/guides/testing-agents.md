@@ -34,22 +34,7 @@ That's it. The judge LLM will converse with your agent, follow the workflow, and
 
 `pinecall test` uses a **judge LLM** (Claude Haiku by default) to test your agent:
 
-```
-┌──────────────────────────────────────────────────┐
-│  Judge LLM reads the workflow                    │
-│    ↓                                             │
-│  Judge generates a user message                  │
-│    ↓                                             │
-│  Message sent to your agent via WebSocket        │
-│    ↓                                             │
-│  Agent responds (text + tool calls)              │
-│    ↓                                             │
-│  Response fed back to Judge                      │
-│    ↓                                             │
-│  Judge evaluates → continues or calls            │
-│    test_passed() / test_failed()                 │
-└──────────────────────────────────────────────────┘
-```
+![AI agent testing loop](/assets/diagrams/test-flow.png)
 
 The judge has two tools:
 - **`test_passed(summary)`** — marks the workflow as passed

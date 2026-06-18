@@ -45,16 +45,7 @@ That's it. The session manages the connection lifecycle, mic, and transcript. Yo
 
 ## How it fits with the other packages
 
-```
-Browser                                  Server
-─────────                                ──────
-@pinecall/web   (React UI)
-       │
-@pinecall/web/core     (WebRTC + state) ─────► voice.pinecall.io ─────► @pinecall/sdk (your Node.js)
-                                                                                │
-                                                                            agent.on(...)
-                                                                            call.say(...)
-```
+![Web package architecture](/assets/diagrams/web-package-arch.png)
 
 - **You write**: agent logic in Node.js with `@pinecall/sdk`
 - **You drop in**: `@pinecall/web/core` (or `@pinecall/web`) in the browser

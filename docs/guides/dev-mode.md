@@ -13,20 +13,7 @@ Pinecall's dev mode solves both. **One phone number, many agents in parallel**, 
 
 Every agent has an ID — `florencia`, `mara`, `support`. In dev mode, you give your agent a unique slug — `dev-berna-florencia`, `dev-juan-florencia` — and tell Pinecall which phone numbers should route to that slug.
 
-```
-           Incoming call to +13186330963
-                      │
-             ┌────────┴────────┐
-             │                 │
-        Caller in          Caller NOT in
-        DEV_CALLERS        DEV_CALLERS
-             │                 │
-   ┌─────────┴─────────┐  ┌───┴─────────┐
-   │  dev-berna-       │  │             │
-   │  florencia        │  │  florencia  │
-   │  (your dev agent) │  │  (prod)     │
-   └───────────────────┘  └─────────────┘
-```
+![Dev mode call routing](/assets/diagrams/dev-mode-routing.png)
 
 Zero extra cost. One number serves prod and every dev simultaneously.
 
@@ -69,18 +56,18 @@ if (isDev) {
 
 ```bash
 # .env.local — gitignored, each dev sets their own
-DEV_CALLERS=+34607827824
+DEV_CALLERS=+34600123456
 ```
 
 > **Vite users:** Vite loads `.env.local` but does **not** inject non-`VITE_` variables into `process.env` for server plugins. You must set `NODE_ENV` and `DEV_CALLERS` in the shell or your start command:
 >
 > ```bash
-> NODE_ENV=development DEV_CALLERS=+34607827824 npx vite --port 5170
+> NODE_ENV=development DEV_CALLERS=+34600123456 npx vite --port 5170
 > ```
 >
 > Alternatively, if your agent boots inside a Vite plugin (`configureServer`), load `.env.local` manually with `dotenv`.
 
-Now when Berna calls `+13186330963` from her phone (`+34607827824`), the call routes to `dev-berna-florencia`. When anyone else calls, it goes to `florencia` (prod).
+Now when Berna calls `+13186330963` from her phone (`+34600123456`), the call routes to `dev-berna-florencia`. When anyone else calls, it goes to `florencia` (prod).
 
 ## Multiple devs at once
 
@@ -104,11 +91,11 @@ WhatsApp uses the same sender-based routing. `routeCallers()` configures both ph
 
 ```typescript
 if (isDev) {
-  agent.routeCallers(["+34607827824"]); // routes BOTH phone calls AND WhatsApp messages
+  agent.routeCallers(["+34600123456"]); // routes BOTH phone calls AND WhatsApp messages
 }
 ```
 
-When Berna sends a WhatsApp message from `+34607827824`, it lands on `dev-berna-florencia`. When anyone else sends a message, it lands on prod.
+When Berna sends a WhatsApp message from `+34600123456`, it lands on `dev-berna-florencia`. When anyone else sends a message, it lands on prod.
 
 ## WebRTC & chat dev routing
 

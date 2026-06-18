@@ -50,13 +50,7 @@ interface VoiceSessionState {
 
 Typical flow during one exchange:
 
-```
-listening ──► (user speaks) ──► thinking ──► speaking ──► (bot finishes) ──► listening
-                                   ▲
-                                   │ (turn.pause / turn.resumed cycles)
-                                   ▼
-                                 pause
-```
+![Call conversation phases](/assets/diagrams/call-phase-flow.png)
 
 ## Transcript messages
 

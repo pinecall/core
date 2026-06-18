@@ -13,21 +13,11 @@ Before topology, understand the two communication patterns:
 
 **1. Backend channels** — phone, SIP, WhatsApp. These talk to your Node.js process via the SDK's WebSocket. Your code receives events through an in-process EventEmitter.
 
-```
-Twilio / Meta ──► voice.pinecall.io ──► SDK WebSocket ──► Your Node.js
-                                                              │
-                                                         EventEmitter
-                                                    agent.on("call.started")
-                                                    agent.on("user.message")
-                                                    agent.on("llm.toolCall")
-```
+![Backend channels flow](/assets/diagrams/backend-channels-flow.png)
 
 **2. Browser channels** — WebRTC and chat. The browser connects **directly** to `voice.pinecall.io`. Your backend's only job is minting short-lived tokens.
 
-```
-Browser ──► your /api/token endpoint ──► token
-        ──► voice.pinecall.io with token ──► live session
-```
+![Browser channels — WebRTC token flow](/assets/diagrams/webrtc-browser-arch.png)
 
 This split is why some topologies support SSE event streaming and others don't — SSE requires the agent to be in the same process as your web server.
 
@@ -35,22 +25,7 @@ This split is why some topologies support SSE event streaming and others don't �
 
 Agent runs inside your existing web app (Express, Next.js, Hono, Remix). The web server and the agent share a Node.js process.
 
-```
-┌──────────────────────────────────────┐
-│           Your Node process          │
-│                                      │
-│  ┌──────────┐     ┌──────────────┐   │
-│  │ Web App  │     │ Agent (SDK)  │   │
-│  │ Express  │◄────│ pc.agent()   │   │
-│  │ /api/*   │     │ event bus    │   │
-│  └──────────┘     └──────┬───────┘   │
-│                          │           │
-│    SSE ✅               WS          │
-│    agent.stream()        │           │
-│    pc.stream()           ▼           │
-│                   voice.pinecall.io  │
-└──────────────────────────────────────┘
-```
+![Embedded topology](/assets/diagrams/deployment-embedded.png)
 
 **Pros:**
 - SSE streaming works (you can build live dashboards)
@@ -67,14 +42,7 @@ Agent runs inside your existing web app (Express, Next.js, Hono, Remix). The web
 
 Agent runs as a separate process from your web app. The web app handles HTTP, the agent process handles voice.
 
-```
-┌──────────────┐     ┌──────────────────┐
-│  Web App     │     │  Agent Process   │
-│  (Next.js)   │     │  node agent.js   │
-│              │     │  pc.agent()      │
-│  SSE ❌      │     │  WS → voice.io   │
-└──────────────┘     └──────────────────┘
-```
+![Standalone topology](/assets/diagrams/deployment-standalone.png)
 
 **Pros:**
 - Independent deploys — restart the agent without touching the web app

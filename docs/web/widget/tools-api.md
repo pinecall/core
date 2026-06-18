@@ -9,23 +9,7 @@ The widget can render interactive UI in response to server-side LLM tool calls. 
 
 ## The flow
 
-```
-1. Agent calls tool       ──► llm.toolCall event
-                                       │
-2. Widget tracks in state.toolCalls    ▼
-                                  Your component renders
-                                       │
-3. SDK runs the tool handler           │
-   on the server                       │
-                                       ▼
-4. Result comes back      ──► llm.tool_result event
-                              tool.result populated
-                                       │
-                                       ▼
-5. User clicks/submits      ──► sendText("...") or setContext(...)
-6. dismissTool() hides UI
-7. Agent processes the user's reply
-```
+![Tool call lifecycle flow](/assets/diagrams/tool-call-flow.png)
 
 ## Enabling tool tracking
 

@@ -33,6 +33,7 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     if ((opts as any).sessionLimits !== undefined) payload.session_limits = (opts as any).sessionLimits;
     else if ((opts as any).session_limits !== undefined) payload.session_limits = (opts as any).session_limits;
     if (opts.config !== undefined) payload.config = opts.config;
+    if ((opts as any).knowledgeBase !== undefined) payload.knowledge_base = (opts as any).knowledgeBase;
     if ("mode" in opts && (opts as Record<string, unknown>).mode !== undefined) {
         payload.mode = (opts as Record<string, unknown>).mode;
     }

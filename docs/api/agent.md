@@ -172,7 +172,7 @@ const token = await agent.createToken("webrtc");
 Route phone and WhatsApp messages from these numbers to this agent (instead of any other agent registered on the same channel). Used for dev mode isolation.
 
 ```typescript
-agent.routeCallers(["+34607827824", "+34612345678"]);
+agent.routeCallers(["+34600123456", "+34612345678"]);
 ```
 
 See [Dev mode guide](/guides/dev-mode).

@@ -11,10 +11,7 @@ Browser users can talk to your agent directly through WebRTC — no phone number
 
 The browser connects **directly** to `voice.pinecall.io` over WebRTC. Your backend's only job is minting short-lived tokens.
 
-```
-Browser ──► your /api/token endpoint ──► token
-        ──► voice.pinecall.io with token ──► live session
-```
+![WebRTC browser architecture](/assets/diagrams/webrtc-browser-arch.png)
 
 Your backend never proxies audio. The audio path is browser ↔ voice server, peer-to-peer over WebRTC.
 

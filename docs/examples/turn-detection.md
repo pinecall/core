@@ -11,23 +11,7 @@ A dev-friendly debug tool that shows **every turn event in real-time**, grouped 
 
 The server maintains a 5-state machine for every call:
 
-```
-IDLE ──vad_start──→ LISTENING ──vad_silence──→ ANALYZING
-  ↑                     ↑                         │
-  │                     │ analysis_pause           │ analysis_end
-  │                     └─────────────────────────←┘
-  │                                                │
-  │                                                ↓
-  │                                          BOT_PENDING
-  │                                                │
-  │                                     bot_reply_start
-  │                                                │
-  │                                                ↓
-  └──────bot_finished──────────────────── BOT_SPEAKING
-                                                   │
-                           barge_in ──────────────→ LISTENING
-                           (< 2s = continuation, ≥ 2s = new turn)
-```
+![Turn detection state machine](/assets/diagrams/turn-state-machine.png)
 
 ## What you'll see
 

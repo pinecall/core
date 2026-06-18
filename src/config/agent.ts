@@ -46,6 +46,26 @@ export interface AgentConfig {
     tools?: Tool[];
     config?: SessionConfig;
     /**
+     * Knowledge base (RAG) the agent grounds its answers on.
+     *
+     * Pass the id of a knowledge base created in the Pinecall dashboard
+     * (Knowledge section). Before every LLM turn, the voice server retrieves
+     * the most relevant document chunks for the user's message and injects them
+     * into the prompt.
+     *
+     * Placement is controlled by the `{{RAG_CONTEXT}}` template variable in your
+     * `prompt`: include it to decide exactly where the retrieved docs go. If the
+     * prompt does NOT contain `{{RAG_CONTEXT}}`, the context is appended
+     * automatically — so a knowledge base works out of the box.
+     *
+     * @example
+     * pc.agent("docs", {
+     *   knowledgeBase: "kb_1a2b3c",
+     *   prompt: "You are a docs assistant.\n\n{{RAG_CONTEXT}}\n\nAnswer only from the docs above.",
+     * });
+     */
+    knowledgeBase?: string;
+    /**
      * Greeting spoken on every inbound `call.started`.
      * Added to LLM history by default so the model knows what was said.
      *

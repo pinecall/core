@@ -44,6 +44,7 @@
           "guides/human-takeover",
           "guides/webrtc-browser",
           "guides/tools-and-functions",
+          "guides/knowledge-bases",
           "guides/multi-tenant",
           "guides/sse-streaming",
           "guides/ws-streaming",

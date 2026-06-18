@@ -65,14 +65,7 @@ The split is clean: you own the **what** (what the agent says, what tools it has
 
 A single WebSocket connection multiplexes everything:
 
-```
-Pinecall (one connection)
-   ├── Agent "support"  ──┬── Phone: +1-555-...
-   │                      ├── WebRTC: browser widget
-   │                      └── WhatsApp: +1-555-...
-   ├── Agent "sales"    ──── Phone: +1-555-...
-   └── Agent "intake"   ──── SIP: sip:lobby@...
-```
+![Agent tree — one connection, many agents](/assets/diagrams/agent-tree.png)
 
 No separate infrastructure per agent. No load balancer per channel. One `new Pinecall()`, as many agents as you need.
 

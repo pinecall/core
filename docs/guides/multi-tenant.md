@@ -11,10 +11,7 @@ A common pattern: you're building a SaaS where each customer has their own agent
 
 Each tenant owns one or more agents. When a tenant loads their dashboard, the SSE endpoint streams only events from their agents.
 
-```
-Tenant A's browser ──► /api/events ──► SSE: events from agent_a1, agent_a2 only
-Tenant B's browser ──► /api/events ──► SSE: events from agent_b1 only
-```
+![Multi-tenant SSE scoping](/assets/diagrams/multi-tenant-sse.png)
 
 ## Building it
 

@@ -89,14 +89,7 @@ React is an **optional** peer dependency — the React subpath (`@pinecall/web/c
 
 ## How it fits with the rest
 
-```
-Browser                              Server
-─────────                            ──────
-@pinecall/web/chat      ───────►   voice.pinecall.io  ────► @pinecall/sdk
-   ChatSession                                                    │
-                                                              agent.on("user.message")
-                                                              call.reply(...)
-```
+![Chat architecture](/assets/diagrams/chat-architecture.png)
 
 The agent's chat channel routes through the same LLM pipeline as voice — including tool calling. Anything you've built for the voice agent (tools, prompt, hot-reload, multi-tenant) works on the chat channel without changes.
 

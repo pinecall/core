@@ -40,12 +40,19 @@ const HELP = `
     balance                ${c.dim("Show credit balance")}
     usage                  ${c.dim("Credit usage breakdown")}
     calls                  ${c.dim("Call history")}
+    conversations          ${c.dim("Saved conversation transcripts")}
 
   ${c.bold("Development")}
     run <file>             ${c.dim("Run an agent file with live output")}
     chat [agent]           ${c.dim("Chat with a connected agent")}
     test <path>            ${c.dim("Run agent specs (YAML test files)")}
     kick <agent>           ${c.dim("Force-disconnect an agent")}
+
+  ${c.bold("Knowledge")} ${c.dim("(paid)")}
+    knowledge              ${c.dim("List knowledge bases")}
+    knowledge create       ${c.dim("Create a knowledge base")}
+    knowledge push         ${c.dim("Upload local docs to a KB")}
+    knowledge reindex      ${c.dim("Re-train a KB's index")}
 
   ${c.bold("Account")}
     signup                 ${c.dim("Create a new organization")}
@@ -65,7 +72,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick"]);
+const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -199,6 +206,17 @@ async function main(): Promise<void> {
         case "phone": {
             const { phoneCommand } = await import("./cli/commands/phone.js");
             await phoneCommand(config, args);
+            break;
+        }
+        case "knowledge": {
+            const { knowledgeCommand } = await import("./cli/commands/knowledge.js");
+            await knowledgeCommand(config, args);
+            break;
+        }
+        case "conversations":
+        case "convos": {
+            const { conversationsCommand } = await import("./cli/commands/conversations.js");
+            await conversationsCommand(config, args);
             break;
         }
         default:

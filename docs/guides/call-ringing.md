@@ -14,11 +14,7 @@ By default, Pinecall auto-accepts every incoming call. The **ringing** feature g
 
 ## How it works
 
-```
-Phone rings → call.ringing fires → you decide → accept() or reject()
-                                                    ↓             ↓
-                                             call.started     caller hears busy
-```
+![Call ringing flow — accept or reject](/assets/diagrams/call-ringing-flow.png)
 
 Without ringing enabled, the flow goes directly from ring → `call.started` (auto-accept).
 

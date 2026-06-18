@@ -113,42 +113,13 @@ SmartTurn parameters:
 
 Both strategies feed into the same turn controller state machine:
 
-```
-IDLE ──(VAD start)──► LISTENING ──(silence)──► ANALYZING
-  ▲                      │                        │
-  │                      │                   ┌────┴────┐
-  │                      │                   │         │
-  │                  (VAD start)         turn.end  turn.pause
-  │                      │                   │         │
-  │                      │                   ▼         │
-  │                      │              BOT_PENDING    │
-  │                      │                   │         │
-  │                      │              (LLM + TTS)    │
-  │                      │                   │         │
-  │                      │              BOT_SPEAKING ◄─┘
-  │                      │                   │
-  │                      ▼                   │
-  └──────────────── bot.finished ◄───────────┘
-```
+![Turn detection state machine](/assets/diagrams/turn-state-machine.png)
 
 ## Barge-in (interruption)
 
 When the user speaks while the bot is talking, the turn controller handles **barge-in**:
 
-```
-Bot is speaking → user starts talking
-                       ↓
-              Bot played < 2 seconds?
-              ┌────────┴────────┐
-              │                 │
-         CONTINUATION       NEW TURN
-         (user wasn't      (user heard the
-          done speaking)    bot and interrupts)
-              │                 │
-         Abort audio       Confirm bot message
-         Rotate msg_id     Start new turn
-         Keep accumulating  Emit new user.message
-```
+![Barge-in decision tree](/assets/diagrams/bargein-decision.png)
 
 **Barge-in parameters** (configurable via `interruption`):
 

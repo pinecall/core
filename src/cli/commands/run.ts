@@ -68,6 +68,7 @@ export async function runCommand(_config: any, argv: string[]): Promise<void> {
     }
 
     const { bin, args: runnerArgs } = runner!;
+    const isWin = process.platform === "win32";
 
     // Spawn the agent process
     const child = spawn(bin, [...runnerArgs, file], {
@@ -77,6 +78,7 @@ export async function runCommand(_config: any, argv: string[]): Promise<void> {
             PINECALL_CLI_RUN: "1",
         },
         cwd: resolve(file, ".."),
+        shell: isWin,
     });
 
     child.on("error", (err) => {
@@ -90,15 +92,21 @@ export async function runCommand(_config: any, argv: string[]): Promise<void> {
 
 /** Find tsx — returns { bin, args } for spawn. */
 function findTsx(): { bin: string; args: string[] } | null {
+    const isWin = process.platform === "win32";
+
     // 1. Check global/PATH tsx
     try {
-        const path = execSync("which tsx", { encoding: "utf8", stdio: "pipe" }).trim();
-        if (path) return { bin: path, args: [] };
+        const whichCmd = isWin ? "where tsx" : "which tsx";
+        const path = execSync(whichCmd, { encoding: "utf8", stdio: "pipe" }).trim();
+        // `where` on Windows can return multiple lines — take the first
+        const first = path.split(/\r?\n/)[0]!;
+        if (first) return { bin: first, args: [] };
     } catch {}
 
     // 2. Check local node_modules/.bin/tsx
     try {
-        const localTsx = resolve("node_modules/.bin/tsx");
+        const ext = isWin ? ".cmd" : "";
+        const localTsx = resolve(`node_modules/.bin/tsx${ext}`);
         if (existsSync(localTsx)) return { bin: localTsx, args: [] };
     } catch {}
 

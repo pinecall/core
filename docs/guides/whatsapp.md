@@ -205,49 +205,13 @@ WhatsApp conversations are grouped into **sessions**. Understanding the session 
 
 Each session is uniquely identified by the **agent + contact phone number** pair. When a contact sends their first message, a new session is created with an ID like `wa-a3f2b1c4d5e6`. All subsequent messages from the same contact (to the same agent) belong to that session — until it ends.
 
-```
-Contact: +5491155551234   ──msg──►  Agent: "support"
-                                       │
-                                       ▼
-                             Session: wa-a3f2b1c4d5e6
-                             ├── contact: +5491155551234
-                             ├── window: 24h from last inbound
-                             └── history: [user, assistant, user, ...]
-```
+![WhatsApp session identification](/assets/diagrams/whatsapp-session.png)
 
 If a second contact writes to the same agent, they get a **separate** session with their own LLM history, window timer, and session ID.
 
 ### Message flow
 
-```
-User sends WhatsApp message
-        │
-        ▼
-   ┌─ Session exists? ─┐
-   │                    │
-   No                  Yes
-   │                    │
-   Create session       │
-   Emit: sessionStarted│
-   │                    │
-   └────────┬───────────┘
-            │
-            ▼
-   Emit: whatsapp.message (to SDK + SSE)
-            │
-     ┌──────┴──────┐
-     │             │
-   Paused?       Active
-     │             │
-   Add to LLM    LLM generates response
-   history only  Send via WhatsApp
-     │             Emit: whatsapp.response
-     │             │
-     └──────┬──────┘
-            │
-            ▼
-   Refresh 24h window
-```
+![WhatsApp message flow](/assets/diagrams/whatsapp-message-flow.png)
 
 **Key points:**
 - Every incoming message is emitted to the SDK via `whatsapp.message` — even when paused

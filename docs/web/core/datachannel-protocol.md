@@ -140,30 +140,7 @@ The `@pinecall/web` exposes this as the `sendText()` helper — see [Tools API](
 
 For completeness, here's what happens when you call `connect()`:
 
-```
-Browser                              Voice Server
-   │                                       │
-   ├─ GET /webrtc/token?agent_id=mara ────►│
-   │◄─ { token, expiresIn } ───────────────┤
-   │                                       │
-   ├─ GET /webrtc/ice-servers ────────────►│
-   │◄─ [{ urls: "stun:...", ... }] ────────┤
-   │                                       │
-   ├─ getUserMedia({ audio: true }) ───────│  (browser-local)
-   ├─ new RTCPeerConnection(iceServers) ──│
-   ├─ pc.addTrack(micTrack) ──────────────│
-   ├─ pc.createDataChannel("events") ─────│
-   ├─ pc.createOffer() ───────────────────│
-   ├─ pc.setLocalDescription(offer) ──────│
-   │                                       │
-   ├─ POST /webrtc/offer { sdp, token } ──►│
-   │◄─ { sdp: answer } ────────────────────┤
-   │                                       │
-   ├─ pc.setRemoteDescription(answer) ────│
-   │  (ICE candidates exchanged)           │
-   │                                       │
-   │◄═══════ media + datachannel ═════════►│
-```
+![WebRTC connection sequence](/assets/diagrams/webrtc-connection-sequence.png)
 
 ## What's next
 

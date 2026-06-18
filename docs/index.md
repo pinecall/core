@@ -55,14 +55,7 @@ The library has three core concepts. If you understand these, you understand the
 - **`Agent`** — a configured personality (prompt, voice, LLM). Owns channels and emits events.
 - **`Call`** — a single live session. Created automatically when someone connects. You speak to it, configure it, end it.
 
-```
-Pinecall (one connection)
-   ├── Agent "support"  ──┬── Phone: +1-555-...
-   │                      └── WhatsApp: +51-...
-   ├── Agent "sales"    ──── Phone: +1-555-...
-   └── Agent "intake"   ──── Phone: sip:...
-           (WebRTC + Chat work via tokens on any agent)
-```
+![Agent tree — one connection, many agents](/assets/diagrams/agent-tree.png)
 
 A single `Pinecall` instance can host many agents. A single agent can serve many channels. Every channel emits the same events on the agent — your code doesn't care whether the call came from a phone, a browser, or WhatsApp.
 

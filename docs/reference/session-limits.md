@@ -74,10 +74,7 @@ agent.on("session.timeout", (event, call) => {
 
 ## Timeline
 
-```
-[silence starts] ──── idle_warning fires ──── idle_timeout fires ──── hangup
-     0s              (timeout - warning)s         timeout s
-```
+![Idle timeout timeline](/assets/diagrams/idle-timeline.png)
 
 > **Important:** Bot speech (e.g. "Are you still there?") **pauses** the idle counter but does **not** reset it. Only real user speech resets the timer. This prevents infinite warning loops.
 

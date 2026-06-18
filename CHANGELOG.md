@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`pinecall conversations` CLI** — browse saved conversation transcripts (chat + voice) for your org: `conversations` (list, with `--type=chat|phone|webrtc`, `--agent=<slug>`, `--limit`), `conversations get <id>` (full transcript). Backed by the new Playground `GET /api/conversations` API. Transcripts are persisted server-side (with the client IP for chat/webrtc) and are also viewable by Pinecall staff in the platform admin.
+
+## [0.2.17] — 2026-06-19
+
+### Fixed
+
+- **`pinecall run` on Windows** — fixed `spawn npx ENOENT` crash. Three issues: `which` → `where` for PATH lookup, `node_modules/.bin/tsx` → `tsx.cmd` for local binary detection, and added `shell: true` to `spawn()` so Windows can resolve `.cmd` shims. All platforms unaffected.
+
+## [0.2.16] — 2026-06-18
+
+### Changed
+
+- **`pinecall knowledge push`** now stores each file under its **relative path** (not just the basename), so re-pushing the same files updates the existing documents in place (the server upserts by path) instead of creating duplicates. Re-running `push` to refresh a knowledge base is now idempotent.
+
+## [0.2.15] — 2026-06-18
+
+### Added
+
+- **`pinecall knowledge` CLI** — manage knowledge bases from the terminal: `knowledge` (list), `knowledge create "<name>"`, `knowledge docs <kbId>`, `knowledge push <kbId> <files…>` (upload local `.md`/`.txt`), `knowledge get <kbId> <docId>`, `knowledge query <kbId> "<question>"` (retrieval-only semantic search, **no LLM**), `knowledge reindex <kbId>` (re-train), `knowledge rm <kbId> <docId>`, `knowledge delete <kbId>`. Knowledge bases are a paid feature — free-trial orgs get a clear upgrade prompt.
+
+## [0.2.14] — 2026-06-18
+
+### Added
+
+- **Knowledge bases (RAG)** — `pc.agent(name, { knowledgeBase: "kb_..." })` grounds an agent on a knowledge base created in the Pinecall dashboard (new **Knowledge** section). Before every LLM turn the voice server retrieves the most relevant document chunks for the user's message and injects them into the prompt. Placement is controlled by the new **`{{RAG_CONTEXT}}`** prompt variable — include it to decide exactly where the retrieved docs go, or omit it and the context is appended automatically. Works across voice and chat. Requires sdk-server with matching support.
+
 ## [0.2.13] — 2026-06-18
 
 ### Added

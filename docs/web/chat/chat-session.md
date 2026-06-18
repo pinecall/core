@@ -167,22 +167,7 @@ function Chat() {
 
 What happens under the hood:
 
-```
-Browser                                  Voice Server
-   │                                         │
-   ├─ GET /chat/token?agent_id=X ──────────►│  (short-lived token)
-   │◄─ { token: "cht_xxx" } ─────────────────┤
-   │                                         │
-   ├─ WS /chat/ws?token=cht_xxx ───────────►│  (open WebSocket)
-   │◄─ { event: "chat.connected" } ──────────┤
-   │                                         │
-   ├─ { event: "message", text } ──────────►│  (user sends)
-   │◄─ { event: "chat.token", token: "..." } │  (streaming bot tokens)
-   │◄─ { event: "chat.token", token: "..." } │
-   │◄─ { event: "chat.done", text: "..." } ──│  (stream complete)
-   │                                         │
-   ├─ { event: "set_context", key, value } ►│  (inject LLM context)
-```
+![Chat WebSocket protocol sequence](/assets/diagrams/chat-protocol-sequence.png)
 
 ## Related packages
 

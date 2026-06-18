@@ -645,42 +645,7 @@ Use for live waveform UIs, energy meters, or VAD visualization. Fires every ~100
 
 Here's the complete sequence of events during a typical voice exchange:
 
-```
-┌─── Connection ─────────────────────────────────────┐
-│  call.started                                       │
-│  call.preparing                                     │
-│  bot.speaking  →  bot.word × N  →  bot.finished     │  ← greeting
-└─────────────────────────────────────────────────────┘
-
-┌─── User speaks ────────────────────────────────────┐
-│  speech.started                                     │
-│  user.speaking  (interim × N)                       │
-│  speech.ended                                       │
-│  user.message   (final text)                        │
-│  eager.turn  →  turn.end                            │
-└─────────────────────────────────────────────────────┘
-
-┌─── Bot responds ───────────────────────────────────┐
-│  call.preparing                                     │
-│  bot.speaking                                       │
-│  bot.word × N                                       │
-│  bot.finished  |  bot.interrupted                   │
-│  message.confirmed                                  │
-└─────────────────────────────────────────────────────┘
-
-┌─── Interruption (barge-in) ────────────────────────┐
-│  speech.started                                     │
-│  bot.interrupted                                    │
-│  turn.continued  (if before 2s of bot audio)        │
-│  user.message                                       │
-│  turn.end                                           │
-└─────────────────────────────────────────────────────┘
-
-┌─── Disconnect ─────────────────────────────────────┐
-│  call.ended                                         │
-│  call.recording  (if enabled)                       │
-└─────────────────────────────────────────────────────┘
-```
+![Real-time event flow lifecycle](/assets/diagrams/event-flow-lifecycle.png)
 
 ---
 
