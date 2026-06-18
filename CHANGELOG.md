@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`pinecall conversations` CLI** — browse saved conversation transcripts (chat + voice) for your org: `conversations` (list, with `--type=chat|phone|webrtc`, `--agent=<slug>`, `--limit`), `conversations get <id>` (full transcript). Backed by the new Playground `GET /api/conversations` API. Transcripts are persisted server-side (with the client IP for chat/webrtc) and are also viewable by Pinecall staff in the platform admin.
 
+## [0.2.18] — 2026-06-19
+
+### Fixed
+
+- **`pinecall run` Node v24 DEP0190 warning** — on Windows, args passed to `spawn()` with `shell: true` were concatenated without escaping, triggering a deprecation warning and potentially mangling file paths through `cmd.exe`. Now builds a single properly-quoted command string for the Windows shell, with no separate args.
+
 ## [0.2.17] — 2026-06-19
 
 ### Fixed

@@ -69,17 +69,21 @@ export async function runCommand(_config: any, argv: string[]): Promise<void> {
 
     const { bin, args: runnerArgs } = runner!;
     const isWin = process.platform === "win32";
+    const spawnEnv = { ...process.env, PINECALL_CLI_RUN: "1" };
+    const spawnCwd = resolve(file, "..");
 
     // Spawn the agent process
-    const child = spawn(bin, [...runnerArgs, file], {
-        stdio: "inherit",
-        env: {
-            ...process.env,
-            PINECALL_CLI_RUN: "1",
-        },
-        cwd: resolve(file, ".."),
-        shell: isWin,
-    });
+    // On Windows, .cmd shims (npx, tsx) require shell:true.
+    // To avoid DEP0190 (Node 24+), we join into a single command string
+    // with proper quoting instead of passing separate args.
+    const child = isWin
+        ? spawn(
+            [bin, ...runnerArgs, file].map(winQuote).join(" "),
+            { stdio: "inherit", env: spawnEnv, cwd: spawnCwd, shell: true },
+        )
+        : spawn(bin, [...runnerArgs, file], {
+            stdio: "inherit", env: spawnEnv, cwd: spawnCwd,
+        });
 
     child.on("error", (err) => {
         error(`Failed to start: ${err.message}`);
@@ -88,6 +92,12 @@ export async function runCommand(_config: any, argv: string[]): Promise<void> {
     child.on("exit", (code) => {
         process.exit(code ?? 0);
     });
+}
+
+/** Quote an argument for cmd.exe — wraps in double-quotes if it contains spaces or special chars. */
+function winQuote(arg: string): string {
+    if (/[\s&|<>^"()]/.test(arg)) return `"${arg}"`;
+    return arg;
 }
 
 /** Find tsx — returns { bin, args } for spawn. */
