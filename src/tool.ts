@@ -29,6 +29,13 @@ export interface ToolConfig<T = any> {
     schema: ZodLike<T>;
     /** Execute function — receives parsed args + call. */
     execute: (args: T, call: Call) => unknown | Promise<unknown>;
+    /**
+     * Ephemeral tools — the result is used to generate the current reply but is
+     * NOT persisted to conversation history (neither the LLM context for later
+     * turns nor the saved transcript). Defaults to `false` (results are saved).
+     * Use for sensitive lookups or large/noisy payloads you don't want to keep.
+     */
+    ephemeral?: boolean;
 }
 
 export interface Tool<T = any> {
@@ -36,6 +43,8 @@ export interface Tool<T = any> {
     readonly description: string;
     readonly schema: ZodLike<T>;
     readonly execute: (args: T, call: Call) => unknown | Promise<unknown>;
+    /** Result is not persisted to history when true. */
+    readonly ephemeral: boolean;
     /** @internal JSON Schema for wire protocol. */
     readonly _jsonSchema: Record<string, unknown>;
     /** @internal Convert to OpenAI function-calling wire format. */
@@ -59,6 +68,7 @@ export function tool<T>(config: ToolConfig<T>): Tool<T> {
         description: config.description,
         schema: config.schema,
         execute: config.execute,
+        ephemeral: config.ephemeral ?? false,
         _jsonSchema: jsonSchema,
         _toWire() {
             return {

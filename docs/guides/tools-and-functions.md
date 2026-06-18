@@ -62,27 +62,38 @@ That's it. When the LLM decides to call `lookupOrder`, the SDK:
 
 ## Tool call lifecycle
 
+![Tool call lifecycle](/assets/diagrams/tool-call-lifecycle.png)
+
+## Ephemeral tools (don't persist the result)
+
+By default every tool result is saved to the conversation history — it stays in
+the LLM context for the rest of the call and is written to the persisted
+transcript. That's almost always what you want.
+
+Sometimes it isn't. A tool might return a sensitive lookup (a full customer
+record, a one-time code) or a large/noisy payload (a 5 KB JSON blob) that you
+need *for the current reply* but don't want lingering in context or saved to the
+database. Mark such a tool `ephemeral: true`:
+
+```typescript
+const lookupSSN = tool({
+  name: "lookupSSN",
+  description: "Look up the caller's SSN to verify identity.",
+  schema: z.object({ customerId: z.string() }),
+  ephemeral: true, // result is used for this reply, then dropped from history
+  execute: async ({ customerId }) => ({ ssn: await db.getSSN(customerId) }),
+});
 ```
-User: "Where's order ORD-12345?"
-   │
-   ▼
-LLM: decides to call lookupOrder({ orderId: "ORD-12345" })
-   │
-   ▼
-SDK: schema.parse(args) → validates
-   │
-   ▼
-SDK: execute({ orderId: "ORD-12345" }, call) → your function runs
-   │
-   ▼
-SDK: call.toolResult(msgId, [{ toolCallId, result }]) → auto-sent
-   │
-   ▼
-LLM resumes with the tool result in context, produces a spoken response
-   │
-   ▼
-"Your order shipped yesterday. Tracking number is..."
-```
+
+How it works: the result is still sent to the model so it can generate the
+current reply (the API requires every tool call to be followed by its result).
+But once that reply is produced, the server **prunes** the ephemeral result —
+and the originating `tool_calls` entry if all of its calls were ephemeral — from
+the history. It never reaches the next turn's context and is never written to
+the saved transcript. The behavior is identical across voice, chat, and
+WhatsApp.
+
+`ephemeral` defaults to `false`, so existing tools are unchanged.
 
 ## The `call` parameter
 

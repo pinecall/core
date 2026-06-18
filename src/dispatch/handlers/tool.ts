@@ -70,15 +70,22 @@ export class ToolHandler implements EventHandler {
         // Emit event on call (so agent proxy picks it up too)
         if (call) {
             call._emitWire("llm.toolCall", event);
-            // Push tool_calls to incremental history
-            call._pushMessage({
-                role: "assistant",
-                tool_calls: toolCalls.map(tc => ({
-                    id: tc.id,
-                    type: "function",
-                    function: { name: tc.name, arguments: tc.arguments },
-                })),
-            });
+            // Push tool_calls to incremental history — unless every called tool
+            // is ephemeral, in which case the whole round is left out of history.
+            const toolList = agent._getTools();
+            const tMap = new Map(toolList.map(t => [t.name, t]));
+            const allEphemeral = toolCalls.length > 0 &&
+                toolCalls.every(tc => tMap.get(tc.name)?.ephemeral ?? false);
+            if (!allEphemeral) {
+                call._pushMessage({
+                    role: "assistant",
+                    tool_calls: toolCalls.map(tc => ({
+                        id: tc.id,
+                        type: "function",
+                        function: { name: tc.name, arguments: tc.arguments },
+                    })),
+                });
+            }
         } else {
             // No Call object (WhatsApp sessions) — emit directly on agent
             agent._emitWire("llm.toolCall", event, null as any);
@@ -92,7 +99,7 @@ export class ToolHandler implements EventHandler {
             } else {
                 // WhatsApp: build a lightweight proxy with toolResult
                 void autoExecuteTools(tools, event, {
-                    toolResult: (mId: string, results: Array<{ toolCallId: string; result: unknown }>) => {
+                    toolResult: (mId: string, results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean }>) => {
                         ctx.send({
                             event: "llm.tool_result",
                             call_id: callId,
@@ -100,6 +107,7 @@ export class ToolHandler implements EventHandler {
                             results: results.map(r => ({
                                 tool_call_id: r.toolCallId,
                                 result: r.result,
+                                ...(r.ephemeral ? { ephemeral: true } : {}),
                             })),
                         });
                     },
@@ -135,9 +143,9 @@ export class ToolHandler implements EventHandler {
  * and the ChatHandler (chat tool calls auto-execute the same way).
  */
 export async function autoExecuteTools(
-    tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown> }>,
+    tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown>; ephemeral?: boolean }>,
     event: ToolCallEvent,
-    call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown }>) => void },
+    call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean }>) => void },
 ): Promise<void> {
     const toolMap = new Map(tools.map(t => [t.name, t]));
     const names = event.toolCalls.map(tc => tc.name);
@@ -148,28 +156,31 @@ export async function autoExecuteTools(
             const t = toolMap.get(tc.name);
             if (!t) {
                 console.log(`  ❌ ${tc.name} → unknown tool`);
-                return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` } };
+                return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` }, ephemeral: false };
             }
 
+            const ephemeral = t.ephemeral ?? false;
             try {
                 const args = t.schema.parse(JSON.parse(tc.arguments));
                 console.log(`  ⚙️  ${tc.name}(${JSON.stringify(args).slice(0, 120)})`);
                 const result = await t.execute(args, call as any);
                 const preview = JSON.stringify(result).slice(0, 200);
-                console.log(`  ✅ ${tc.name} → ${preview}`);
-                return { toolCallId: tc.id, result };
+                console.log(`  ✅ ${tc.name} → ${preview}${ephemeral ? " (ephemeral)" : ""}`);
+                return { toolCallId: tc.id, result, ephemeral };
             } catch (err: any) {
                 console.log(`  ❌ ${tc.name} → error: ${err.message ?? err}`);
-                return { toolCallId: tc.id, result: { error: err.message ?? String(err) } };
+                return { toolCallId: tc.id, result: { error: err.message ?? String(err) }, ephemeral };
             }
         }),
     );
 
     call.toolResult(event.msgId, results);
 
-    // Push tool results to incremental history
+    // Push tool results to incremental history — skip ephemeral ones, they are
+    // never persisted (the server drops them from the LLM context too).
     if ("_pushMessage" in call) {
         for (const r of results) {
+            if (r.ephemeral) continue;
             (call as any)._pushMessage({
                 role: "tool",
                 tool_call_id: r.toolCallId,

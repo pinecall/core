@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Ephemeral tools** — `tool({ ..., ephemeral: true })` marks a tool whose result is used to generate the current reply but is **not persisted to conversation history**: it never reaches the LLM context of later turns nor the saved transcript. Use for sensitive lookups or large/noisy payloads. The server keeps the result only for the immediate generation, then prunes it (and the originating `tool_calls` entry when all its calls were ephemeral). Defaults to `false` — existing tools are unchanged. Works across voice, chat, and WhatsApp. Requires sdk-server with matching support.
+
 ## [0.2.12] — 2026-06-17
 
 ### Added

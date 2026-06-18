@@ -225,7 +225,7 @@ export class Call extends TypedEventBus<CallEvents> {
     /** Respond to a server-side LLM tool call. */
     toolResult(
         msgId: string,
-        results: Array<{ toolCallId: string; result: unknown }>,
+        results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean }>,
     ): void {
         this.#send({
             event: "llm.tool_result",
@@ -234,6 +234,9 @@ export class Call extends TypedEventBus<CallEvents> {
             results: results.map(r => ({
                 tool_call_id: r.toolCallId,
                 result: r.result,
+                // Ephemeral results are dropped from history by the server after
+                // they're used for the current reply. Omitted when false.
+                ...(r.ephemeral ? { ephemeral: true } : {}),
             })),
         });
     }
