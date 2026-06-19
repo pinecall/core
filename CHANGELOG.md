@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.22] — 2026-06-19
+
+### Fixed
+
+- **camelCase / spaced agent ids broke phone registration** — the server slugifies agent ids (lowercase + hyphens), so an agent created as `pc.agent("futbolAgent", { phoneNumber })` got `agent.created` back as `futbolagent`. The id resolver's case-insensitive fallback compared the lowered server id against the **original-case** local keys, so it never matched → `_flushPending()` never ran → the buffered `channel.add` for the phone was **never sent**. The number silently never registered and every inbound call hit `client.not_found`. The resolver now matches by **slugifying both sides** (mirroring the server), so `futbolAgent`, `My Agent`, `receptionist_bot_v2`, etc. all resolve correctly and phones register as expected.
+
 ## [0.2.21] — 2026-06-19
 
 ### Changed
