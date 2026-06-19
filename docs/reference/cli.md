@@ -43,6 +43,29 @@ pinecall agents --server=http://localhost:1337
 
 ## Commands
 
+Every command at a glance (run `pinecall --help` for the same list):
+
+| Command | What it does |
+|---------|--------------|
+| `pinecall run <file>` | Run an agent file with a live terminal display |
+| `pinecall agents` | List currently-connected agents |
+| `pinecall kick <agent>` | Force-disconnect an agent by slug |
+| `pinecall chat [agent]` | Interactive text chat with a connected agent |
+| `pinecall test <path>` | Run agent specs (text or real-voice mode) |
+| `pinecall phones` | List phone numbers |
+| `pinecall phone request` / `search` | Provision / search managed numbers |
+| `pinecall voices` | List TTS voices (`voices play` to preview) |
+| `pinecall calls` | Call history (duration, credits, cost) |
+| `pinecall conversations` | List saved conversation transcripts (`conversations get <id>` for one) |
+| `pinecall usage` | Credit usage breakdown (alias of `account usage`) |
+| `pinecall balance` | Current credit balance |
+| `pinecall knowledge …` | Manage knowledge bases (list/create/docs/push/get/query/reindex/rm/delete) |
+| `pinecall account` | Org overview; `account keys`, `account usage` |
+| `pinecall twilio …` | Linked Twilio accounts (link/import/unlink) |
+| `pinecall signup` | Create a new organization |
+
+**Global flags:** `--api-key=pk_…`, `--server=URL`, `--playground=URL`, `--json`, `-h/--help`, `-v/--version`.
+
 ### `pinecall run <file>`
 
 Run an agent file with a polished terminal display. The primary way to develop and test agents.
@@ -331,6 +354,44 @@ The judge is the LLM that evaluates your agent. Override with `--judge provider/
 | `--json` | JSON output for CI pipelines |
 | `--list` | List discovered specs without running |
 
+### `pinecall calls`
+
+Call history — recent calls with duration, credits, and cost. Reads from the
+Playground usage API.
+
+```bash
+pinecall calls                  # recent calls
+pinecall calls --limit=50
+pinecall calls --json
+```
+
+### `pinecall conversations`
+
+Browse saved **conversation transcripts** (chat + voice) for your org. Each
+conversation is one chat/call session; transcripts are persisted server-side
+(with the client IP for chat/WebRTC). Aliases: `convos`.
+
+```bash
+pinecall conversations                      # list recent conversations
+pinecall conversations --type=chat          # filter by type (chat|phone|webrtc)
+pinecall conversations --agent=docs         # filter by agent
+pinecall conversations --limit=50 --json
+pinecall conversations get <id>             # print one full transcript
+```
+
+The list prints the full conversation id; `conversations get` also accepts a
+short id prefix and resolves it against the recent list. Same data powers the
+super-admin "Support chats" view in the dashboard.
+
+### `pinecall usage`
+
+Credit usage breakdown by service (STT/TTS/LLM/telephony/platform). Top-level
+alias of [`pinecall account usage`](#pinecall-account).
+
+```bash
+pinecall usage
+```
+
 ### `pinecall balance`
 
 Show your Pinecall credit balance and plan info.
@@ -451,7 +512,7 @@ pinecall knowledge create "Product docs"        # Create one (prints its id)
 pinecall knowledge docs <kbId>                  # List documents in a KB
 pinecall knowledge push <kbId> ./docs/*.md      # Upload local .md / .txt files
 pinecall knowledge get <kbId> <docId>           # Print a document's text
-pinecall knowledge query <kbId> "how do I dial" # Semantic search — no LLM
+pinecall knowledge query [kbId] "how do I dial" # Semantic search — no LLM (kbId optional if you have one KB)
 pinecall knowledge reindex <kbId>               # Re-train (rebuild) the index
 pinecall knowledge rm <kbId> <docId>            # Delete a document
 pinecall knowledge delete <kbId>                # Delete the knowledge base
