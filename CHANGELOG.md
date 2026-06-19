@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **ElevenLabs TTS model is now auto-selected by `language`** — non-English agents
+  (e.g. `language: "es"`) default to `eleven_multilingual_v2` instead of
+  `eleven_flash_v2_5`. Flash/Turbo don't normalize text, so Spanish & other
+  languages mispronounced numbers, dates, currency and abbreviations. The
+  multilingual model reads them naturally. English is unchanged (still flash).
+  Pin a model explicitly with `voice: { ..., model: "eleven_flash_v2_5" }` to opt
+  out. `eleven_multilingual_v2` bills at a higher rate (100 vs 50 credits/1k chars).
+
 ## [0.2.22] — 2026-06-19
 
 ### Fixed

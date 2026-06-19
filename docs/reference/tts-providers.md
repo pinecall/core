@@ -68,7 +68,28 @@ voice: {
 
 Shortcut: `"elevenlabs/sarah"`
 
-The server defaults to `eleven_flash_v2_5` (the fastest model, optimized for real-time streaming). Override it with the optional `model` field (e.g. `model: "eleven_turbo_v2_5"`).
+### Model selection (auto for non-English)
+
+The server picks the ElevenLabs model from your `language`:
+
+| Language | Default model | Why |
+|---|---|---|
+| `en` (or unset) | `eleven_flash_v2_5` | Fastest, optimized for real-time streaming |
+| Any non-English (`es`, `fr`, `de`, …) | `eleven_multilingual_v2` | Flash/Turbo don't normalize text, so Spanish & other languages mispronounce numbers, dates, currency and abbreviations. The multilingual model reads them naturally. |
+
+> `eleven_multilingual_v2` is billed at a higher rate than flash (it's a higher-quality model). If you'd rather keep the faster/cheaper flash model for a non-English agent, pin it explicitly (see below).
+
+**Override the model** with the optional `model` field — it always wins over the auto-default:
+
+```typescript
+voice: {
+  provider: "elevenlabs",
+  voice_id: "JBFqnCBsd6RMkjVDRZzb",
+  model: "eleven_multilingual_v2",  // or "eleven_flash_v2_5" / "eleven_turbo_v2_5"
+}
+```
+
+The model is part of the voice config, so it hot-reloads with it — `agent.update({ voice })` and a same-provider `call.update({ voice })` keep the model/language already in effect unless you pass a new one.
 
 **Tuning notes:**
 
