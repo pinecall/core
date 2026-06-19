@@ -18,6 +18,8 @@ Pinecall supports two turn detection strategies, automatically selected based on
 
 > **You never configure this manually.** The server auto-derives the turn detection strategy from the STT provider. Just set `stt` and the rest follows.
 
+> **Not to be confused with `detectTurnEnd`.** `detectTurnEnd` is a *separate*, real option on `agent.dial()` and `agent.bridge()` — it does **not** configure the turn-detection strategy. It controls whether the **other party's** end-of-turn is *relayed to your code* as a `turn.end` event on an outbound / agent-to-agent call, so code that drives the call manually (e.g. a test/judge agent) knows when to speak. Default `false` for `dial`, `true` for `bridge`. See [Outbound Calls → `detectTurnEnd`](/guides/outbound-calls#detectturnend--knowing-when-the-other-party-stops-talking).
+
 ## How Flux native turn detection works
 
 Flux processes the audio stream and detects turns at the STT level — no separate VAD or turn analysis needed. It emits two signals:

@@ -75,35 +75,46 @@
         ]
       },
       {
-        "group": "@pinecall/web/core (Voice)",
+        "group": "@pinecall/web (Browser)",
         "pages": [
-          "web/core/overview",
-          "web/core/voice-session",
-          "web/core/state-and-phases",
-          "web/core/datachannel-protocol"
+          {
+            "group": "Voice — core",
+            "pages": [
+              "web/core/overview",
+              "web/core/voice-session",
+              "web/core/state-and-phases",
+              "web/core/datachannel-protocol"
+            ]
+          },
+          {
+            "group": "React widget",
+            "pages": [
+              "web/widget/overview",
+              "web/widget/props",
+              "web/widget/theming",
+              "web/widget/use-voice-session-hook",
+              "web/widget/tools-api"
+            ]
+          },
+          {
+            "group": "Text chat",
+            "pages": [
+              "web/chat/overview",
+              "web/chat/chat-session"
+            ]
+          },
+          {
+            "group": "Web components",
+            "pages": [
+              "web/components/overview"
+            ]
+          }
         ]
       },
       {
-        "group": "@pinecall/web (React Widget)",
+        "group": "Agent Skills",
         "pages": [
-          "web/widget/overview",
-          "web/widget/props",
-          "web/widget/theming",
-          "web/widget/use-voice-session-hook",
-          "web/widget/tools-api"
-        ]
-      },
-      {
-        "group": "@pinecall/web/chat (Chat)",
-        "pages": [
-          "web/chat/overview",
-          "web/chat/chat-session"
-        ]
-      },
-      {
-        "group": "@pinecall/web (Web Components)",
-        "pages": [
-          "web/components/overview"
+          "skills"
         ]
       },
       {
