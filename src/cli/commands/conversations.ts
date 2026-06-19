@@ -77,7 +77,7 @@ async function list(config: CliConfig, args: string[]): Promise<void> {
     table(
         ["ID", "TYPE", "AGENT", "MSGS", "IP", "WHEN"],
         convos.map((c2: any) => [
-            c.dim(String(c2.id).slice(0, 10)),
+            c.dim(String(c2.id)),
             c2.type || "—",
             c.purple(c2.agentId || "—"),
             String(c2.messageCount ?? 0),
@@ -88,8 +88,15 @@ async function list(config: CliConfig, args: string[]): Promise<void> {
     info(`View a transcript: ${c.cyan("pinecall conversations get <id>")}`);
 }
 
-async function get(config: CliConfig, id: string): Promise<void> {
-    if (!id) error("Usage: pinecall conversations get <id>");
+async function get(config: CliConfig, idArg: string): Promise<void> {
+    if (!idArg) error("Usage: pinecall conversations get <id>");
+    // Resolve a short/prefix id (e.g. copied from the truncated list) to the full id.
+    let id = idArg;
+    if (idArg.length < 24) {
+        const list = await pg(config, `/conversations?limit=200`);
+        const match = (list.conversations ?? []).find((x: any) => String(x.id).startsWith(idArg));
+        if (match) id = match.id;
+    }
     const convo = await pg(config, `/conversations/${id}`);
     if (config.json) { console.log(JSON.stringify(convo, null, 2)); return; }
 

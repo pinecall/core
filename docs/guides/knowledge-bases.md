@@ -135,9 +135,12 @@ without spending an LLM call, use `pinecall knowledge query`.
 
 ## How it works
 
-- **Retrieval is semantic** (embeddings), not keyword search — phrase questions
-  naturally.
-- **Documents are chunked by heading**, so well-structured Markdown retrieves best.
+- **Retrieval is hybrid** — semantic embeddings *fused with* a keyword (BM25)
+  lane. Phrase questions naturally, and exact terms or acronyms (e.g. `TTS` vs
+  `STT`, a product name, an error code) still match precisely instead of blurring
+  into similar wording.
+- **Documents are chunked by heading** (section-aligned, never mid-section), so
+  well-structured Markdown retrieves best.
 - **Sources event** — when retrieval runs, the server emits a `docs.sources` event
   on the data channel with the documents it used (title, heading, score), so a
   browser UI can show citations next to the answer.

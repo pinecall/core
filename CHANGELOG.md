@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.21] — 2026-06-19
+
+### Changed
+
+- **`pinecall knowledge query`** — the `kbId` is now **optional**: with a single knowledge base it's auto-selected, so `pinecall knowledge query "<question>"` just works (pass an explicit id when you have more than one).
+- **`pinecall --help`** now lists the full `knowledge` subcommands (`docs`, `get`, `query`, `rm`, `delete`) and a dedicated **Conversations** section (`conversations`, `conversations get <id>`).
+
+## [0.2.20] — 2026-06-19
+
+### Fixed
+
+- **`pinecall conversations`** now prints the **full conversation id** in the list (it was truncated to 10 chars, so copy-pasting it into `conversations get <id>` 404'd). `conversations get` also accepts a short **id prefix** now and resolves it against the recent list.
+
+## [0.2.19] — 2026-06-19
+
 ### Added
 
 - **`pinecall conversations` CLI** — browse saved conversation transcripts (chat + voice) for your org: `conversations` (list, with `--type=chat|phone|webrtc`, `--agent=<slug>`, `--limit`), `conversations get <id>` (full transcript). Backed by the new Playground `GET /api/conversations` API. Transcripts are persisted server-side (with the client IP for chat/webrtc) and are also viewable by Pinecall staff in the platform admin.

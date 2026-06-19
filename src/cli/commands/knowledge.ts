@@ -7,7 +7,7 @@
  *   pinecall knowledge docs <kbId>           List documents in a KB
  *   pinecall knowledge push <kbId> <files…>  Upload local docs (.md/.txt)
  *   pinecall knowledge get <kbId> <docId>    Print a document's text
- *   pinecall knowledge query <kbId> "<q>"   Semantic search (no LLM)
+ *   pinecall knowledge query [kbId] "<q>"   Semantic search (no LLM; kbId optional if single KB)
  *   pinecall knowledge reindex <kbId>        Re-train (rebuild) the index
  *   pinecall knowledge rm <kbId> <docId>     Delete a document
  *   pinecall knowledge delete <kbId>         Delete a knowledge base
@@ -155,9 +155,33 @@ async function get(config: CliConfig, kbId: string, docId: string): Promise<void
 
 // ── Query (retrieval-only, no LLM) ─────────────────────────────────────────
 
-async function query(config: CliConfig, kbId: string, terms: string[]): Promise<void> {
+// A Mongo ObjectId (kbId) is 24 hex chars — used to tell a kbId apart from
+// question text when the kbId is omitted.
+function looksLikeKbId(s?: string): boolean {
+    return !!s && /^[a-f0-9]{24}$/i.test(s);
+}
+
+// Resolve the kbId to operate on: when omitted, auto-pick the org's only KB.
+async function resolveSingleKb(config: CliConfig): Promise<string> {
+    const data = await pg(config, "/knowledge");
+    const kbs = data.knowledgeBases ?? [];
+    if (kbs.length === 1) return kbs[0].id;
+    if (!kbs.length) error("No knowledge bases yet. Create one: " + c.cyan('pinecall knowledge create "<name>"'));
+    error(
+        `You have ${kbs.length} knowledge bases — specify one by id:\n` +
+        kbs.map((k: any) => `    ${c.dim(k.id)}  ${k.name}`).join("\n"),
+    );
+    return ""; // unreachable (error exits)
+}
+
+async function query(config: CliConfig, args: string[]): Promise<void> {
+    // `query [kbId] "<question>"` — kbId optional when the org has a single KB.
+    let kbId: string;
+    let terms: string[];
+    if (looksLikeKbId(args[0])) { kbId = args[0]; terms = args.slice(1); }
+    else { kbId = await resolveSingleKb(config); terms = args; }
     const q = terms.join(" ").trim();
-    if (!kbId || !q) error('Usage: pinecall knowledge query <kbId> "<question>"');
+    if (!q) error('Usage: pinecall knowledge query [kbId] "<question>"');
     const k = Number(flag(process.argv.slice(2), "k")) || 6;
     const data = await pg(config, `/knowledge/${kbId}/query`, {
         method: "POST",
@@ -210,7 +234,8 @@ const HELP = `
     docs <kbId>                         List documents in a KB
     push <kbId> <files…>               Upload local docs (.md, .txt)
     get <kbId> <docId>                  Print a document's text
-    query <kbId> "<question>"          Semantic search — top chunks, no LLM
+    query [kbId] "<question>"          Semantic search — top chunks, no LLM
+                                        ${c.dim("(kbId optional if you have one KB)")}
     reindex <kbId>                      Re-train (rebuild) the index
     rm <kbId> <docId>                   Delete a document
     delete <kbId>                       Delete a knowledge base
@@ -245,7 +270,7 @@ export async function knowledgeCommand(config: CliConfig, argv: string[]): Promi
             return get(config, positional[1], positional[2]);
         case "query":
         case "search":
-            return query(config, positional[1], positional.slice(2));
+            return query(config, positional.slice(1));
         case "reindex":
         case "retrain":
             return reindex(config, positional[1]);

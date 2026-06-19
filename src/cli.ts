@@ -40,7 +40,10 @@ const HELP = `
     balance                ${c.dim("Show credit balance")}
     usage                  ${c.dim("Credit usage breakdown")}
     calls                  ${c.dim("Call history")}
-    conversations          ${c.dim("Saved conversation transcripts")}
+
+  ${c.bold("Conversations")}
+    conversations          ${c.dim("List saved transcripts (chat + voice)")}
+    conversations get <id> ${c.dim("View a full transcript")}
 
   ${c.bold("Development")}
     run <file>             ${c.dim("Run an agent file with live output")}
@@ -51,8 +54,13 @@ const HELP = `
   ${c.bold("Knowledge")} ${c.dim("(paid)")}
     knowledge              ${c.dim("List knowledge bases")}
     knowledge create       ${c.dim("Create a knowledge base")}
+    knowledge docs         ${c.dim("List documents in a KB")}
     knowledge push         ${c.dim("Upload local docs to a KB")}
+    knowledge get          ${c.dim("Print a document's text")}
+    knowledge query        ${c.dim("Semantic search (kbId optional if single KB)")}
     knowledge reindex      ${c.dim("Re-train a KB's index")}
+    knowledge rm           ${c.dim("Delete a document")}
+    knowledge delete       ${c.dim("Delete a knowledge base")}
 
   ${c.bold("Account")}
     signup                 ${c.dim("Create a new organization")}
