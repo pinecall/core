@@ -36,6 +36,26 @@ export type InterruptionShortcut = boolean | Record<string, unknown>;
 export interface AgentConfig {
     voice?: VoiceShortcut;
     language?: string;
+    /**
+     * Force the faster ElevenLabs flash model, opting out of the multilingual
+     * auto-default.
+     *
+     * For non-English agents (any `language` other than `en`) the server
+     * automatically selects `eleven_multilingual_v2` — it pronounces numbers,
+     * dates, currency and accents correctly, at the cost of slightly higher
+     * latency. Set `flash: true` to keep `eleven_flash_v2_5` instead (lowest
+     * latency, cheaper), accepting that non-English text normalization is weaker.
+     *
+     * - Only affects ElevenLabs voices (no effect on Cartesia/Polly).
+     * - No-op for English agents (they already default to flash).
+     * - Ignored when you pin a model explicitly via the `voice` object — an
+     *   explicit `voice: { model }` always wins.
+     *
+     * @example
+     * // Spanish agent that prioritizes latency over pronunciation quality:
+     * pc.agent("sofia", { voice: "elevenlabs/agus", language: "es", flash: true });
+     */
+    flash?: boolean;
     stt?: STTShortcut;
     interruption?: InterruptionShortcut;
     /** Server-side LLM: "openai/gpt-4.1-mini" or full config object. */
@@ -156,6 +176,8 @@ export interface PhoneNumberConfig {
 export interface ChannelConfig {
     voice?: VoiceShortcut;
     language?: string;
+    /** Force ElevenLabs flash, opting out of the multilingual auto-default. See {@link AgentConfig.flash}. */
+    flash?: boolean;
     stt?: STTShortcut;
     interruption?: InterruptionShortcut;
     /** Server-side LLM: "openai/gpt-4.1-mini" or full config object. */

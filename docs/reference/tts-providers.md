@@ -77,9 +77,46 @@ The server picks the ElevenLabs model from your `language`:
 | `en` (or unset) | `eleven_flash_v2_5` | Fastest, optimized for real-time streaming |
 | Any non-English (`es`, `fr`, `de`, …) | `eleven_multilingual_v2` | Flash/Turbo don't normalize text, so Spanish & other languages mispronounce numbers, dates, currency and abbreviations. The multilingual model reads them naturally. |
 
-> `eleven_multilingual_v2` is billed at a higher rate than flash (it's a higher-quality model). If you'd rather keep the faster/cheaper flash model for a non-English agent, pin it explicitly (see below).
+> `eleven_multilingual_v2` is billed at a higher rate than flash (it's a higher-quality model). If you'd rather keep the faster/cheaper flash model for a non-English agent, use the `flash` shortcut or pin the model explicitly (both below).
 
-**Override the model** with the optional `model` field — it always wins over the auto-default:
+#### `flash: true` — keep flash on a non-English agent
+
+The multilingual model trades a little **latency** for much better pronunciation.
+If your non-English agent should prioritize **lowest latency / lowest cost** over
+pronunciation quality, set the top-level `flash` flag — it opts out of the
+multilingual auto-default and keeps `eleven_flash_v2_5`:
+
+```typescript
+const agent = pc.agent("sofia", {
+  prompt: "Sos Sofía, asistente de la clínica.",
+  llm: "openai/gpt-5-chat-latest",
+  voice: "elevenlabs/agus",
+  stt: "deepgram/flux",
+  language: "es",
+  flash: true,        // ← stay on eleven_flash_v2_5 despite language: "es"
+});
+```
+
+`flash` is a sibling of `language` (not inside `voice`), so it reads cleanly with
+the rest of the shortcuts. Semantics:
+
+| Config | Resulting ElevenLabs model |
+|---|---|
+| `language: "es"` | `eleven_multilingual_v2` (auto) |
+| `language: "es"`, `flash: true` | `eleven_flash_v2_5` |
+| `language: "en"` (with or without `flash`) | `eleven_flash_v2_5` |
+| `voice: { model: "..." }` (any `flash`/`language`) | the pinned model — explicit always wins |
+
+Notes:
+
+- **ElevenLabs only.** `flash` has no effect on Cartesia or Polly.
+- **No-op for English** — English already defaults to flash.
+- **An explicit `voice: { model }` always wins** over `flash`. Use `flash: true`
+  for the common "I want the cheap fast model" case; use the `model` field when
+  you need a specific model id.
+- Works per-channel too: `phoneNumbers: [{ number, language: "es", flash: true }]`.
+
+**Override the model** with the optional `model` field — it always wins over both the auto-default and `flash`:
 
 ```typescript
 voice: {

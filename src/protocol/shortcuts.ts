@@ -22,6 +22,7 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
 
     if (opts.voice !== undefined) payload.voice = opts.voice;
     if (opts.language !== undefined) payload.language = opts.language;
+    if (opts.flash !== undefined) payload.flash = opts.flash;
     if (opts.stt !== undefined) payload.stt = expandSTT(opts.stt);
     if (opts.interruption !== undefined) payload.interruption = opts.interruption;
     if (opts.llm !== undefined) payload.llm = opts.llm;

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.24] — 2026-06-19
+
+### Added
+
+- **`flash: true` agent-config flag** — opt out of the multilingual auto-default
+  and keep the faster/cheaper `eleven_flash_v2_5` on a non-English agent (e.g.
+  `{ language: "es", flash: true }`). Sibling of `language`; ElevenLabs-only;
+  no-op for English; an explicit `voice: { model }` always wins over it. Also
+  available per-channel (`phoneNumbers: [{ number, language, flash: true }]`).
+
 ## [0.2.23] — 2026-06-19
 
 ### Fixed

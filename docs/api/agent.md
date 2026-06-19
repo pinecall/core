@@ -35,7 +35,8 @@ const agent = pc.agent("my-agent", {
 | Config field | Type | Description |
 |---|---|---|
 | `voice` | `string \| VoiceConfig` | TTS provider — shortcut or full config |
-| `language` | `string` | BCP-47 language code |
+| `language` | `string` | BCP-47 language code. Non-English auto-selects ElevenLabs `eleven_multilingual_v2` |
+| `flash` | `boolean` | Keep ElevenLabs `eleven_flash_v2_5` on a non-English agent (lowest latency/cost) instead of the multilingual auto-default. ElevenLabs-only; see [TTS Providers](/reference/tts-providers) |
 | `stt` | `string \| STTConfig` | STT provider — shortcut or full config |
 | `llm` | `LLMConfig` | LLM provider, model, prompt, enabled flag |
 | `tools` | `Tool[]` | Declarative tools created with `tool()` + Zod schemas (auto-executed) |
