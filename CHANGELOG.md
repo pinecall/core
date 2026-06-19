@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.23] — 2026-06-19
+
+### Fixed
+
+- **`pinecall voices` no longer requires an API key** — voice browsing is a public
+  discovery command, but the CLI errored with "Missing API key" before reaching
+  it. It now runs anonymously and only sends auth when a key is present (no more
+  literal `Bearer undefined`).
+- **`/api/sdk/voices` ignored the `language` filter** — the server had no
+  `language` query param, so `?language=es` returned unfiltered (English) voices.
+  Added server-side filtering; `fetchVoices({ language })` and `pinecall voices
+  --language=es` now pass it through (a client-side filter is kept as a fallback
+  for older servers).
+
 ### Changed
 
 - **ElevenLabs TTS model is now auto-selected by `language`** — non-English agents

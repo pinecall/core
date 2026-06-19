@@ -21,7 +21,7 @@ export interface CliConfig {
  *   --server flag  > PINECALL_URL env > https://voice.pinecall.io
  *   --playground   > PINECALL_PLAYGROUND_URL env > http://localhost:4000
  */
-export function resolveConfig(argv: string[]): CliConfig {
+export function resolveConfig(argv: string[], requireKey = true): CliConfig {
     let apiKey = "";
     let server = "";
     let playground = "";
@@ -47,7 +47,7 @@ export function resolveConfig(argv: string[]): CliConfig {
     server = server.replace(/\/+$/, "");
     playground = playground.replace(/\/+$/, "");
 
-    if (!apiKey) {
+    if (requireKey && !apiKey) {
         error(
             "Missing API key.\n\n" +
             "  Set PINECALL_API_KEY or pass --api-key=pk_...\n",

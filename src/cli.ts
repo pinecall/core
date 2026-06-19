@@ -150,8 +150,10 @@ async function main(): Promise<void> {
         return;
     }
 
-    // Resolve config (api key, server, json flag)
-    const config = resolveConfig(args);
+    // Resolve config (api key, server, json flag).
+    // `voices` is a public discovery command — it doesn't need an API key.
+    const PUBLIC_COMMANDS = new Set(["voices"]);
+    const config = resolveConfig(args, !PUBLIC_COMMANDS.has(command));
 
     switch (command) {
         case "agents": {

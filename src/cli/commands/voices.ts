@@ -68,11 +68,14 @@ function autoAlias(name: string, used: Set<string>): string {
     return final;
 }
 
-async function fetchVoices(config: CliConfig, provider: string): Promise<VoiceEntry[]> {
-    const url = `${config.server}/api/sdk/voices?provider=${encodeURIComponent(provider)}`;
-    const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-    });
+async function fetchVoices(config: CliConfig, provider: string, language = ""): Promise<VoiceEntry[]> {
+    let url = `${config.server}/api/sdk/voices?provider=${encodeURIComponent(provider)}`;
+    if (language) url += `&language=${encodeURIComponent(language)}`;
+    // Voices is a public endpoint — only send auth if a key is present
+    // (otherwise we'd send a literal "Bearer undefined").
+    const headers: Record<string, string> = {};
+    if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+    const res = await fetch(url, { headers });
     if (!res.ok) return [];
     const data: VoicesResponse = await res.json();
     return data.voices ?? [];
@@ -144,7 +147,7 @@ export async function voicesCommand(config: CliConfig, argv: string[]): Promise<
 
     let voices: VoiceEntry[];
     try {
-        voices = await fetchVoices(config, provider);
+        voices = await fetchVoices(config, provider, language);
     } catch {
         error(`Cannot reach server at ${config.server}`);
     }
@@ -153,7 +156,8 @@ export async function voicesCommand(config: CliConfig, argv: string[]): Promise<
         error(`No voices returned for ${provider}`);
     }
 
-    // Filter by language
+    // Filter by language (defensive — server already filters, but keep a
+    // client-side pass in case an older server ignores the param).
     if (language) {
         const lang = language.toLowerCase();
         voices = voices!.filter((v) =>

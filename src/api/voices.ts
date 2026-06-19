@@ -34,7 +34,8 @@ export interface FetchVoicesOptions {
 export async function fetchVoices(opts: FetchVoicesOptions = {}): Promise<Voice[]> {
     const provider = opts.provider ?? "elevenlabs";
     const apiUrl = opts.apiUrl ?? DEFAULT_API_URL;
-    const url = `${apiUrl}/api/sdk/voices?provider=${encodeURIComponent(provider)}`;
+    let url = `${apiUrl}/api/sdk/voices?provider=${encodeURIComponent(provider)}`;
+    if (opts.language) url += `&language=${encodeURIComponent(opts.language)}`;
 
     let res: Response;
     try {
