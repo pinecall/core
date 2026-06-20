@@ -54,6 +54,8 @@ export class ChatHandler implements EventHandler {
                         to: agent.id,
                         direction: "inbound",
                         transport: "chat" as any,
+                        // Sealed session metadata (companyId, userId, …) from the chat token.
+                        metadata: wire.metadata as Record<string, unknown> | undefined,
                     },
                     (data) => agent.send(data),
                 );
@@ -78,6 +80,7 @@ export class ChatHandler implements EventHandler {
                             to: agent.id,
                             direction: "inbound",
                             transport: "chat" as any,
+                            metadata: wire.metadata as Record<string, unknown> | undefined,
                         },
                         (data) => agent.send(data),
                     );
@@ -148,6 +151,7 @@ export class ChatHandler implements EventHandler {
                             to: agent.id,
                             direction: "inbound",
                             transport: "chat" as any,
+                            metadata: wire.metadata as Record<string, unknown> | undefined,
                         },
                         (data) => agent.send(data),
                     );
