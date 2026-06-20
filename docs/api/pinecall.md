@@ -132,14 +132,26 @@ Unregister an agent. Returns `boolean` indicating whether the agent existed.
 const removed = pc.removeAgent("mara");
 ```
 
-### `createToken(channel, agentId)`
+### `createToken(channel, agentId, metadata?)`
 
-Generate a short-lived, single-use token for browser WebRTC or chat connections. Used to mint tokens for browsers.
+Generate a short-lived, single-use token for browser **WebRTC** or **chat** connections. Used to mint tokens for browsers.
 
 ```typescript
 const token = await pc.createToken("webrtc", "mara");
 // { token, server, expiresIn }
 ```
+
+**Sealed session metadata** — pass a third argument to bake trusted context into the token:
+
+```typescript
+const token = await pc.createToken("chat", "mara", { userId: "u_123", plan: "pro" });
+```
+
+The metadata is **sealed into the signed token on your server**, so the browser cannot forge or alter it. It surfaces as [`call.metadata`](/api/call) in your `call.started` handler — use it for per-user / multi-tenant context you can trust (auth identity, plan, tenant id). Works identically for `"webrtc"` and `"chat"`.
+
+> With an `Agent` instance, use `agent.createToken(channel, metadata?)` (the `agentId` is implicit).
+
+> ⚠️ This is **not** the client-supplied `metadata` prop on the widget / `VoiceSession` — that is set in the browser and can be forged. For anything used in authorization, seal it in the token here.
 
 See [Security](/security) for the full token model.
 

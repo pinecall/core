@@ -21,7 +21,7 @@ call.from            // "+13186330963" or "sip:..."
 call.to              // destination number / URI
 call.direction       // "inbound" | "outbound"
 call.transport       // "phone" | "webrtc" | "chat" | "whatsapp" | "unknown"
-call.metadata        // custom metadata from the channel or dial()
+call.metadata        // sealed token metadata (createToken), dial() metadata, or channel context
 call.transcript      // [{ role: "user", content: "..." }, ...] — user + assistant only
 call.messages        // full LLM history (populated on call.ended)
 call.currentBotText  // live preview of what the bot is saying (accumulated bot.word events)
@@ -30,6 +30,22 @@ call.startedAt       // epoch seconds
 call.endedAt         // epoch seconds
 call.reason          // "hangup" | "timeout" | ...
 ```
+
+### `metadata`
+
+Arbitrary context attached to the session, available in `call.started` and throughout the call. It comes from one of:
+
+- **Sealed token metadata** (browser WebRTC / chat) — passed to [`createToken(channel, agentId, metadata)`](/api/pinecall) on your server and sealed into the signed token. **Trusted**: the browser can't forge it, so it's safe for identity / plan / tenant.
+- **`dial()` metadata** (outbound calls) — passed when you place the call.
+- **Channel context** — provider-supplied fields for the transport.
+
+```typescript
+agent.on("call.started", (call) => {
+  if (call.metadata?.plan === "pro") enablePremiumTools(call);
+});
+```
+
+The client-supplied `metadata` prop on the browser widget / `VoiceSession` also lands here, but is set in the browser — don't trust it for authorization; seal that in the token instead.
 
 ### `currentBotText`
 

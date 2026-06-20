@@ -69,6 +69,40 @@ The response shape:
 
 Tokens are single-use, scoped to the agent, and expire in 60 seconds. See [Security](/security) for the full security model.
 
+### Sealed session metadata (trusted context)
+
+Your token endpoint already knows who the user is — it's behind your auth. Bake that
+identity into the token by passing a metadata object as the last argument to
+`createToken`. It's **sealed into the signed token on your server**, so the browser
+cannot forge or change it:
+
+```typescript
+app.get("/api/token", authMiddleware, async (req, res) => {
+  const token = await mara.createToken("webrtc", {
+    userId: req.user.id,
+    plan: req.user.plan,
+    tenantId: req.user.orgId,
+  });
+  res.json(token);
+});
+```
+
+It surfaces — trusted — as `call.metadata` in your agent:
+
+```typescript
+agent.on("call.started", (call) => {
+  console.log(call.metadata.userId, call.metadata.plan); // straight from the sealed token
+});
+```
+
+The same applies to **chat** tokens — mint with `createToken("chat", { ... })` and read
+`call.metadata` in the chat session. (With the `Pinecall` client instead of an `Agent`
+instance, it's `pc.createToken("webrtc", "mara", { ... })`.)
+
+> **Trusted vs client-supplied.** The widget also accepts a `metadata` prop set in the
+> browser — handy, but a user can forge it. For anything you'll act on (identity, plan,
+> entitlements, tenant), seal it in the token here instead of trusting the client prop.
+
 ## 3. Drop in the widget
 
 ```bash
