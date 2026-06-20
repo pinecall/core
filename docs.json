@@ -46,7 +46,6 @@
           "guides/tools-and-functions",
           "guides/knowledge-bases",
           "guides/multi-tenant",
-          "guides/self-hosted-llm",
           "guides/sse-streaming",
           "guides/ws-streaming",
           "guides/dev-mode",
