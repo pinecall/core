@@ -122,7 +122,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     #devCallers: string[] = [];
     /** @internal Reference to parent Pinecall client (for createToken). */
     #client: {
-        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string) => Promise<TokenResponse>;
+        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>) => Promise<TokenResponse>;
     } | null = null;
 
     /** @internal — created by Pinecall.agent() */
@@ -345,19 +345,29 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     // ── Token generation ─────────────────────────────────────────────────
 
-    async createToken(channel: "webrtc" | "chat" | "stream"): Promise<TokenResponse> {
+    /**
+     * Mint a short-lived browser token for this agent (webrtc / chat / stream).
+     *
+     * `metadata` (optional) is sealed into the signed token — trusted server-side
+     * (the browser cannot forge it) and surfaced as `call.metadata` for tools.
+     * Use for per-session identity (tenantId, userId, role).
+     */
+    async createToken(
+        channel: "webrtc" | "chat" | "stream",
+        metadata?: Record<string, unknown>,
+    ): Promise<TokenResponse> {
         if (!this.#client) {
             throw new Error(
                 "Cannot create token: agent is not connected to a Pinecall client. " +
                 "Use pc.createToken(channel, agentId) instead.",
             );
         }
-        return this.#client.createToken(channel, this.id);
+        return this.#client.createToken(channel, this.id, metadata);
     }
 
     /** @internal Set the parent Pinecall client reference. */
     _setClient(client: {
-        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string) => Promise<TokenResponse>;
+        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>) => Promise<TokenResponse>;
     }): void {
         this.#client = client;
     }

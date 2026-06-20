@@ -26,6 +26,13 @@ export interface CreateTokenOptions {
     agentId: string;
     apiKey: string;
     apiUrl?: string;
+    /**
+     * Sealed session metadata baked into the signed token. Trusted server-side
+     * (the browser cannot forge or alter it) — surfaces as `call.metadata` for
+     * tools and event handlers. Use for per-session identity (tenantId, userId,
+     * role). Only honored when minting with an API key (this method). Max ~2KB.
+     */
+    metadata?: Record<string, unknown>;
 }
 
 export async function fetchWebRTCToken(opts: FetchWebRTCTokenOptions): Promise<WebRTCToken> {
@@ -67,7 +74,10 @@ export async function createToken(opts: CreateTokenOptions): Promise<TokenRespon
         stream: "/stream/token",
     };
     const endpoint = endpoints[opts.channel] || "/webrtc/token";
-    const url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(opts.agentId)}`;
+    let url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(opts.agentId)}`;
+    if (opts.metadata && Object.keys(opts.metadata).length > 0) {
+        url += `&metadata=${encodeURIComponent(JSON.stringify(opts.metadata))}`;
+    }
 
     let res: Response;
     try {
