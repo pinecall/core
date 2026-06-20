@@ -287,7 +287,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         );
 
         agent._setClient({
-            createToken: (channel, agentId) => this.createToken(channel, agentId),
+            createToken: (channel, agentId, metadata) => this.createToken(channel, agentId, metadata),
         });
 
         this.#agents.set(id, agent);
@@ -364,12 +364,17 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
     // ── Token generation ─────────────────────────────────────────────────
 
-    async createToken(channel: "webrtc" | "chat" | "stream", agentId: string): Promise<TokenResponse> {
+    async createToken(
+        channel: "webrtc" | "chat" | "stream",
+        agentId: string,
+        metadata?: Record<string, unknown>,
+    ): Promise<TokenResponse> {
         return createTokenApi({
             channel,
             agentId,
             apiKey: this.#apiKey,
             apiUrl: this.#apiUrl,
+            metadata,
         });
     }
 
