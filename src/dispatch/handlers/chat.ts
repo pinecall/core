@@ -61,6 +61,33 @@ export class ChatHandler implements EventHandler {
                 );
 
                 agent._setCall(callId, call);
+
+                // Initialize incremental history (parity with voice in
+                // lifecycle.ts). The save on llm.chat.ended carries the full
+                // transcript; this initial save just creates the active record.
+                const historyStore = agent.getConfig().history;
+                if (historyStore?.save) {
+                    call._initHistory(agent.id, historyStore);
+                }
+
+                // Auto-restore prior conversations. Chat keys on
+                // call.metadata.userId (call.from is always "chat"), unlike
+                // voice/WA which key on call.from.
+                const contactId = call.metadata?.userId ? String(call.metadata.userId) : "";
+                if (historyStore?.findByContact && contactId) {
+                    historyStore.findByContact(contactId, 5).then((prior) => {
+                        if (!prior || prior.length === 0) return;
+                        const messages = prior
+                            .reverse()
+                            .flatMap((c) => c.messages)
+                            .filter((m) => m.role === "user" || m.role === "assistant")
+                            .slice(-20);
+                        if (messages.length > 0) {
+                            call.setHistory(messages as any).catch(() => {});
+                        }
+                    }).catch(() => {});
+                }
+
                 forwardCallEvents(call, agent, call);
 
                 // Emit chat.started — the entry point for chat sessions
