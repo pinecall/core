@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.25] — 2026-06-20
+
+### Added
+
+- **`createToken(channel, agentId, metadata?)`** — optional sealed session
+  `metadata` baked into a browser token. Trusted server-side (the browser cannot
+  forge or alter it) and surfaces as `call.metadata`. Useful for multi-tenant /
+  per-user context on `webrtc`/`chat`/`stream` tokens.
+
 ## [0.2.24] — 2026-06-19
 
 ### Added
