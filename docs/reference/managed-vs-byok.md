@@ -88,6 +88,26 @@ One key can cover multiple services where a provider shares it — e.g. an
 **ElevenLabs** key enables both ElevenLabs TTS and ElevenLabs Scribe STT; a
 **Cartesia** key enables Sonic TTS and Ink-Whisper STT.
 
+## Operators: flip a provider managed ↔ BYOK
+
+The managed/BYOK status of any provider is a single DB flag (`rate.managed`) and is
+the source of truth — flipping it takes effect **immediately** (next session / page
+load), no deploy or re-seed:
+
+```bash
+# Pinecall provides it (no token needed) — requires <PROVIDER>_API_KEY on the box:
+npx tsx scripts/set-managed.ts assemblyai true
+
+# Force bring-your-own-key (the user must add their token):
+npx tsx scripts/set-managed.ts assemblyai false
+
+# Per service (e.g. only Cartesia STT):
+npx tsx scripts/set-managed.ts cartesia false stt
+```
+
+Enabling managed only works if Pinecall actually holds that provider's key in the
+prod `.env` (`shipway env` to check); otherwise leave it BYOK.
+
 ## What's next
 
 - [STT Providers](/reference/stt-providers)
