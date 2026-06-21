@@ -184,7 +184,24 @@ llm: {
 llm: "xai/grok-4"        // "grok" is accepted as an alias for "xai"
 ```
 
+Or with tuning (same config shape as OpenAI — see [Temperature & max_tokens](#temperature--max_tokens)):
+
+```typescript
+llm: {
+  provider: "xai",
+  model: "grok-4",
+  enabled: true,
+  temperature: 0.7,
+  max_tokens: 512,
+}
+```
+
 OpenAI-compatible. Requires your own xAI key. Models: `grok-4`, `grok-4-fast`, `grok-3`.
+
+> **All BYOK LLM providers below (Groq, Cerebras, DeepSeek, OpenRouter) are
+> OpenAI-compatible** — they take the **identical config object** (`provider`,
+> `model`, `temperature`, `max_tokens`, `enabled`) and support the same tools /
+> tuning as OpenAI. Only the `provider` and `model` change.
 
 ## Groq (BYOK)
 

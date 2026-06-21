@@ -152,8 +152,13 @@ Realtime `scribe_v2_realtime`. Uses the same ElevenLabs key as ElevenLabs TTS.
 
 ```typescript
 stt: "elevenlabs/scribe"
-// or
-stt: { provider: "elevenlabs", model: "scribe_v2_realtime", language: "en" }
+// or with tuning
+stt: {
+  provider: "elevenlabs",
+  model: "scribe_v2_realtime",
+  language: "en",
+  commit_strategy: "vad",   // "vad" (server segments turns) | "manual"
+}
 ```
 
 ## AssemblyAI (BYOK)
@@ -163,8 +168,13 @@ own AssemblyAI key.
 
 ```typescript
 stt: "assemblyai/universal"
-// or
-stt: { provider: "assemblyai", model: "u3-rt-pro", language: "en" }
+// or with tuning
+stt: {
+  provider: "assemblyai",
+  model: "u3-rt-pro",
+  language: "en",
+  format_turns: true,   // punctuated/cased final transcripts
+}
 ```
 
 ## Which to choose
