@@ -21,21 +21,22 @@ Every STT, TTS and LLM model on Pinecall is one of two kinds:
 
 | Service | Managed providers |
 |---|---|
-| **STT** | `deepgram` (flux, nova-3), `gladia`, `transcribe` (AWS) |
+| **STT** | `deepgram` (flux, nova-3), `gladia`, `transcribe` (AWS), `cartesia` (ink-whisper), `elevenlabs` (scribe) |
 | **TTS** | `elevenlabs`, `cartesia` (sonic), `polly` (AWS) |
 | **LLM** | `openai`, `anthropic`, `google` (gemini), `mistral` |
+
+> **One key, both services:** an ElevenLabs (or Cartesia) key serves *both* that
+> vendor's TTS and STT. Pinecall already holds those keys for the managed TTS, so
+> their STT (ElevenLabs **Scribe**, Cartesia **Ink-Whisper**) is **also managed** —
+> no key needed.
 
 ## What requires your own key (BYOK)
 
 | Service | BYOK-only providers |
 |---|---|
-| **STT** | `cartesia` (ink-whisper), `elevenlabs` (scribe), `assemblyai` |
+| **STT** | `assemblyai` |
 | **TTS** | `rime` |
 | **LLM** | `xai` (grok), `groq`, `cerebras`, `deepseek`, `openrouter` |
-
-> Note a provider can be **managed for one service and BYOK for another** — e.g.
-> Cartesia **TTS** (sonic) is managed, but Cartesia **STT** (ink-whisper) is BYOK.
-> ElevenLabs **TTS** is managed, ElevenLabs **STT** (scribe) is BYOK.
 
 ## Check it from the API (authoritative, live)
 
@@ -55,7 +56,7 @@ curl https://playground.pinecall.io/api/rates/models
     // ...
   ],
   "managedProviders": {
-    "stt": ["deepgram", "gladia", "transcribe"],
+    "stt": ["cartesia", "deepgram", "elevenlabs", "gladia", "transcribe"],
     "tts": ["cartesia", "elevenlabs", "polly"],
     "llm": ["anthropic", "google", "mistral", "openai"]
   }

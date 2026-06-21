@@ -43,8 +43,8 @@ for the full list and the live `GET /api/rates/models` query.
 | `deepgram` (flux/nova) | ✅ Yes | Default, recommended |
 | `gladia` | ✅ Yes | |
 | `transcribe` (AWS) | ✅ Yes | |
-| `cartesia` (ink-whisper) | ❌ BYOK only | Add a Cartesia key |
-| `elevenlabs` (scribe) | ❌ BYOK only | Add an ElevenLabs key |
+| `cartesia` (ink-whisper) | ✅ Yes | Same key as Cartesia TTS — Pinecall hosts it |
+| `elevenlabs` (scribe) | ✅ Yes | Same key as ElevenLabs TTS — Pinecall hosts it |
 | `assemblyai` (universal) | ❌ BYOK only | Add an AssemblyAI key |
 
 > **BYOK enforcement:** if you configure a BYOK-only STT provider and your org has
@@ -135,10 +135,11 @@ stt: {
 }
 ```
 
-## Cartesia Ink-Whisper (BYOK)
+## Cartesia Ink-Whisper
 
-Pairs naturally with Cartesia (Sonic) TTS for a single-vendor voice stack. Requires
-your own Cartesia key.
+Pairs naturally with Cartesia (Sonic) TTS for a single-vendor voice stack.
+**Managed** — the same Cartesia key serves TTS and STT, and Pinecall hosts it (or
+bring your own Cartesia key to bill it directly).
 
 ```typescript
 stt: "cartesia/ink-whisper"
@@ -146,9 +147,10 @@ stt: "cartesia/ink-whisper"
 stt: { provider: "cartesia", model: "ink-whisper", language: "en" }
 ```
 
-## ElevenLabs Scribe (BYOK)
+## ElevenLabs Scribe
 
-Realtime `scribe_v2_realtime`. Uses the same ElevenLabs key as ElevenLabs TTS.
+Realtime `scribe_v2_realtime`. **Managed** — uses the same ElevenLabs key as
+ElevenLabs TTS, which Pinecall hosts (or bring your own ElevenLabs key).
 
 ```typescript
 stt: "elevenlabs/scribe"
@@ -163,8 +165,8 @@ stt: {
 
 ## AssemblyAI (BYOK)
 
-Universal-3 streaming (`u3-rt-pro`) — strong accuracy + diarization. Requires your
-own AssemblyAI key.
+Universal-3 streaming (`u3-rt-pro`) — strong accuracy + diarization. **BYOK only** —
+Pinecall hosts no AssemblyAI key, so add your own under Provider Keys.
 
 ```typescript
 stt: "assemblyai/universal"
@@ -185,8 +187,8 @@ stt: {
 | `deepgram/nova-3` | Arabic, Hindi, Thai, CJK, and 60+ languages | Slightly higher latency; smart_turn + silero VAD |
 | `gladia/solaria` | Code-switching, multilingual | Higher latency than Deepgram |
 | `transcribe` | AWS-native deployments | AWS pricing model |
-| `cartesia/ink-whisper` | Single-vendor with Cartesia TTS | BYOK only |
-| `elevenlabs/scribe` | Single-vendor with ElevenLabs TTS | BYOK only |
+| `cartesia/ink-whisper` | Single-vendor with Cartesia TTS | Managed (shared key) |
+| `elevenlabs/scribe` | Single-vendor with ElevenLabs TTS | Managed (shared key) |
 | `assemblyai/universal` | Accuracy + diarization | BYOK only |
 
 For most agents, start with `deepgram/flux`. Use `deepgram/nova-3` for languages Flux doesn't cover (Arabic, Hindi, Thai, Chinese, Japanese, Korean, etc.).
