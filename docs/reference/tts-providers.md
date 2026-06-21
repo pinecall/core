@@ -33,6 +33,7 @@ for the full list and the live `GET /api/rates/models` query.
 | `polly` (AWS) | ✅ Yes | |
 | `rime` | ❌ BYOK only | Add a Rime key under Provider Keys |
 | `soniox` | ❌ BYOK only | One Soniox key = TTS **and** STT |
+| `xai` (Grok) | ❌ BYOK only | Same xAI key as Grok LLM |
 
 > **BYOK enforcement:** configuring `rime` without a saved Rime key rejects agent
 > registration with `PROVIDER_KEY_REQUIRED`. With your own key, that usage is billed
@@ -221,6 +222,21 @@ voice: {
 
 Shortcut: `"soniox/Adrian"`
 
+## xAI Grok (BYOK)
+
+Expressive Grok voices: **ara, eve, leo, rex, sal**. Uses the **same xAI key** as
+Grok LLM (`XAI_API_KEY`). Requires your own key.
+
+```typescript
+voice: {
+  provider: "xai",
+  voice_id: "eve",   // ara | eve | leo | rex | sal
+  speed: 1.0,
+}
+```
+
+Shortcut: `"xai/eve"`
+
 ## Which to choose
 
 | Provider | Best for | Trade-off |
@@ -230,6 +246,7 @@ Shortcut: `"soniox/Adrian"`
 | **Polly** | Cheap IVR, simple flows | Less natural |
 | **Rime** | Ultra-natural expressive English | BYOK only; English-focused |
 | **Soniox** | Multilingual (60+), single-vendor with Soniox STT | BYOK only |
+| **xAI Grok** | Expressive Grok voices (ara/eve/leo/rex/sal) | BYOK only |
 
 For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic-3.5`). Use Polly only for high-volume, low-engagement flows.
 

@@ -35,10 +35,11 @@ Every STT, TTS and LLM model on Pinecall is one of two kinds:
 | Service | BYOK-only providers |
 |---|---|
 | **STT** | `assemblyai`, `soniox` |
-| **TTS** | `rime`, `soniox` |
+| **TTS** | `rime`, `soniox`, `xai` (Grok voices) |
 | **LLM** | `xai` (grok), `groq`, `cerebras`, `deepseek`, `openrouter` |
 
-> `soniox` is one key for **both** STT and TTS (a Soniox key enables both).
+> One key covers multiple services: a **Soniox** key = STT + TTS; an **xAI** key =
+> Grok LLM + Grok TTS voices.
 
 ## Check it from the API (authoritative, live)
 
