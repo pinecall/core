@@ -157,14 +157,24 @@ See [Outbound Calls guide](/guides/outbound-calls) for the full pattern.
 
 ## Tokens
 
-### `createToken(channel)`
+### `createToken(channel, metadata?)`
 
-Mint a short-lived token for browser WebRTC or chat. Scoped to this agent.
+Mint a short-lived, single-use token for browser **WebRTC** or **chat**. Scoped to this agent (the agent-form shortcut for [`pc.createToken(channel, agentId, metadata?)`](/api/pinecall#createtokenchannel-agentid-metadata)).
 
 ```typescript
 const token = await agent.createToken("webrtc");
 // { token, server, expiresIn }
 ```
+
+**Sealed session metadata** — pass a second argument to bake trusted context into the token:
+
+```typescript
+const token = await agent.createToken("chat", { userId: "u_123", role: "admin" });
+```
+
+The metadata is **sealed into the signed token on your server**, so the browser can't forge or alter it — it surfaces as [`call.metadata`](/api/call) in your `call.started` handler. Use it for per-user / multi-tenant identity you can trust.
+
+> ⚠️ Arg position differs by form: `agent.createToken(channel, metadata)` (metadata 2nd, `agentId` implicit) vs `pc.createToken(channel, agentId, metadata)` (metadata 3rd). It is **not** the forgeable client-side `metadata` prop on the widget / `VoiceSession`. See [Multi-Tenant → sealed token metadata](/guides/multi-tenant) and [Security](/security).
 
 ## Dev mode
 

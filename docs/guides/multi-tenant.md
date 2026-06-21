@@ -38,9 +38,20 @@ app.post("/api/lumi/token", authMiddleware, async (req, res) => {
 ```
 
 ```typescript
-// ── 2. BROWSER: connect with the token (chat shown; voice/widget identical) ──
+// ── 2. BROWSER: connect via tokenProvider — it returns the sealed token (voice/widget identical) ──
 import { ChatSession } from "@pinecall/web/chat";
-const chat = new ChatSession({ token }); // from your /api/lumi/token endpoint
+const chat = new ChatSession({
+  agent: "lumi",
+  tokenProvider: async () => {
+    const res = await fetch("/api/lumi/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",                 // send your auth cookie/session
+      body: JSON.stringify({ threadId }),
+    });
+    return res.json();                        // { token, server } — metadata is sealed inside
+  },
+});
 await chat.connect();
 ```
 
@@ -84,7 +95,7 @@ const listAppointments = tool({
 - **Tenant isolation is enforced in code** (tools scope by `call.metadata.companyId`), **never** by trusting the prompt.
 - **Prompt-injection safe** — treat everything from `call.metadata` (and any user text) as **data**: wrap it in clear tags (`<session>…</session>`), escape it, and tell the model in the system prompt to treat those tags as data, never instructions.
 
-> `metadata` works the same on every channel — `pc.createToken("webrtc"|"chat"|"stream", agentId, metadata)`, the `<VoiceWidget metadata={{...}} />` prop, and `new ChatSession({ token })` / `new VoiceSession({ token })`. It always surfaces as `call.metadata`. See [`createToken`](/api/pinecall) and [Conversation History](/guides/conversation-history) (persist/restore per user via metadata).
+> **Sealed metadata works the same on every channel** — mint with `pc.createToken("webrtc"|"chat", agentId, metadata)` (or `agent.createToken(channel, metadata)`), then consume it in the browser via a `tokenProvider` on `new ChatSession({ agent, tokenProvider })` / `new VoiceSession({ agent, tokenProvider })`. It always surfaces as `call.metadata`. ⚠️ The `<VoiceWidget metadata={{...}} />` / `VoiceSession({ metadata })` prop is the **client-set, forgeable** variant — fine for UI hints, but seal anything you authorize on into the token. See [`createToken`](/api/pinecall) and [Conversation History](/guides/conversation-history) (persist/restore per user via metadata).
 
 ## The pattern
 

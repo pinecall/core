@@ -103,12 +103,10 @@ WebRTC and chat don't use caller-based routing — there's no "caller number" in
 
 ```typescript
 // Dev mode → agent registers as "dev-berna-florencia"
-// The browser requests a token for "dev-berna-florencia" specifically
-const token = await createToken({
-  channel: "webrtc",
-  agentId: "dev-berna-florencia",
-  apiKey: process.env.PINECALL_API_KEY!,
-});
+// On your server, mint a token for "dev-berna-florencia" specifically
+const pc = new Pinecall(); // PINECALL_API_KEY from env
+const token = await pc.createToken("webrtc", "dev-berna-florencia");
+// or, with the Agent instance: agent.createToken("webrtc")
 ```
 
 Each dev gets their own slug, their own tokens, their own sessions. Nothing crosses over.

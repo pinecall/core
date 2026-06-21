@@ -21,6 +21,7 @@ const chat = new ChatSession({ agent: "florencia" });
 |---|---|---|---|
 | `agent` | `string` | ✅ | Agent slug (e.g. `"florencia"`, `"dev-berna-florencia"`) |
 | `server` | `string` | — | Voice server URL (default: `https://voice.pinecall.io`) |
+| `tokenProvider` | `() => Promise<{ token, server }>` | — | Mint the chat token on **your** backend instead of hitting `/chat/token` directly. Required to attach **sealed metadata** — see [Passing metadata to the token](#passing-metadata-to-the-token-sealed-session). |
 
 ### Methods
 
@@ -102,6 +103,89 @@ The agent's system prompt picks this up automatically:
 {"items":["Corte de cabello","Tinte"],"total":85.00}
 ```
 
+> `setContext()` is **client-set and forgeable** — fine for live UI hints (cart, current page). For anything you'll trust for **authorization or tenant scoping** (user id, role, company), seal it into the **token** instead — see below.
+
+## Passing metadata to the token (sealed session)
+
+`setContext()` runs in the browser, so a malicious client can change it. When you need
+**trusted** per-user context — the logged-in user's id, role, tenant/company — you bake it
+into the **token itself** on your server. The browser then connects with that opaque token
+and can't forge or alter what's inside.
+
+This is how **one shared chat agent serves every user**: each connection carries the
+signed-in identity as `call.metadata`, and your tools scope by it in code.
+
+### How it flows
+
+1. **Browser** → calls your backend via `tokenProvider` (no API key in the browser).
+2. **Your server** → mints the token with [`createToken("chat", agentId, metadata)`](/api/pinecall#createtokenchannel-agentid-metadata) — the `metadata` comes from the **session**, never the request body.
+3. **Agent** → reads the sealed metadata as [`call.metadata`](/api/call) in `call.started` / `call.preparing`.
+
+```typescript
+// ── 1. SERVER (behind your auth) — seal the session into the token ──
+import { Pinecall } from "@pinecall/sdk";
+const pc = new Pinecall(); // PINECALL_API_KEY from env
+
+app.post("/api/chat-token", authMiddleware, async (req, res) => {
+  const token = await pc.createToken("chat", "lumi", {   // ← 3rd arg = sealed metadata
+    companyId: req.auth.companyId,
+    userId:    req.auth.userId,
+    role:      req.auth.role,
+    userName:  req.auth.name,
+    threadId:  req.body.threadId,   // optional: restore a conversation
+  });
+  res.json(token); // { token, server, expiresIn }
+});
+```
+
+> With an `Agent` instance the call is `agent.createToken("chat", metadata)` (the `agentId` is implicit — note metadata is the **2nd** arg there, vs the **3rd** on `pc.createToken`).
+
+```typescript
+// ── 2. BROWSER — connect via tokenProvider; the metadata is already inside the token ──
+import { ChatSession } from "@pinecall/web/chat";
+
+const chat = new ChatSession({
+  agent: "lumi",
+  tokenProvider: async () => {
+    const res = await fetch("/api/chat-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",                 // send your auth cookie/session
+      body: JSON.stringify({ threadId }),
+    });
+    return res.json();                        // { token, server }
+  },
+});
+await chat.connect();
+```
+
+```typescript
+// ── 3. AGENT — read the sealed metadata; isolation lives in CODE, never the prompt ──
+const agent = pc.agent("lumi", {
+  prompt: `${SYSTEM}\n\n{{SESSION}}`,
+  llm: "anthropic/claude-haiku-4-5",
+  tools: [listAppointments],
+});
+
+agent.on("call.started", (call) => {
+  const m = call.metadata;                    // { companyId, userId, role, ... } — trusted
+  call.setPromptVars({ SESSION: `<user>${esc(m.userName)} (${esc(m.role)})</user>` });
+});
+
+const listAppointments = tool({
+  name: "list_appointments",
+  schema: z.object({ date: z.string().optional() }),
+  execute: async ({ date }, call) => {
+    const { companyId } = call.metadata;      // sealed → safe to authorize on
+    return db.scope(companyId).appointments.forDate(date);
+  },
+});
+```
+
+> **`setContext()` vs sealed metadata** — `setContext()` is browser-set (forgeable) live UI
+> state; token metadata is server-signed (trusted) session identity. Use `setContext()` for
+> UI hints, the token for anything you authorize on. Full pattern: [Multi-Tenant → sealed token metadata](/guides/multi-tenant).
+
 ## `usePinecallChat` (React)
 
 React-only hook exported from `@pinecall/web/chat/react`. Wraps `ChatSession` with `useSyncExternalStore` for efficient rendering. Session is created once on mount and destroyed on unmount.
@@ -147,6 +231,7 @@ function Chat() {
 |---|---|---|---|
 | `agent` | `string` | **required** | Agent ID |
 | `server` | `string` | `"https://voice.pinecall.io"` | Voice server URL |
+| `tokenProvider` | `() => Promise<{ token, server }>` | — | Mint the token on your backend (required for [sealed metadata](#passing-metadata-to-the-token-sealed-session)) |
 | `autoConnect` | `boolean` | `true` | Connect on mount automatically |
 
 ### Hook return
