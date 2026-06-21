@@ -29,9 +29,10 @@ for the full list and the live `GET /api/rates/models` query.
 | TTS provider | Managed (no key needed) | Notes |
 |---|---|---|
 | `elevenlabs` | ✅ Yes | Default, recommended |
-| `cartesia` (sonic) | ✅ Yes | |
+| `cartesia` (sonic-3.5) | ✅ Yes | |
 | `polly` (AWS) | ✅ Yes | |
 | `rime` | ❌ BYOK only | Add a Rime key under Provider Keys |
+| `soniox` | ❌ BYOK only | One Soniox key = TTS **and** STT |
 
 > **BYOK enforcement:** configuring `rime` without a saved Rime key rejects agent
 > registration with `PROVIDER_KEY_REQUIRED`. With your own key, that usage is billed
@@ -156,7 +157,7 @@ The model is part of the voice config, so it hot-reloads with it — `agent.upda
 voice: {
   provider: "cartesia",
   voice_id: "a0e99841-438c-4a64-b679-ae501e7d6091",
-  model: "sonic-3",
+  model: "sonic-3.5",   // latest; also "sonic-3" / "sonic-latest"
   speed: 1.0,
   volume: 1.0,
   emotion: null,
@@ -168,7 +169,7 @@ Shortcut: `"cartesia/yumiko"`
 
 **Tuning notes:**
 
-- `model: "sonic-3"` — fastest Cartesia model, designed for streaming
+- `model: "sonic-3.5"` — latest/fastest Cartesia model (sub-90ms, 42 languages), designed for streaming. `sonic-3` and `sonic-latest` also available.
 - `emotion` accepts named emotion presets (check Cartesia docs for the current list)
 
 ## AWS Polly
@@ -204,6 +205,22 @@ voice: {
 
 Shortcut: `"rime/cove"`
 
+## Soniox (BYOK)
+
+Real-time TTS in 60+ languages. One Soniox key serves **both** Soniox TTS and STT.
+Requires your own Soniox key.
+
+```typescript
+voice: {
+  provider: "soniox",
+  voice_id: "Adrian",   // Soniox voice name
+  model: "tts-rt-v1",
+  language: "en",
+}
+```
+
+Shortcut: `"soniox/Adrian"`
+
 ## Which to choose
 
 | Provider | Best for | Trade-off |
@@ -212,8 +229,9 @@ Shortcut: `"rime/cove"`
 | **Cartesia** | Real-time streaming, low latency | Smaller voice library |
 | **Polly** | Cheap IVR, simple flows | Less natural |
 | **Rime** | Ultra-natural expressive English | BYOK only; English-focused |
+| **Soniox** | Multilingual (60+), single-vendor with Soniox STT | BYOK only |
 
-For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic-3`). Use Polly only for high-volume, low-engagement flows.
+For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic-3.5`). Use Polly only for high-volume, low-engagement flows.
 
 ## Hot-reloading voices
 
