@@ -67,6 +67,34 @@ curl https://playground.pinecall.io/api/rates/models
 
 `managed: true` → usable with no key. `managed: false` → add your own key.
 
+## Check a user's access to a model (SDK / API)
+
+Before configuring an agent, check whether the org can actually use a model —
+it combines all three gates (model exists · allowed on the org's plan · managed
+or BYOK-key-present):
+
+```ts
+import { fetchModelAccess, hasModelAccess, fetchModelCatalog } from "@pinecall/sdk";
+
+const a = await fetchModelAccess({ service: "tts", model: "eleven_multilingual_v2" });
+// { allowed, reason, provider, managed, planAllowed, hasKey, requiresKey }
+
+if (!(await hasModelAccess({ service: "llm", model: "grok-4" }))) {
+  // reason: "byok_key_required" → tell the user to add their xAI key
+}
+
+const all = await fetchModelCatalog();   // access for every priced model
+```
+
+Reads `PINECALL_API_KEY` (override with `apiKey`). Raw endpoint:
+
+```bash
+curl "https://playground.pinecall.io/api/models/access?service=tts&model=eleven_multilingual_v2" \
+  -H "Authorization: Bearer pk_…"
+```
+
+`reason` is one of `ok` · `unknown_model` · `plan_restricted` · `byok_key_required`.
+
 ## BYOK enforcement
 
 If you configure a BYOK-only provider and your org has **not** saved a key for it,

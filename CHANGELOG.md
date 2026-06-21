@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`fetchModelAccess` / `hasModelAccess` / `fetchModelCatalog`** — check whether the
+  org can use an STT/TTS/LLM model (plan + managed/BYOK gates) before configuring an
+  agent, via `GET /api/models/access`. Returns `{allowed, reason, managed, planAllowed,
+  hasKey, requiresKey}`.
 - **New STT/TTS/LLM providers (BYOK-only)** documented in the provider reference:
   STT — Cartesia Ink-Whisper, ElevenLabs Scribe, AssemblyAI; TTS — Rime; LLM —
   xAI Grok, Groq, Cerebras, DeepSeek, OpenRouter. These require your own API key
