@@ -184,3 +184,11 @@ export type {
     FetchTwilioBalanceOptions,
     FetchBalanceOptions,
 } from "./api/balance.js";
+
+export { fetchModelAccess, hasModelAccess, fetchModelCatalog } from "./api/models.js";
+export type {
+    ModelAccess,
+    ModelAccessReason,
+    FetchModelAccessOptions,
+    ListModelAccessOptions,
+} from "./api/models.js";
