@@ -34,7 +34,9 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 ## Managed vs bring-your-own-key (BYOK)
 
 Some providers work out of the box on Pinecall's managed keys; the newer ones
-require **your own API key** (saved under **Provider Keys** in the dashboard).
+require **your own API key** (saved under **Provider Keys** in the dashboard). This
+split is data-driven from the rate table — see [Managed vs BYOK](/reference/managed-vs-byok)
+for the full list and the live `GET /api/rates/models` query.
 
 | STT provider | Managed (no key needed) | Notes |
 |---|---|---|

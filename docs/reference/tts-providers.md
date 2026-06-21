@@ -23,6 +23,9 @@ Pinecall supports multiple TTS providers. Use the `provider/friendly-id` format 
 
 ## Managed vs bring-your-own-key (BYOK)
 
+Data-driven from the rate table — see [Managed vs BYOK](/reference/managed-vs-byok)
+for the full list and the live `GET /api/rates/models` query.
+
 | TTS provider | Managed (no key needed) | Notes |
 |---|---|---|
 | `elevenlabs` | ✅ Yes | Default, recommended |

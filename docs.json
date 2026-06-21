@@ -78,7 +78,7 @@
         "group": "@pinecall/web (Browser)",
         "pages": [
           {
-            "group": "Voice — core",
+            "group": "Voice \u2014 core",
             "pages": [
               "web/core/overview",
               "web/core/voice-session",
@@ -125,6 +125,7 @@
           "reference/stt-providers",
           "reference/tts-providers",
           "reference/llm-providers",
+          "reference/managed-vs-byok",
           "reference/session-limits",
           "reference/rest-api"
         ]

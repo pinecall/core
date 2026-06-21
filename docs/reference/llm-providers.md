@@ -39,6 +39,9 @@ llm: "gpt-5-chat-latest"
 
 ## Managed vs bring-your-own-key (BYOK)
 
+Data-driven from the rate table — see [Managed vs BYOK](/reference/managed-vs-byok)
+for the full list and the live `GET /api/rates/models` query.
+
 | LLM provider | Managed (no key needed) | Notes |
 |---|---|---|
 | `openai` | ✅ Yes | Default, recommended |
