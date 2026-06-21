@@ -24,7 +24,32 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 
 // AWS Transcribe
 { stt: "transcribe" }
+
+// ── Bring-your-own-key only (add your key under Provider Keys first) ──
+{ stt: "cartesia/ink-whisper" }      // Cartesia Ink-Whisper
+{ stt: "elevenlabs/scribe" }         // ElevenLabs Scribe v2 (realtime)
+{ stt: "assemblyai/universal" }      // AssemblyAI Universal-3
 ```
+
+## Managed vs bring-your-own-key (BYOK)
+
+Some providers work out of the box on Pinecall's managed keys; the newer ones
+require **your own API key** (saved under **Provider Keys** in the dashboard).
+
+| STT provider | Managed (no key needed) | Notes |
+|---|---|---|
+| `deepgram` (flux/nova) | ✅ Yes | Default, recommended |
+| `gladia` | ✅ Yes | |
+| `transcribe` (AWS) | ✅ Yes | |
+| `cartesia` (ink-whisper) | ❌ BYOK only | Add a Cartesia key |
+| `elevenlabs` (scribe) | ❌ BYOK only | Add an ElevenLabs key |
+| `assemblyai` (universal) | ❌ BYOK only | Add an AssemblyAI key |
+
+> **BYOK enforcement:** if you configure a BYOK-only STT provider and your org has
+> not saved a key for it, **agent registration is rejected** with
+> `PROVIDER_KEY_REQUIRED` — Pinecall never falls back to its own key for these.
+> When you bring your own key, that usage is billed by the provider directly and is
+> **not** deducted from your Pinecall credits.
 
 ## Naming convention
 
@@ -108,6 +133,38 @@ stt: {
 }
 ```
 
+## Cartesia Ink-Whisper (BYOK)
+
+Pairs naturally with Cartesia (Sonic) TTS for a single-vendor voice stack. Requires
+your own Cartesia key.
+
+```typescript
+stt: "cartesia/ink-whisper"
+// or
+stt: { provider: "cartesia", model: "ink-whisper", language: "en" }
+```
+
+## ElevenLabs Scribe (BYOK)
+
+Realtime `scribe_v2_realtime`. Uses the same ElevenLabs key as ElevenLabs TTS.
+
+```typescript
+stt: "elevenlabs/scribe"
+// or
+stt: { provider: "elevenlabs", model: "scribe_v2_realtime", language: "en" }
+```
+
+## AssemblyAI (BYOK)
+
+Universal-3 streaming (`u3-rt-pro`) — strong accuracy + diarization. Requires your
+own AssemblyAI key.
+
+```typescript
+stt: "assemblyai/universal"
+// or
+stt: { provider: "assemblyai", model: "u3-rt-pro", language: "en" }
+```
+
 ## Which to choose
 
 | Provider | Best for | Trade-off |
@@ -116,6 +173,9 @@ stt: {
 | `deepgram/nova-3` | Arabic, Hindi, Thai, CJK, and 60+ languages | Slightly higher latency; smart_turn + silero VAD |
 | `gladia/solaria` | Code-switching, multilingual | Higher latency than Deepgram |
 | `transcribe` | AWS-native deployments | AWS pricing model |
+| `cartesia/ink-whisper` | Single-vendor with Cartesia TTS | BYOK only |
+| `elevenlabs/scribe` | Single-vendor with ElevenLabs TTS | BYOK only |
+| `assemblyai/universal` | Accuracy + diarization | BYOK only |
 
 For most agents, start with `deepgram/flux`. Use `deepgram/nova-3` for languages Flux doesn't cover (Arabic, Hindi, Thai, Chinese, Japanese, Korean, etc.).
 

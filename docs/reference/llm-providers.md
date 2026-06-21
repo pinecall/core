@@ -37,6 +37,25 @@ llm: "gpt-5-chat-latest"
 
 > The legacy `provider:model` format (e.g. `"openai:gpt-5-chat-latest"`) still works but is not recommended.
 
+## Managed vs bring-your-own-key (BYOK)
+
+| LLM provider | Managed (no key needed) | Notes |
+|---|---|---|
+| `openai` | ✅ Yes | Default, recommended |
+| `anthropic` (`claude`) | ✅ Yes | |
+| `google` (`gemini`) | ✅ Yes | |
+| `mistral` | ✅ Yes | |
+| `xai` (`grok`) | ❌ BYOK only | Add an xAI key |
+| `groq` | ❌ BYOK only | Add a Groq key |
+| `cerebras` | ❌ BYOK only | Add a Cerebras key |
+| `deepseek` | ❌ BYOK only | Add a DeepSeek key |
+| `openrouter` | ❌ BYOK only | One key → many models; model = full slug, e.g. `x-ai/grok-4` |
+
+> **BYOK enforcement:** configuring a BYOK-only LLM provider without a saved key for
+> it rejects agent registration with `PROVIDER_KEY_REQUIRED` — Pinecall never falls
+> back to its own key. With your own key, those tokens are billed by the provider
+> directly and are **not** deducted from your Pinecall credits.
+
 ## Tuning with a full config object
 
 For `temperature`, `max_tokens`, and other tuning parameters, use the full config object:
@@ -104,7 +123,7 @@ llm: {
 ## Google (Gemini)
 
 ```typescript
-llm: "google/gemini-2.0-flash"
+llm: "google/gemini-2.5-flash"
 ```
 
 Or with tuning:
@@ -112,7 +131,7 @@ Or with tuning:
 ```typescript
 llm: {
   provider: "google",
-  model: "gemini-2.0-flash",
+  model: "gemini-2.5-flash",
   enabled: true,
   temperature: 0.7,
   max_tokens: 512,
@@ -125,8 +144,7 @@ llm: {
 
 | Model | Best for |
 |---|---|
-| `gemini-2.0-flash` | Most voice agents — fast and low cost (recommended default) |
-| `gemini-2.5-flash` | Stronger reasoning at a modest cost bump |
+| `gemini-2.5-flash` | Most voice agents — fast, low cost, strong reasoning (recommended default) |
 
 ## Anthropic
 
@@ -156,6 +174,49 @@ llm: {
 | `claude-sonnet-4-6` | Higher reasoning quality when latency/cost matter less |
 
 > Opus is intentionally **not** offered for voice agents — it's the premium tier (too slow/costly for real-time). Sonnet 4.6 and Haiku 4.5 are the supported Anthropic models. Set your `ANTHROPIC_API_KEY` on the server (managed) or add an Anthropic credential to your org (BYOK).
+
+## xAI Grok (BYOK)
+
+```typescript
+llm: "xai/grok-4"        // "grok" is accepted as an alias for "xai"
+```
+
+OpenAI-compatible. Requires your own xAI key. Models: `grok-4`, `grok-4-fast`, `grok-3`.
+
+## Groq (BYOK)
+
+```typescript
+llm: "groq/llama-3.3-70b-versatile"
+```
+
+Fastest open-model inference. Requires your own Groq key.
+
+## Cerebras (BYOK)
+
+```typescript
+llm: "cerebras/llama-3.3-70b"
+```
+
+Highest tokens/sec. Requires your own Cerebras key.
+
+## DeepSeek (BYOK)
+
+```typescript
+llm: "deepseek/deepseek-chat"     // or "deepseek/deepseek-reasoner" (no tools)
+```
+
+Requires your own DeepSeek key.
+
+## OpenRouter (BYOK)
+
+One key unlocks hundreds of models (OpenAI, Anthropic, Google, xAI/Grok, Llama, …).
+The `model` is the **full OpenRouter slug** — it keeps its own slash:
+
+```typescript
+llm: { provider: "openrouter", model: "x-ai/grok-4" }
+```
+
+Requires your own OpenRouter key.
 
 ## The `enabled` field
 

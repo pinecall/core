@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **New STT/TTS/LLM providers (BYOK-only)** documented in the provider reference:
+  STT — Cartesia Ink-Whisper, ElevenLabs Scribe, AssemblyAI; TTS — Rime; LLM —
+  xAI Grok, Groq, Cerebras, DeepSeek, OpenRouter. These require your own API key
+  (saved under Provider Keys); configuring one without a key is rejected at agent
+  registration with `PROVIDER_KEY_REQUIRED`, and BYOK usage is billed by the
+  provider directly (not deducted from Pinecall credits). The managed providers
+  (no key needed) remain: Deepgram/Gladia/Transcribe (STT), ElevenLabs/Cartesia/
+  Polly (TTS), OpenAI/Anthropic/Google/Mistral (LLM).
+
+### Changed
+
+- Docs: Gemini default updated to `gemini-2.5-flash` (`gemini-2.0-flash` retired).
+
 ## [0.2.25] — 2026-06-20
 
 ### Added

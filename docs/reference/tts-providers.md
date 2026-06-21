@@ -21,6 +21,19 @@ Pinecall supports multiple TTS providers. Use the `provider/friendly-id` format 
 
 > The legacy `provider:rawId` format (e.g. `"elevenlabs:EXAVITQu4vr4xnSDxMaL"`) still works but is not recommended.
 
+## Managed vs bring-your-own-key (BYOK)
+
+| TTS provider | Managed (no key needed) | Notes |
+|---|---|---|
+| `elevenlabs` | ✅ Yes | Default, recommended |
+| `cartesia` (sonic) | ✅ Yes | |
+| `polly` (AWS) | ✅ Yes | |
+| `rime` | ❌ BYOK only | Add a Rime key under Provider Keys |
+
+> **BYOK enforcement:** configuring `rime` without a saved Rime key rejects agent
+> registration with `PROVIDER_KEY_REQUIRED`. With your own key, that usage is billed
+> by the provider directly — **not** deducted from your Pinecall credits.
+
 ## Discovering voices
 
 Use the CLI to browse voices. Without flags, you get a catalog overview:
@@ -173,6 +186,21 @@ Shortcut: `"polly/joanna"`
 - `engine: "neural"` is required for natural-sounding output. The older `standard` engine is robotic.
 - Polly is the cheapest option but the least natural — fine for IVR-style flows, not for engaging conversation.
 
+## Rime (BYOK)
+
+Ultra-natural, expressive English. Requires your own Rime key.
+
+```typescript
+voice: {
+  provider: "rime",
+  voice_id: "cove",      // Rime speaker id
+  model: "mistv2",        // or "arcana" (most expressive)
+  speed: 1.0,
+}
+```
+
+Shortcut: `"rime/cove"`
+
 ## Which to choose
 
 | Provider | Best for | Trade-off |
@@ -180,6 +208,7 @@ Shortcut: `"polly/joanna"`
 | **ElevenLabs** | Most natural-sounding output | Higher cost per character |
 | **Cartesia** | Real-time streaming, low latency | Smaller voice library |
 | **Polly** | Cheap IVR, simple flows | Less natural |
+| **Rime** | Ultra-natural expressive English | BYOK only; English-focused |
 
 For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic-3`). Use Polly only for high-volume, low-engagement flows.
 
