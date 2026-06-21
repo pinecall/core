@@ -107,6 +107,20 @@ key for 'xai' — add your key under Provider Keys in the dashboard, then reconn
 
 Pinecall never silently falls back to its own key for a BYOK provider.
 
+## Plan limits & model allow-list
+
+Two more gates are enforced at agent registration, both rejecting with
+`MODEL_NOT_ALLOWED`:
+
+1. **Must be a priced model in the DB.** Any STT/TTS/LLM model you declare must exist
+   in the rate table (be a known, priced model) — unknown models are rejected.
+2. **Must be allowed on your plan.** Plans can restrict which models a tier may use.
+   For example, the **free tier can use ElevenLabs flash + multilingual, but not the
+   pricier models** (and Cartesia/Polly in full). Paid plans allow everything priced.
+
+Use the access check above (`fetchModelAccess` / `GET /api/models/access`) to see the
+verdict and `reason` (`plan_restricted`, `unknown_model`, …) before connecting.
+
 ## Add your own key
 
 - **Dashboard** → **Provider Keys** → pick the provider, paste the key.
