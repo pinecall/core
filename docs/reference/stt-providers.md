@@ -98,7 +98,7 @@ Or with tuning:
 ```typescript
 stt: {
   provider: "deepgram",
-  model: "nova-3",
+  model: "nova-3",            // "nova-3" | "nova-2"
   language: "en",
   interim_results: true,
   smart_format: true,
@@ -106,7 +106,9 @@ stt: {
   profanity_filter: false,
   endpointing_ms: 300,
   utterance_end_ms: 1000,
-  keywords: ["pinecall"],
+  keywords: ["pinecall"],      // nova-2 keyword boosting
+  keyterms: ["pinecall"],      // nova-3 keyterm prompting
+  min_confidence: 0.0,         // drop transcripts below this confidence (0 = off)
 }
 ```
 

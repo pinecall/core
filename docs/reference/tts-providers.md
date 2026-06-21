@@ -179,8 +179,11 @@ Shortcut: `"cartesia/yumiko"`
 voice: {
   provider: "polly",
   voice_id: "Joanna",
-  engine: "neural",
+  engine: "neural",        // "neural" | "standard"
   language: "en-US",
+  rate: "medium",          // "slow" | "medium" | "fast" | "+10%" / "-10%"
+  volume: "medium",        // "soft" | "medium" | "loud" | "+6dB" / "-6dB"
+  pitch: "+5%",            // standard engine only
 }
 ```
 
@@ -189,6 +192,7 @@ Shortcut: `"polly/joanna"`
 **Tuning notes:**
 
 - `engine: "neural"` is required for natural-sounding output. The older `standard` engine is robotic.
+- `rate` / `volume` accept named levels or relative values; `pitch` only applies to the `standard` engine.
 - Polly is the cheapest option but the least natural — fine for IVR-style flows, not for engaging conversation.
 
 ## Rime (BYOK)
