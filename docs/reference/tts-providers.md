@@ -70,6 +70,41 @@ const voices = await fetchVoices({ provider: "elevenlabs", language: "es" });
 voices.forEach((v) => console.log(`${v.name} → ${v.provider}/${v.alias ?? v.id}`));
 ```
 
+## Using a voice in an agent
+
+`voice` goes on the agent config (or per phone number / per call). Use a
+`provider/alias` shortcut, or the full config object documented per provider below —
+both forms are interchangeable anywhere `voice` is accepted.
+
+```typescript
+import { Pinecall } from "@pinecall/sdk";
+
+const pc = new Pinecall(); // reads PINECALL_API_KEY
+
+// Shortcut form
+const agent = pc.agent("support", {
+  voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
+  llm: "openai/gpt-5-chat-latest",
+  prompt: "You are a friendly support agent.",
+});
+
+// Full config object form (same field, with tuning)
+pc.agent("support", {
+  voice: { provider: "cartesia", voice_id: "a0e99841-...", model: "sonic-3.5", speed: 1.0, emotion: "neutral" },
+  stt: "deepgram/flux",
+  llm: "openai/gpt-5-chat-latest",
+  prompt: "...",
+});
+```
+
+Per-number and per-call overrides use the same `voice` value:
+
+```typescript
+agent.addPhoneNumber("+34911234567", { voice: "elevenlabs/valentina", language: "es" });
+call.update({ voice: "cartesia/blake" });   // mid-call swap
+```
+
 ## ElevenLabs
 
 ```typescript

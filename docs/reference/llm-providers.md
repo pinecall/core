@@ -22,6 +22,24 @@ const agent = pc.agent("my-bot", {
 
 The `llm` shortcut takes the `provider/model` format. `prompt` is a top-level field — no need to nest it inside an object.
 
+The full config object form (same field, with tuning) is interchangeable:
+
+```typescript
+pc.agent("my-bot", {
+  llm: { provider: "openai", model: "gpt-5-chat-latest", temperature: 0.3, max_tokens: 256 },
+  voice: "elevenlabs/sarah",
+  stt: "deepgram/flux",
+  prompt: "...",
+});
+```
+
+Per-number and per-call overrides use the same `llm` value:
+
+```typescript
+agent.addPhoneNumber("+14155551234", { llm: "anthropic/claude-haiku-4-5" });
+call.update({ llm: "mistral/mistral-medium" });   // mid-call swap
+```
+
 ## Shortcut format
 
 ```typescript
