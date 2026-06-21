@@ -7,6 +7,85 @@ description: "Host many tenants on one Pinecall instance with scoped event strea
 
 A common pattern: you're building a SaaS where each customer has their own agents, and each customer's dashboard should only show their own calls. Pinecall's SSE filtering handles this server-side — no data leakage between tenants.
 
+This guide has two parts: **(1)** injecting the logged-in user's identity into the agent via **sealed token metadata** (the recommended multi-tenant pattern), and **(2)** scoping each tenant's dashboard event stream.
+
+## One shared agent + per-user session (sealed token metadata) — recommended
+
+You usually do **not** need a separate agent per tenant. Run **one shared agent** and
+inject the logged-in user's session into each call as **sealed token metadata** — the
+identity rides *inside the token*, signed by your server, so the browser can't forge or
+alter it. This is the cleanest way to make a single agent multi-tenant + per-user.
+
+### How it works
+`createToken(channel, agentId, metadata)` bakes a `metadata` object into the token at
+mint time (server-side, trusted). It arrives in your agent as **`call.metadata`** —
+use it to scope every tool/query to that tenant and to fill the prompt with the user's
+context. The browser never sees or sets it beyond the opaque token.
+
+```typescript
+// ── 1. SERVER: mint a token with the signed-in user's session sealed in ──
+//    (behind your auth — the metadata comes from the SESSION, never the client)
+app.post("/api/lumi/token", authMiddleware, async (req, res) => {
+  const token = await pc.createToken("chat", "lumi", {   // ← 3rd arg = sealed metadata
+    companyId: req.auth.companyId,
+    userId:    req.auth.userId,
+    role:      req.auth.role,
+    userName:  req.auth.name,
+    threadId:  req.body.threadId,        // e.g. to restore a conversation
+  });
+  res.json(token); // { token: "cht_..." }
+});
+```
+
+```typescript
+// ── 2. BROWSER: connect with the token (chat shown; voice/widget identical) ──
+import { ChatSession } from "@pinecall/web/chat";
+const chat = new ChatSession({ token }); // from your /api/lumi/token endpoint
+await chat.connect();
+```
+
+```typescript
+// ── 3. AGENT: read call.metadata → scope tools + inject the session ──
+const pc = new Pinecall();
+const agent = pc.agent("lumi", {
+  prompt: `${SYSTEM}\n\n{{SESSION}}`,         // {{SESSION}} filled per call
+  llm: "anthropic/claude-haiku-4-5",
+  tools: [listAppointments, bookAppointment], // each reads call.metadata (below)
+  history: myHistoryStore,                     // persist/restore per user+thread
+});
+
+// Fill per-session prompt vars from the sealed metadata before each turn.
+const pushVars = (call) => {
+  const m = call.metadata;                      // { companyId, userId, role, ... } — trusted
+  call.setPromptVars({
+    SESSION: `<session><user>${esc(m.userName)}</user><role>${esc(m.role)}</role></session>`,
+  });
+};
+agent.on("call.preparing", pushVars);
+agent.on("call.started", pushVars);
+```
+
+```typescript
+// Tools scope by the SAME metadata — isolation lives in CODE, never the prompt.
+const listAppointments = tool({
+  name: "list_appointments",
+  description: "List the tenant's appointments for a date.",
+  schema: z.object({ date: z.string().optional() }),
+  execute: async ({ date }, call) => {
+    const { companyId } = call.metadata;        // sealed → trusted
+    return db.scope(companyId).appointments.forDate(date);
+  },
+});
+```
+
+### Why metadata (not one-agent-per-tenant or the prompt)
+- **Scales to N tenants with one agent** — no per-tenant agent registration; identity is per *call*, not per *agent*.
+- **Trusted & unspoofable** — the metadata is signed into the token by your server; a malicious client can't change `companyId`/`role`.
+- **Tenant isolation is enforced in code** (tools scope by `call.metadata.companyId`), **never** by trusting the prompt.
+- **Prompt-injection safe** — treat everything from `call.metadata` (and any user text) as **data**: wrap it in clear tags (`<session>…</session>`), escape it, and tell the model in the system prompt to treat those tags as data, never instructions.
+
+> `metadata` works the same on every channel — `pc.createToken("webrtc"|"chat"|"stream", agentId, metadata)`, the `<VoiceWidget metadata={{...}} />` prop, and `new ChatSession({ token })` / `new VoiceSession({ token })`. It always surfaces as `call.metadata`. See [`createToken`](/api/pinecall) and [Conversation History](/guides/conversation-history) (persist/restore per user via metadata).
+
 ## The pattern
 
 Each tenant owns one or more agents. When a tenant loads their dashboard, the SSE endpoint streams only events from their agents.

@@ -153,6 +153,8 @@ The metadata is **sealed into the signed token on your server**, so the browser 
 
 > ⚠️ This is **not** the client-supplied `metadata` prop on the widget / `VoiceSession` — that is set in the browser and can be forged. For anything used in authorization, seal it in the token here.
 
+> **Multi-tenant pattern:** sealed metadata lets ONE shared agent serve every tenant — the logged-in user's identity (tenant id, role, …) rides per-call in `call.metadata`, so tools scope by it in code. See [Multi-Tenant → sealed token metadata](/guides/multi-tenant).
+
 See [Security](/security) for the full token model.
 
 ### `stream(res?, options?)`
