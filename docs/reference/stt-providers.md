@@ -30,6 +30,7 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 { stt: "elevenlabs/scribe" }         // ElevenLabs Scribe v2 (realtime)
 { stt: "assemblyai/universal" }      // AssemblyAI Universal-3
 { stt: "soniox/realtime" }           // Soniox real-time (BYOK)
+{ stt: "xai/grok-stt" }              // xAI Grok STT (BYOK)
 ```
 
 ## Managed vs bring-your-own-key (BYOK)
@@ -48,6 +49,7 @@ for the full list and the live `GET /api/rates/models` query.
 | `elevenlabs` (scribe) | ✅ Yes | Same key as ElevenLabs TTS — Pinecall hosts it |
 | `assemblyai` (universal) | ❌ BYOK only | Add an AssemblyAI key |
 | `soniox` (realtime) | ❌ BYOK only | One Soniox key = STT **and** TTS |
+| `xai` (grok-stt) | ❌ BYOK only | Same xAI key as Grok LLM/TTS |
 
 > **BYOK enforcement:** if you configure a BYOK-only STT provider and your org has
 > not saved a key for it, **agent registration is rejected** with
@@ -192,6 +194,16 @@ stt: "soniox/realtime"
 stt: { provider: "soniox", model: "stt-rt-v5", language: "en" }
 ```
 
+## xAI Grok (BYOK)
+
+Grok speech-to-text — same **xAI key** as Grok LLM and TTS. Requires your own key.
+
+```typescript
+stt: "xai/grok-stt"
+// or
+stt: { provider: "xai", model: "grok-stt", language: "en" }
+```
+
 ## Which to choose
 
 | Provider | Best for | Trade-off |
@@ -204,6 +216,7 @@ stt: { provider: "soniox", model: "stt-rt-v5", language: "en" }
 | `elevenlabs/scribe` | Single-vendor with ElevenLabs TTS | Managed (shared key) |
 | `assemblyai/universal` | Accuracy + diarization | BYOK only |
 | `soniox/realtime` | Multilingual (60+), single-vendor with Soniox TTS | BYOK only |
+| `xai/grok-stt` | Single-vendor with Grok LLM + TTS | BYOK only |
 
 For most agents, start with `deepgram/flux`. Use `deepgram/nova-3` for languages Flux doesn't cover (Arabic, Hindi, Thai, Chinese, Japanese, Korean, etc.).
 
