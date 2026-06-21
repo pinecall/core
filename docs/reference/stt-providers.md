@@ -33,6 +33,44 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 { stt: "xai/grok-stt" }              // xAI Grok STT (BYOK)
 ```
 
+## Using an STT in an agent
+
+`stt` goes on the agent config (or per phone number / per call). Use a `provider/model`
+shortcut, or the full config object documented per provider below — both forms are
+interchangeable anywhere `stt` is accepted.
+
+```typescript
+import { Pinecall } from "@pinecall/sdk";
+
+const pc = new Pinecall(); // reads PINECALL_API_KEY
+
+// Shortcut form
+const agent = pc.agent("support", {
+  stt: "deepgram/flux",
+  voice: "elevenlabs/sarah",
+  llm: "openai/gpt-5-chat-latest",
+  prompt: "You are a friendly support agent.",
+});
+
+// Full config object form (same field, with tuning)
+pc.agent("support", {
+  stt: { provider: "deepgram", model: "nova-3", language: "en", smart_format: true, keyterms: ["Pinecall"] },
+  voice: "elevenlabs/sarah",
+  llm: "openai/gpt-5-chat-latest",
+  prompt: "...",
+});
+```
+
+Per-number and per-call overrides use the same `stt` value:
+
+```typescript
+agent.addPhoneNumber("+14155551234", { stt: "deepgram/flux", language: "en" });
+call.update({ stt: "deepgram/nova-3" });   // mid-call swap
+```
+
+> Turn detection & VAD are **auto-derived** from the STT provider — never set
+> `turnDetection`/`vad` manually. Each provider section below lists its full config.
+
 ## Managed vs bring-your-own-key (BYOK)
 
 Some providers work out of the box on Pinecall's managed keys; the newer ones
