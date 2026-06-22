@@ -20,6 +20,8 @@ import type { ServerResponse } from "node:http";
 import type { Turn } from "./turn.js";
 import type { AgentConfig, ChannelConfig, WhatsAppChannelConfig } from "../config/agent.js";
 import type { Tool } from "../tool.js";
+import type { Skill, SkillConfig } from "../skill.js";
+import { skill as makeSkill } from "../skill.js";
 import type { TokenResponse } from "../api/tokens.js";
 import type {
     CallStartedEvent,
@@ -87,6 +89,10 @@ export interface AgentEvents {
     // LLM / Tool calls
     "llm.toolCall": (event: ToolCallEvent, call: Call) => void;
 
+    // Skills
+    "skill.loaded": (event: import("./call.js").SkillEvent, call: Call) => void;
+    "skill.unloaded": (event: import("./call.js").SkillEvent, call: Call) => void;
+
     // Channel events
     "channel.added": (type: string, ref: string) => void;
     "channel.configured": (ref: string) => void;
@@ -112,6 +118,8 @@ export class Agent extends TypedEventBus<AgentEvents> {
     name: string;
     #config: AgentConfig;
     #tools: Tool[] = [];
+    /** Declared skills (latent on the server until activated). */
+    #skills: Skill[] = [];
     #calls = new Map<string, Call>();
     #sendRaw: (data: Record<string, unknown>) => void;
     #serverReady = false;
@@ -136,6 +144,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
         this.name = id;
         this.#config = config;
         this.#tools = config.tools ?? [];
+        this.#skills = config.skills ?? [];
         this.#sendRaw = send;
     }
 
@@ -289,11 +298,36 @@ export class Agent extends TypedEventBus<AgentEvents> {
 
     update(opts: AgentConfig): void {
         this.#config = { ...this.#config, ...opts };
+        // Keep the executable universe in sync so auto-dispatch can run any
+        // tool the LLM may now call (otherwise _getTools() goes stale and the
+        // SDK replies "Unknown tool" to freshly hot-reloaded tools).
+        if (opts.tools !== undefined) this.#tools = opts.tools;
+        if (opts.skills !== undefined) this.#skills = opts.skills;
         this._send({
             event: "agent.configure",
             agent_id: this.id,
             ...buildShortcutPayload(opts),
         });
+    }
+
+    /**
+     * Attach (or hot-reload) a single skill at runtime. The skill is sent to the
+     * server and kept latent until activated (by the model, by `call.loadSkill`,
+     * or immediately if `activation: "always"`).
+     */
+    skill(config: SkillConfig): Skill {
+        const s = makeSkill(config);
+        // Replace an existing skill with the same name, else append.
+        const idx = this.#skills.findIndex((x) => x.name === s.name);
+        if (idx >= 0) this.#skills[idx] = s;
+        else this.#skills.push(s);
+        this.#config = { ...this.#config, skills: this.#skills };
+        this._send({
+            event: "agent.configure",
+            agent_id: this.id,
+            skills: this.#skills.map((x) => x._toWire()),
+        });
+        return s;
     }
 
     /** @deprecated Use `agent.update()` instead. */
@@ -630,9 +664,25 @@ export class Agent extends TypedEventBus<AgentEvents> {
         return this.#channels;
     }
 
-    /** @internal Get executable Tool objects for auto-dispatch. */
+    /**
+     * @internal Get executable Tool objects for auto-dispatch.
+     *
+     * Returns the full executable universe — global tools plus every declared
+     * skill's tools — regardless of which skills are currently active on the
+     * server. Visibility to the LLM is decided server-side; execution must
+     * always succeed, so we never want a "Unknown tool" for a latent skill.
+     */
     _getTools(): Tool[] {
-        return this.#tools;
+        if (this.#skills.length === 0) return this.#tools;
+        const byName = new Map<string, Tool>();
+        for (const t of this.#tools) byName.set(t.name, t);
+        for (const s of this.#skills) for (const t of s.tools) byName.set(t.name, t);
+        return [...byName.values()];
+    }
+
+    /** @internal Get declared skills. */
+    _getSkills(): Skill[] {
+        return this.#skills;
     }
 
     /** @internal Mark agent as server-ready and flush buffered messages. */

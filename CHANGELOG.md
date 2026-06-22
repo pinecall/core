@@ -9,8 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.27] - 2026-06-22
+
 ### Added
 
+- **`rawPrompt` + channel-aware house style** — by default (`rawPrompt: false`) the
+  server augments your `prompt` with style guidance tuned to the channel so agents
+  work well out of the box: **voice** (phone/WebRTC) answers like a spoken phone
+  receptionist (no markdown/emojis — it's read aloud by TTS); **chat** uses common
+  Markdown + tasteful emojis; **WhatsApp** uses WhatsApp's own formatting
+  (`*bold*`, `_italic_`, `~strike~`, ` ```mono``` `). When the agent has `skills`,
+  a note on using `loadSkill` / `unloadSkill` is injected too. Set `rawPrompt: true`
+  to disable all injection and use the prompt verbatim.
+- **Skills (`skill()`)** — bundle a prompt fragment + tools + a knowledge base
+  into a named capability the LLM loads and unloads on demand (progressive
+  disclosure). Declare with `skills: [booking, billing]` in `pc.agent()` (or
+  `agent.skill(...)` at runtime). The model arrives seeing only global tools plus
+  auto-generated `loadSkill` / `unloadSkill` meta-tools; a skill's tools,
+  instructions and knowledge base reach the model only once it's active. Strict
+  disclosure keeps the prompt and tool list small. Activation modes: `"model"`
+  (default, LLM-driven), `"manual"` (`call.loadSkill(name)` / `call.unloadSkill(name)`,
+  plus `call.activeSkills`), or `"always"` (pinned). RAG over multiple active
+  knowledge bases is merged by score. New events `skill.loaded` / `skill.unloaded`
+  fire on the call and agent.
+- **Mid-call tool hot-reload fixed** — `agent.update({ tools })` and
+  `call.update({ ... })` now actually apply tool/skill/prompt changes to the live
+  call (previously the server dropped the `llm` block mid-call, and the SDK kept a
+  stale tool list that replied "Unknown tool" to freshly added tools).
 - **`fetchModelAccess` / `hasModelAccess` / `fetchModelCatalog`** — check whether the
   org can use an STT/TTS/LLM model (plan + managed/BYOK gates) before configuring an
   agent, via `GET /api/models/access`. Returns `{allowed, reason, managed, planAllowed,

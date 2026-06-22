@@ -40,6 +40,10 @@ export type { WSLike, WSStreamOptions } from "./stream/ws-stream.js";
 export { tool } from "./tool.js";
 export type { Tool, ToolConfig } from "./tool.js";
 
+// Skill definition — bundles of prompt + tools + knowledge base (progressive disclosure)
+export { skill } from "./skill.js";
+export type { Skill, SkillConfig, SkillActivation } from "./skill.js";
+
 // History persistence
 export { JsonFileHistory } from "./history.js";
 export type { HistoryStore, ConversationRecord } from "./history.js";

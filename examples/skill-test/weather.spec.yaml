@@ -1,0 +1,18 @@
+agent: skilltest
+description: Nova loads the weather skill on demand and answers with tool data
+timeout: 40000
+judge:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  maxTurns: 8
+workflow: |
+  You are testing Nova, an assistant that loads "skills" on demand.
+  Nova starts WITHOUT a weather tool — it must load its weather skill first.
+
+  1. Ask exactly: "What's the weather in Paris right now?"
+  2. Nova should respond with a concrete current weather report for Paris —
+     a temperature (in Celsius) AND a condition (e.g. "sunny").
+
+  Call test_passed if Nova gives a concrete temperature and condition for Paris.
+  Call test_failed if Nova refuses, says it cannot check the weather, asks you to
+  go elsewhere, or never returns an actual temperature + condition.

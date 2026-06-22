@@ -60,9 +60,19 @@ export interface CallEvents {
     "call.muted": () => void;
     "call.unmuted": (mutedTranscript: string | null) => void;
     "llm.toolCall": (event: ToolCallEvent) => void;
+    "skill.loaded": (event: SkillEvent) => void;
+    "skill.unloaded": (event: SkillEvent) => void;
     "call.preparing": (call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent) => void;
     "ended": (reason: string) => void;
+}
+
+/** Emitted when a skill is activated/deactivated on a call. */
+export interface SkillEvent {
+    /** Skill name. */
+    skill: string;
+    /** Who triggered it: "model" (loadSkill meta-tool) or "manual" (call.loadSkill). */
+    by: "model" | "manual";
 }
 
 // ─── Reply options ───────────────────────────────────────────────────────
@@ -146,6 +156,9 @@ export class Call extends TypedEventBus<CallEvents> {
 
     /** @internal Pending response resolvers for request/response events. */
     #pendingResponses = new Map<string, (data: any) => void>();
+
+    /** Skills currently active on this call (tracked from server skill events). */
+    #activeSkills = new Set<string>();
 
     /** @internal Agent reference for history saves. Set by lifecycle handler. */
     #historyStore: HistoryStore | undefined;
@@ -295,6 +308,34 @@ export class Call extends TypedEventBus<CallEvents> {
     /** @deprecated Use `call.update()` instead. */
     updateConfig(config: Partial<SessionConfig>): void {
         this.update({ config });
+    }
+
+    // ── Skills ──────────────────────────────────────────────────────────────
+
+    /** Skills currently active on this call (server-authoritative). */
+    get activeSkills(): string[] {
+        return [...this.#activeSkills];
+    }
+
+    /**
+     * Activate a declared skill on this call now — exposing its tools and
+     * instructions to the LLM and adding its knowledge base to RAG. Programmatic
+     * counterpart to the model-driven `loadSkill` meta-tool. Takes effect on the
+     * next LLM turn. Emits `skill.loaded` once the server confirms.
+     */
+    loadSkill(name: string): void {
+        this.#send({ event: "skill.load", call_id: this.id, skill: name });
+    }
+
+    /** Deactivate a skill on this call (inverse of `loadSkill`). */
+    unloadSkill(name: string): void {
+        this.#send({ event: "skill.unload", call_id: this.id, skill: name });
+    }
+
+    /** @internal Update tracked active-skill state from a server skill event. */
+    _setSkillActive(name: string, active: boolean): void {
+        if (active) this.#activeSkills.add(name);
+        else this.#activeSkills.delete(name);
     }
 
     // ── Hold / Mute ────────────────────────────────────────────────────

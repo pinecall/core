@@ -1,0 +1,9 @@
+{
+  "name": "skill-test",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@pinecall/sdk": "file:../..",
+    "zod": "^3.23.8"
+  }
+}

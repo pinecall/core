@@ -30,6 +30,7 @@ import { SpeechHandler } from "./dispatch/handlers/speech.js";
 import { TurnHandler } from "./dispatch/handlers/turn.js";
 import { BotHandler } from "./dispatch/handlers/bot.js";
 import { ToolHandler } from "./dispatch/handlers/tool.js";
+import { SkillHandler } from "./dispatch/handlers/skill.js";
 import { SessionHandler } from "./dispatch/handlers/session.js";
 import { ChatHandler } from "./dispatch/handlers/chat.js";
 import { WhatsAppHandler } from "./dispatch/handlers/whatsapp.js";
@@ -159,6 +160,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             new TurnHandler(),
             new BotHandler(),
             new ToolHandler(),
+            new SkillHandler(),
             new PreparingHandler(),
             new SessionHandler(),
             this.#waHandler,

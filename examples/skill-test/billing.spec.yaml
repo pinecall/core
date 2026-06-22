@@ -1,0 +1,17 @@
+agent: skilltest
+description: Nova loads the billing skill on demand and reports a balance in USD
+timeout: 40000
+judge:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  maxTurns: 8
+workflow: |
+  You are testing Nova, an assistant that loads "skills" on demand.
+
+  1. Ask exactly: "What's the balance on account ACC-123?"
+  2. Nova should load its billing skill and reply with a concrete balance
+     amount in US dollars for ACC-123.
+
+  Call test_passed if Nova returns a specific dollar balance for ACC-123.
+  Call test_failed if Nova refuses, says it cannot access balances, or never
+  returns an actual amount.

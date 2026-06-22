@@ -6,6 +6,7 @@
 
 import type { SessionConfig } from "./session.js";
 import type { Tool } from "../tool.js";
+import type { Skill } from "../skill.js";
 import type { HistoryStore } from "../history.js";
 
 // ─── Shortcut types ──────────────────────────────────────────────────────
@@ -62,8 +63,37 @@ export interface AgentConfig {
     llm?: string | Record<string, unknown>;
     /** System prompt for the LLM. */
     prompt?: string;
+    /**
+     * Use the `prompt` verbatim, with NO auto-injected guidance. Default `false`.
+     *
+     * When `false` (default), the server augments your prompt with house-style
+     * guidance tailored to the channel — so the agent "just works" out of the box:
+     *   - **voice** (phone / WebRTC): answer like a phone receptionist — natural
+     *     spoken sentences, no markdown/emojis (everything is read aloud by TTS).
+     *   - **chat**: clean common Markdown + tasteful emojis.
+     *   - **whatsapp**: WhatsApp's own formatting (`*bold*`, `_italic_`,
+     *     `~strike~`, ` ```mono``` `) — NOT standard Markdown.
+     * It also injects, when the agent has `skills`, a note on using the
+     * `loadSkill` / `unloadSkill` tools.
+     *
+     * Set `true` to take full control and disable all of that injection.
+     */
+    rawPrompt?: boolean;
     /** Declarative tool definitions created with `tool()`. Auto-executed on llm.tool_call. */
     tools?: Tool[];
+    /**
+     * Skills created with `skill()` — bundles of prompt + tools + knowledge base
+     * that the LLM loads and unloads on demand (progressive disclosure).
+     *
+     * Skills declared here are sent to the server but kept latent: their tools
+     * and instructions only reach the model once the skill is active (via the
+     * `loadSkill` meta-tool, `call.loadSkill(...)`, or `activation: "always"`).
+     * Their `execute` functions still run on this client regardless of visibility.
+     *
+     * @example
+     * skills: [booking, billing, techSupport]
+     */
+    skills?: Skill[];
     config?: SessionConfig;
     /**
      * Knowledge base (RAG) the agent grounds its answers on.
