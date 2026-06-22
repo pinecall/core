@@ -93,8 +93,8 @@ descriptions that tell the model *when* to reach for the skill.
 
 > By default the server also injects a short note into the prompt telling the
 > model to use `loadSkill` / `unloadSkill` (and unload to free context). Set
-> [`rawPrompt: true`](#raw-prompt) to turn that — and all other house-style
-> guidance — off.
+> `rawPrompt: true` (see "Raw prompt & house style" below) to turn that — and
+> all other house-style guidance — off.
 
 ## Loading from your code
 
@@ -153,7 +153,7 @@ replaces a skill at runtime, and `agent.update({ skills: [...] })` /
 `call.update({ skills: [...] })` apply changes — to future calls and to live
 calls respectively. See [Hot-Reload](/concepts/hot-reload).
 
-## Raw prompt & house style {#raw-prompt}
+## Raw prompt & house style
 
 By default (`rawPrompt: false`) the server augments your `prompt` with style
 guidance tuned to the channel — so an agent behaves well without you spelling out

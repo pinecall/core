@@ -108,13 +108,18 @@ export interface AgentConfig {
      * prompt does NOT contain `{{RAG_CONTEXT}}`, the context is appended
      * automatically — so a knowledge base works out of the box.
      *
+     * Pass a single id, or an array of ids to ground on several knowledge bases
+     * at once — retrieval merges the top chunks across them by score.
+     *
      * @example
      * pc.agent("docs", {
      *   knowledgeBase: "kb_1a2b3c",
      *   prompt: "You are a docs assistant.\n\n{{RAG_CONTEXT}}\n\nAnswer only from the docs above.",
      * });
+     * @example
+     * pc.agent("support", { knowledgeBase: ["kb_product", "kb_billing"] });
      */
-    knowledgeBase?: string;
+    knowledgeBase?: string | string[];
     /**
      * Greeting spoken on every inbound `call.started`.
      * Added to LLM history by default so the model knows what was said.
