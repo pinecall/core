@@ -28,6 +28,7 @@
           "concepts/philosophy",
           "concepts/agents-and-channels",
           "concepts/server-vs-client-llm",
+          "concepts/turn-detection",
           "concepts/hot-reload",
           "concepts/deployment-topologies"
         ]

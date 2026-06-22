@@ -46,30 +46,44 @@ After the greeting, the conversation continues normally — `turn.end`, `llm.too
 | `greeting` | `string` | — | Text the server speaks when the callee picks up |
 | `metadata` | `object` | — | Custom data attached to the call (visible on the `Call` object) |
 | `config` | `object` | — | Per-call config override (voice, STT, language) |
-| `detectTurnEnd` | `boolean` | — | Relay the OTHER party's end-of-turn (`turn.end`) to *your* code. Default `false`. See below. |
+| `detectTurnEnd` | `boolean` | — | Wait for the other side to finish *its* greeting before speaking yours (and relay `turn.end` to your code). Default `false`. See below. |
 
 > **Tip:** If your agent has exactly one phone channel, you can omit `from` — the SDK auto-resolves it. Only pass `from` explicitly when the agent has multiple phone numbers.
 
-## `detectTurnEnd` — knowing when the other party stops talking
+## `detectTurnEnd` — wait for the other side's greeting before speaking
 
-By default an outbound call works like an inbound one: the **server** runs turn
-detection on the callee, decides when they've finished a sentence, and the agent's
-own pipeline (LLM → TTS) replies automatically. Your code doesn't need to be told
-"they stopped talking" — the server already acted on it.
+`detectTurnEnd` controls **when your greeting is delivered**.
 
-`detectTurnEnd` controls whether that end-of-turn signal is **also relayed to your
-SDK code** as a `turn.end` event:
+- **`false` (default)** — the greeting is spoken **immediately** when the callee
+  picks up. This is what you want when calling a **human**: they say "Hello?", and
+  your agent answers right away.
+- **`true`** — the agent does **not** speak first. The server waits, runs turn
+  detection on the **other party**, and only delivers your greeting **after the other
+  side finishes its own greeting**. This is what you want when the callee is a
+  **bot, IVR, or answering machine** that speaks first — so your agent doesn't talk
+  over the machine's "You've reached…/Press 1 for…" prompt.
 
-| Value | What the server does | Use it when |
+| Value | When the greeting is sent | Use it when |
 |---|---|---|
-| `false` *(default)* | Detects the callee's turns internally and lets the agent's own LLM reply. No `turn.end` is emitted to your code. | A normal call — the agent (or a human on the line) handles the conversation. You don't need to know turn boundaries in code. |
-| `true` | Additionally runs turn detection on the **callee** and emits `turn.end` (plus `eager.turn` / `turn.pause`) to the initiating side. | Your code is the one driving the conversation and must know *exactly* when the other side finished — e.g. an automated/test/judge agent that speaks with `call.say()` instead of a server LLM. |
-
-In short: `false` = the agent talks for itself, you stay hands-off. `true` = your
-code is puppeting the call and needs the turn signal to decide when to speak.
+| `false` *(default)* | Immediately on pickup. | Calling a **human** — they answer, the agent greets right back. |
+| `true` | After the **other side** finishes speaking (its end-of-turn). | Calling a **bot / IVR / answering machine** that greets first — wait for its prompt to end, then speak. |
 
 ```typescript
-// Driving the call by hand: react to the callee finishing a turn.
+// Calling an answering machine / IVR: let it finish its greeting first.
+const call = await agent.dial({
+  to: "+14155551234",
+  greeting: "Hi, this is Mara from Acme returning your call.",
+  detectTurnEnd: true,
+});
+```
+
+When `detectTurnEnd` is `true`, the server also **relays the other party's
+end-of-turn to your code** as a `turn.end` event (plus `eager.turn` / `turn.pause`).
+That lets code that drives the call by hand — e.g. an automated/test/judge agent
+that speaks with `call.say()` instead of a server-side LLM — know exactly when the
+other side finished and take its turn:
+
+```typescript
 const call = await agent.dial({ to: "+14155551234", detectTurnEnd: true });
 
 call.on("user.message", (e) => {/* what the callee said */});
@@ -78,9 +92,10 @@ call.on("turn.end", () => {
 });
 ```
 
-Under the hood this just adds `detect_turn_end: true` to the dial request; nothing
-else about the call changes. For agent-to-agent (`agent.bridge`) the default is the
-opposite — `true` — because the initiator is *always* code-driven there (see below).
+Under the hood this just adds `detect_turn_end: true` to the dial request. For
+agent-to-agent (`agent.bridge`) the default is the opposite — `true` — because the
+other side is always another agent that greets first and the initiator is
+code-driven (see below).
 
 ## Agent-to-agent voice (`agent.bridge`)
 
@@ -101,10 +116,10 @@ call.on("user.message", (e) => {/* what the judge HEARD the target say */});
 call.on("turn.end", () => {/* target finished → take your turn */ call.say("…"); });
 ```
 
-`detectTurnEnd` (default `true` for `bridge`, `false` for `dial`) makes the server
-emit the other party's end-of-turn (`turn.end`, `source: "bot"`) to the initiator,
-so an automated caller knows when to speak. This is what powers voice-mode
-`pinecall test`.
+`detectTurnEnd` (default `true` for `bridge`, `false` for `dial`) makes the caller
+wait for the target agent's greeting to finish and emits the target's end-of-turn
+(`turn.end`, `source: "bot"`) to the initiator, so the code-driven caller knows when
+to speak. This is what powers voice-mode `pinecall test`.
 
 ## Attaching metadata
 
