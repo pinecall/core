@@ -27,6 +27,9 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     if (opts.interruption !== undefined) payload.interruption = opts.interruption;
     if (opts.llm !== undefined) payload.llm = opts.llm;
     if ((opts as any).prompt !== undefined) payload.prompt = (opts as any).prompt;
+    // Default prompt {{vars}} seeded server-side at registration, so they resolve
+    // on the FIRST turn (chat especially) without the per-call setPromptVars round-trip.
+    if ((opts as any).promptVars !== undefined) payload.vars = (opts as any).promptVars;
     if ((opts as any).rawPrompt !== undefined) payload.raw_prompt = (opts as any).rawPrompt;
     if ((opts as any).tools !== undefined) {
         const tools = (opts as any).tools as any[];

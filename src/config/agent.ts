@@ -64,6 +64,13 @@ export interface AgentConfig {
     /** System prompt for the LLM. */
     prompt?: string;
     /**
+     * Default values for the prompt's `{{vars}}`, seeded server-side at agent
+     * registration. They resolve on the FIRST turn (all transports, incl. chat)
+     * without waiting for a per-call `setPromptVars` round-trip. Per-call
+     * `setPromptVars` (in `call.preparing`) still overrides these for fresh values.
+     */
+    promptVars?: Record<string, string>;
+    /**
      * Use the `prompt` verbatim, with NO auto-injected guidance. Default `false`.
      *
      * When `false` (default), the server augments your prompt with house-style
