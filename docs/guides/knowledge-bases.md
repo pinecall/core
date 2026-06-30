@@ -115,6 +115,25 @@ That's the whole integration. Before each LLM turn, the server:
 - **Nothing relevant / no knowledge base** → `{{RAG_CONTEXT}}` resolves to empty and
   the agent behaves like a normal agent.
 
+### Grounding on several knowledge bases
+
+`knowledgeBase` also accepts an **array** of ids. The server retrieves from every
+listed knowledge base and **merges the top chunks across them by score** into one
+`{{RAG_CONTEXT}}` block — so you can keep, say, product docs and billing FAQs as
+separate knowledge bases and ground a single agent on both:
+
+```ts
+pc.agent("support", {
+  llm: "anthropic/claude-haiku-4-5",
+  knowledgeBase: ["kb_product", "kb_billing"],   // queried together, merged by score
+  prompt: "Answer from the docs.\n\n{{RAG_CONTEXT}}",
+});
+```
+
+> **Skills compose here too.** A [skill](/guides/skills) can carry its own
+> `knowledgeBase`; while the skill is active, its knowledge base is added to the
+> retrieval set alongside the agent's, and dropped again when the skill unloads.
+
 ---
 
 ## Step 4 — Run and test it

@@ -55,6 +55,8 @@ Pinecall is **code-first**: the agent is your code. It runs inside your app, use
 
 - ✅ **One agent, many channels** — phone, SIP, WebRTC, chat, WhatsApp from the same instance
 - ✅ **Hot-reload everything** — change voice, language, prompt, tools mid-call
+- ✅ **Skills** — bundle prompt + tools + knowledge base into a capability the agent [loads on demand](https://docs.pinecall.io/guides/skills) (`loadSkill`/`unloadSkill`) — keeps the tool list small
+- ✅ **Knowledge bases** — ground answers on your docs (RAG); one KB or several merged by score
 - ✅ **Bring your own LLM** — or use the server-side LLM and skip the plumbing
 - ✅ **Local tool calls** — no public endpoints, no webhook URLs to expose
 - ✅ **Dev mode** — share a phone number between prod and any number of devs
