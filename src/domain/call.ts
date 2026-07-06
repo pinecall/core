@@ -238,7 +238,7 @@ export class Call extends TypedEventBus<CallEvents> {
     /** Respond to a server-side LLM tool call. */
     toolResult(
         msgId: string,
-        results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean }>,
+        results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean; noFollowup?: boolean }>,
     ): void {
         this.#send({
             event: "llm.tool_result",
@@ -250,6 +250,9 @@ export class Call extends TypedEventBus<CallEvents> {
                 // Ephemeral results are dropped from history by the server after
                 // they're used for the current reply. Omitted when false.
                 ...(r.ephemeral ? { ephemeral: true } : {}),
+                // noFollowup: the server skips the follow-up assistant turn after
+                // this tool (UI-only tools). Omitted when false.
+                ...(r.noFollowup ? { no_followup: true } : {}),
             })),
         });
     }

@@ -143,9 +143,9 @@ export class ToolHandler implements EventHandler {
  * and the ChatHandler (chat tool calls auto-execute the same way).
  */
 export async function autoExecuteTools(
-    tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown>; ephemeral?: boolean }>,
+    tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown>; ephemeral?: boolean; noFollowup?: boolean }>,
     event: ToolCallEvent,
-    call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean }>) => void },
+    call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean; noFollowup?: boolean }>) => void },
 ): Promise<void> {
     const toolMap = new Map(tools.map(t => [t.name, t]));
     const names = event.toolCalls.map(tc => tc.name);
@@ -156,20 +156,21 @@ export async function autoExecuteTools(
             const t = toolMap.get(tc.name);
             if (!t) {
                 console.log(`  ❌ ${tc.name} → unknown tool`);
-                return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` }, ephemeral: false };
+                return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` }, ephemeral: false, noFollowup: false };
             }
 
             const ephemeral = t.ephemeral ?? false;
+            const noFollowup = t.noFollowup ?? false;
             try {
                 const args = t.schema.parse(JSON.parse(tc.arguments));
                 console.log(`  ⚙️  ${tc.name}(${JSON.stringify(args).slice(0, 120)})`);
                 const result = await t.execute(args, call as any);
                 const preview = JSON.stringify(result).slice(0, 200);
-                console.log(`  ✅ ${tc.name} → ${preview}${ephemeral ? " (ephemeral)" : ""}`);
-                return { toolCallId: tc.id, result, ephemeral };
+                console.log(`  ✅ ${tc.name} → ${preview}${ephemeral ? " (ephemeral)" : ""}${noFollowup ? " (noFollowup)" : ""}`);
+                return { toolCallId: tc.id, result, ephemeral, noFollowup };
             } catch (err: any) {
                 console.log(`  ❌ ${tc.name} → error: ${err.message ?? err}`);
-                return { toolCallId: tc.id, result: { error: err.message ?? String(err) }, ephemeral };
+                return { toolCallId: tc.id, result: { error: err.message ?? String(err) }, ephemeral, noFollowup };
             }
         }),
     );

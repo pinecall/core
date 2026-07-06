@@ -95,6 +95,45 @@ WhatsApp.
 
 `ephemeral` defaults to `false`, so existing tools are unchanged.
 
+## UI-only tools — no follow-up reply (`noFollowup`)
+
+By default, after a tool returns its result the server feeds that result back to
+the LLM, which generates **another** assistant turn (so the agent can talk about
+what the tool did). That's what you want for most tools — "I found your order,
+it ships Tuesday."
+
+But some tools are **UI-only**: their result just drives the interface and there
+is nothing for the agent to say about it. A classic example is a tool that hands
+the browser a set of suggested-question chips, or fires a toast, or mutates some
+client state. For those, the extra assistant turn is noise — often a duplicate of
+what was just said. Mark such a tool `noFollowup: true`:
+
+```typescript
+const suggestQuestions = tool({
+  name: "suggestQuestions",
+  description: "Offer 2–4 follow-up question chips the user might tap next.",
+  schema: z.object({ questions: z.array(z.string()) }),
+  noFollowup: true, // result goes to the UI; do NOT generate another reply
+  execute: async ({ questions }) => ({ questions }),
+});
+```
+
+How it works: the tool executes and its result is still delivered to the client
+via the `llm.tool_result` event (so your UI can render it). But the server then
+**ends the turn** instead of prompting the model again — the reply the model
+already produced *before* calling the tool stands as the final answer. No
+duplicate turn, no extra latency, no extra tokens.
+
+`noFollowup` only takes effect when **every** tool called in that round is
+`noFollowup`. If the model calls a normal tool and a `noFollowup` tool together,
+the turn still continues — the normal tool's result needs a reply. Combine with
+`ephemeral: true` if you also don't want the UI-only result kept in history.
+
+`noFollowup` defaults to `false`, so existing tools are unchanged.
+
+> Requires a tool-capable model (e.g. `openai/gpt-4.1-mini`, `anthropic/claude-*`).
+> Chat-only OpenAI snapshots such as `gpt-5-chat-latest` do not emit `tool_calls`.
+
 ## The `call` parameter
 
 Every `execute` function receives the `Call` object as its second argument. Use it to interact with the call mid-tool-execution:

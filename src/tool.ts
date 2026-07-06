@@ -36,6 +36,18 @@ export interface ToolConfig<T = any> {
      * Use for sensitive lookups or large/noisy payloads you don't want to keep.
      */
     ephemeral?: boolean;
+    /**
+     * Fire-and-forget / UI-only tools — after this tool's result the server does
+     * NOT generate a follow-up assistant turn. Use for tools whose result only
+     * drives the UI (suggested-question chips, a toast, a state mutation) and
+     * should NOT produce another spoken/written reply. The result still reaches
+     * the client via `llm.tool_result`. Defaults to `false`.
+     *
+     * Only takes effect when EVERY tool called in that round is `noFollowup`; a
+     * mixed round (a normal tool + a noFollowup tool) still replies, because the
+     * normal tool's result needs one.
+     */
+    noFollowup?: boolean;
 }
 
 export interface Tool<T = any> {
@@ -45,6 +57,8 @@ export interface Tool<T = any> {
     readonly execute: (args: T, call: Call) => unknown | Promise<unknown>;
     /** Result is not persisted to history when true. */
     readonly ephemeral: boolean;
+    /** No follow-up assistant turn is generated after this tool when true. */
+    readonly noFollowup: boolean;
     /** @internal JSON Schema for wire protocol. */
     readonly _jsonSchema: Record<string, unknown>;
     /** @internal Convert to OpenAI function-calling wire format. */
@@ -69,6 +83,7 @@ export function tool<T>(config: ToolConfig<T>): Tool<T> {
         schema: config.schema,
         execute: config.execute,
         ephemeral: config.ephemeral ?? false,
+        noFollowup: config.noFollowup ?? false,
         _jsonSchema: jsonSchema,
         _toWire() {
             return {
