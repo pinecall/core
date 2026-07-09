@@ -613,12 +613,18 @@ export class Agent extends TypedEventBus<AgentEvents> {
      * Send a message as the human operator (not AI-generated).
      * Works while the session is paused — the message is sent through the
      * channel (WhatsApp, etc.) and added to LLM history for context.
+     *
+     * Pass `contact` (the customer's phone) alongside `sessionId` so the server
+     * can still deliver via WhatsApp when the referenced session has already
+     * expired (2h idle / 24h window GC) — it falls back to a direct channel
+     * send for that contact instead of a silent no-op.
      */
-    sendMessage(opts: { sessionId: string; text: string }): void {
+    sendMessage(opts: { sessionId?: string; contact?: string; text: string }): void {
         this.send({
             event: "session.send",
             agent_id: this.id,
-            session_id: opts.sessionId,
+            ...(opts.sessionId ? { session_id: opts.sessionId } : {}),
+            ...(opts.contact ? { contact: opts.contact } : {}),
             text: opts.text,
         });
     }
