@@ -71,6 +71,14 @@ export interface AgentConfig {
      */
     promptVars?: Record<string, string>;
     /**
+     * IANA timezone (e.g. `"Europe/Madrid"`, `"America/Lima"`). The server
+     * resolves the built-in date/time vars — `{{date}}`, `{{time}}`, `{{day}}`,
+     * `{{datetime}}`, `{{date_block}}` — in THIS zone, on every transport
+     * (voice, chat, WhatsApp), with no per-turn round-trip. Omit → server-local
+     * (UTC). The clean way to give an agent a "location clock".
+     */
+    timezone?: string;
+    /**
      * Use the `prompt` verbatim, with NO auto-injected guidance. Default `false`.
      *
      * When `false` (default), the server augments your prompt with house-style

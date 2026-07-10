@@ -30,6 +30,9 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     // Default prompt {{vars}} seeded server-side at registration, so they resolve
     // on the FIRST turn (chat especially) without the per-call setPromptVars round-trip.
     if ((opts as any).promptVars !== undefined) payload.vars = (opts as any).promptVars;
+    // IANA timezone → server resolves built-in {{date}}/{{time}}/{{day}}/{{date_block}}
+    // in this zone (all transports), so an agent "in Madrid" reports the right hour.
+    if ((opts as any).timezone !== undefined) payload.timezone = (opts as any).timezone;
     if ((opts as any).rawPrompt !== undefined) payload.raw_prompt = (opts as any).rawPrompt;
     if ((opts as any).tools !== undefined) {
         const tools = (opts as any).tools as any[];
