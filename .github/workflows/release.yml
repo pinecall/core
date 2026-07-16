@@ -1,0 +1,59 @@
+name: Release
+
+# Pushing a version tag (v0.3.2, …) publishes that version to npm.
+# Auth: npm Trusted Publishing (OIDC) — no NPM_TOKEN secret to leak or rotate.
+# One-time setup on npmjs.com → @pinecall/sdk → Settings → Trusted Publisher:
+#   repository pinecall/sdk · workflow release.yml · environment npm
+# Until that's configured this job fails at the publish step; nothing else breaks.
+#
+# Provenance requires package.json's `repository` to match this repo (pinecall/sdk).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      # the tag must match package.json — a mismatch means a bad release
+      - name: tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          echo "tag=$TAG package.json=$PKG"
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag v$TAG != package.json $PKG"; exit 1; }
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write        # OIDC, for Trusted Publishing + provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - name: publish
+        run: |
+          # a prerelease tag (v0.4.0-beta.1) must not become `latest`
+          case "${GITHUB_REF_NAME}" in
+            *-*) TAG=beta ;;
+            *)   TAG=latest ;;
+          esac
+          echo "publishing to dist-tag: $TAG"
+          npm publish --provenance --access public --tag "$TAG"
