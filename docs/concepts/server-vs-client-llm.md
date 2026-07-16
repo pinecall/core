@@ -13,6 +13,10 @@ When you build a Pinecall agent, you choose where the LLM runs. This is the sing
 
 The Pinecall server runs the LLM. You give it a prompt, a model, and (optionally) tool definitions. The server handles STT, runs the LLM, generates TTS — you only handle tool calls.
 
+> **Realtime speech-to-speech:** set `llm: "pinecall/gpt-realtime"` and the server
+> collapses STT + LLM + TTS into **one** OpenAI Realtime model — lower latency and
+> native barge-in, same tools and events. See [Realtime speech-to-speech](/guides/realtime-speech).
+
 ```typescript
 import { tool } from "@pinecall/sdk";
 import { z } from "zod";

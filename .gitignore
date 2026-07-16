@@ -4,3 +4,4 @@ dist/
 .brainbank/
 src.bkp/
 .megabrain
+.npmrc

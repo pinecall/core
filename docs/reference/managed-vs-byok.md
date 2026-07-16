@@ -25,6 +25,11 @@ Every STT, TTS and LLM model on Pinecall is one of two kinds:
 | **TTS** | `elevenlabs`, `cartesia` (sonic), `polly` (AWS) |
 | **LLM** | `openai`, `anthropic`, `google` (gemini), `mistral` |
 
+> **Realtime speech-to-speech** (`openai/gpt-realtime`, via `llm: "pinecall/gpt-realtime"`)
+> is managed too, but it's a **premium** model billed as audio tokens (much higher
+> than text LLMs) — it replaces STT + TTS, so you pay it instead of, not on top of,
+> those. See [Realtime speech-to-speech](/guides/realtime-speech).
+
 > **One key, both services:** an ElevenLabs (or Cartesia) key serves *both* that
 > vendor's TTS and STT. Pinecall already holds those keys for the managed TTS, so
 > their STT (ElevenLabs **Scribe**, Cartesia **Ink-Whisper**) is **also managed** —

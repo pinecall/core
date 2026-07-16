@@ -122,6 +122,34 @@ llm: {
 |---|---|
 | `gpt-5-chat-latest` | Most agents — strong reasoning, good cost (recommended default) |
 | `gpt-5-chat-mini` | Highest-volume, simple flows; lowest cost |
+| `gpt-realtime` | **Speech-to-speech** — the model listens and speaks directly (no STT/TTS). Lowest latency, native barge-in. See [Realtime speech-to-speech](#realtime-speech-to-speech-gpt-realtime) below and the [full guide](/guides/realtime-speech). |
+
+## Realtime speech-to-speech (gpt-realtime)
+
+`gpt-realtime` collapses the whole STT → LLM → TTS pipeline into **one** OpenAI
+Realtime model — the caller talks to the model and the model talks back, as audio.
+Lower latency, more natural prosody, and native barge-in. Flip one string:
+
+```typescript
+const agent = pc.agent("receptionist", {
+  llm: "pinecall/gpt-realtime",      // server-side realtime speech-to-speech
+  prompt: "You are a warm, concise phone receptionist.",
+  greeting: "Hi! Thanks for calling — how can I help?",
+  tools: [checkReservation],
+  config: { realtime: { voice: "marin" } },   // OpenAI realtime voice (optional)
+});
+agent.addChannel("phone", "+19035551234");
+```
+
+- **Works on** phone (Twilio) and WebRTC (browser) channels.
+- **`stt`, `voice`/`tts`, `turnDetection`, `vad` and `interruption` are ignored** —
+  the model owns the whole audio path (voice = an OpenAI realtime voice, default `marin`).
+- **Tools, greeting, `call.say`, events and transcript persistence work unchanged.**
+- **Not supported in realtime mode (yet):** skills, knowledge bases / RAG, per-word
+  captions and hold music. Use the classic pipeline for those.
+- **Billing:** audio tokens (LLM), not separate STT-minutes + TTS-characters.
+
+Full details: **[Realtime speech-to-speech](/guides/realtime-speech)**.
 
 ## Mistral
 

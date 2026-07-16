@@ -49,6 +49,15 @@ agent.on("event.name", (event, call) => {
 | [Billing](#billing) | `credits.rejected`, `credits.exhausted` | All |
 | [Audio](#audio-metrics) | `audio.metrics` | Voice, WebRTC |
 
+**Lifecycle events, in brief:**
+
+- `call.started` — a **voice** call connected (phone or WebRTC). *(Chat → `chat.started`, WhatsApp → `whatsapp.started`.)*
+- `call.preparing` — fires **before every LLM generation** (voice, chat, **and WhatsApp**). Use it to refresh per-turn prompt variables that must be current on every turn — fresh date/time, format rules — via `call.setPromptVars()`. The server waits ~150ms for your handler before it builds the prompt and calls the LLM, so variables are always just-in-time fresh (even in long-lived WhatsApp sessions).
+- `call.ended` — the call finished; the `Call` is fully populated (`duration`, `endedAt`, `messages`, `transcript`).
+- `call.ringing` — an inbound call is ringing; call `accept()` or `reject()` before it connects.
+- `call.forwarded` — the call was transferred to another number/agent.
+- `call.recording` — recording state changed.
+
 ---
 
 ## Lifecycle
