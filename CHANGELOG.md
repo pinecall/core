@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-07-10
+
+### Added
+- **`timezone` in AgentConfig** — built-in `{{date}}`/`{{time}}`/`{{day}}`/
+  `{{datetime}}`/`{{date_block}}` vars resolve in the agent's IANA zone on every
+  transport (voice/chat/whatsapp), no per-turn `setPromptVars` round-trip.
+  Was UTC-only before.
+- **`sendMessage` accepts a contact** — enables human sends after session GC;
+  the server falls back to direct channel delivery.
+- **`tool()` `noFollowup` option** — UI-only tools skip the follow-up assistant
+  turn (pairs with the sdk-server change that honors `no_followup`).
+
+## [0.3.0] — 2026-06-29
+
+### Added
+- **`promptVars` at registration** — seed default `{{vars}}` agent-level, so
+  every session starts with them without a `setPromptVars` call.
+
 ## [0.2.27] - 2026-06-22
 
 ### Added
@@ -52,6 +70,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Docs: Gemini default updated to `gemini-2.5-flash` (`gemini-2.0-flash` retired).
+
+## [0.2.26] — 2026-06-21
+
+### Added
+- **`fetchModelAccess` / `hasModelAccess` / `fetchModelCatalog`** first shipped
+  here (the fuller description above under 0.2.27 covers them) — model-access
+  SDK helper + `GET /api/models/access` endpoint docs.
 
 ## [0.2.25] — 2026-06-20
 
@@ -248,6 +273,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.6] — 2026-05-31
+
+### Added
+
+- **`agent.dial()` auto-resolves `from`** — optional when the agent has exactly
+  one phone channel; errors clearly if there are 0 or more than 1 without an
+  explicit `from`.
+
+---
+
+## [0.2.5] — 2026-05-31
+
+### Added
+
+- **`call.streamSSE(res)`** — one-liner for Call Me endpoints. Handles SSE
+  headers, word-by-word buffering, keepalive pings, event scoping, and cleanup
+  automatically.
+
+---
+
+## [0.2.4] — 2026-05-31
+
+### Added
+
+- **`tool()`** — declarative tool definitions with Zod schema + auto-execution,
+  replacing hand-rolled JSON-schema tool wiring.
+
+### Changed
+
+- Voice-widget docs rewritten for ContactHub, chat, Call Me, multi-channel,
+  mobile fullscreen, and the `tools` prop.
+
+---
+
 ## [0.2.3] — 2026-05-25
 
 ### Fixed
@@ -284,6 +343,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Hexagonal architecture rewrite** — internal reorganization into Kernel, Protocol, Transport, Domain, and Dispatch layers. Zero public API changes; all 71 tests pass unchanged.
 - **API consistency pass** — camelCase event names, `engine` → `provider` in LLM config, `call.toolResult()` replaces `call.sendToolResult()`, `agent.setDevCallers()` replaces `agent.setDevMode()`.
+
+---
+
+## [0.1.4] — 2026-05-24
+
+### Added
+
+- **`tokenProvider`** option for token-based auth flows (see the booking-tools
+  example's `/api/token` endpoint).
+
+### Fixed
+
+- `agent.createToken()` no longer double-applies the dev prefix (`_createTokenRaw`).
+- WhatsApp channel re-registration on reconnect (`phoneNumberId`, `accessToken`).
 
 ---
 
