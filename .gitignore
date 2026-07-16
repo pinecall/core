@@ -5,3 +5,9 @@ dist/
 src.bkp/
 .megabrain
 .npmrc
+NEXT.md
+
+# pinecall test <voice spec>.yaml writes its recording here (cwd), named
+# after the spec file — e.g. pines-intro.voice.spec.yaml → pines-intro.voice.*
+*.voice.wav
+*.voice.transcript.txt
