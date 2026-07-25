@@ -123,6 +123,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
     #transport: Transport | null = null;
     #pingInterval: ReturnType<typeof setInterval> | null = null;
+    /** Registration-conflict retry state: agentId → attempt count + pending timer. */
+    readonly #registerRetries = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null }>();
     #intentionalClose = false;
     #connected = false;
     #connectResolve: (() => void) | null = null;
@@ -258,6 +260,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             clearInterval(this.#pingInterval);
             this.#pingInterval = null;
         }
+
+        this.#clearAllRegisterRetries();
 
         // End all calls across all agents
         for (const agent of this.#agents.values()) {
@@ -417,6 +421,55 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         });
     }
 
+    /**
+     * Retry a registration rejected with AGENT_CONFLICT / AGENT_IN_USE.
+     *
+     * The rejection is often transient: after a network blip or a process
+     * restart, the server may briefly hold our own dead socket as "alive".
+     * Backoff: 5s → 10s → 20s → 40s, then every 60s — indefinitely, because
+     * the server frees stale registrations on its own and persistence wins.
+     * Cleared on agent.created/agent.resumed and on socket close (a full
+     * reconnect re-registers every agent anyway).
+     */
+    #scheduleRegisterRetry(agentId: string): void {
+        let state = this.#registerRetries.get(agentId);
+        if (!state) {
+            state = { attempt: 0, timer: null };
+            this.#registerRetries.set(agentId, state);
+        }
+        if (state.timer) return; // retry already scheduled
+
+        const delay = Math.min(5_000 * 2 ** state.attempt, 60_000);
+        state.attempt++;
+
+        const timer = setTimeout(() => {
+            state!.timer = null;
+            const agent = this.#agents.get(agentId);
+            if (this.#connected && agent) {
+                this.#logger.info(`Retrying registration for "${agentId}" (attempt ${state!.attempt})`);
+                this.#registerAgent(agent);
+            }
+        }, delay);
+        // Don't hold the process open just for a retry timer (Node.js)
+        (timer as any)?.unref?.();
+        state.timer = timer;
+
+        this.#logger.warn(`Registration conflict for "${agentId}" — retrying in ${Math.round(delay / 1000)}s`);
+    }
+
+    #clearRegisterRetry(agentId: string): void {
+        const state = this.#registerRetries.get(agentId);
+        if (state?.timer) clearTimeout(state.timer);
+        this.#registerRetries.delete(agentId);
+    }
+
+    #clearAllRegisterRetries(): void {
+        for (const state of this.#registerRetries.values()) {
+            if (state.timer) clearTimeout(state.timer);
+        }
+        this.#registerRetries.clear();
+    }
+
     #getEnv(key: string): string | undefined {
         try {
             return (globalThis as any).process?.env?.[key];
@@ -470,6 +523,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
                 _emitWire: (event, ...args) => (this as any).emit(event, ...args),
                 _getAgent: (id) => this.#agents.get(id),
                 _allAgents: () => [...this.#agents.values()],
+                _scheduleRegisterRetry: (id) => this.#scheduleRegisterRetry(id),
+                _clearRegisterRetry: (id) => this.#clearRegisterRetry(id),
             },
         };
 
@@ -483,6 +538,9 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             clearInterval(this.#pingInterval);
             this.#pingInterval = null;
         }
+
+        // Reconnect re-registers every agent — drop per-agent retry timers
+        this.#clearAllRegisterRetries();
 
         // End all active calls
         for (const agent of this.#agents.values()) {

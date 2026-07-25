@@ -26,6 +26,10 @@ export interface DispatchContext {
         _getAgent(id: string): Agent | undefined;
         _allAgents(): Agent[];
         _getWhatsAppHandler?(): { getSession(id: string): any };
+        /** Schedule a registration retry after AGENT_CONFLICT/AGENT_IN_USE. */
+        _scheduleRegisterRetry?(agentId: string): void;
+        /** Clear retry state once the server confirms the registration. */
+        _clearRegisterRetry?(agentId: string): void;
     };
 }
 

@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-07-25
+
+### Fixed
+- **Agent registration no longer gives up on `AGENT_CONFLICT` / `AGENT_IN_USE`.**
+  The SDK now retries the registration with backoff (5s → 10s → 20s → 40s, then
+  every 60s) until the server accepts it, and clears the retry on
+  `agent.created` / `agent.resumed`. Previously a single rejection was terminal:
+  the process stayed up and healthy while the agent was silently offline
+  forever, so a momentary conflict became an outage that only a human could
+  notice and fix.
+
+  This is the client half of a two-sided fix. The server (sdk-server) used to
+  treat "a `send()` on the old socket didn't throw" as proof the old agent was
+  alive — but writing to a half-open TCP socket succeeds long after the peer is
+  gone, so registrations orphaned by a network blip or a restart were held
+  forever and every reconnect was rejected. The server now tracks the last
+  inbound frame per connection and demands a real ping round-trip before
+  declaring a silent connection alive; stale registrations are released within
+  about a minute.
+
+  Together: an agent that loses its connection comes back **unattended**.
+  `pinecall kick` is now only for a genuinely live duplicate instance.
+
 ## [0.3.1] — 2026-07-10
 
 ### Added

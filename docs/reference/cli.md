@@ -76,7 +76,7 @@ pinecall run agent/index.js
 ```
 
 ```
-  ⚡ booting pines  ·  gpt-5-chat-latest · cartesia/sonic
+  ⚡ booting pines  ·  gpt-5.3-chat-latest · cartesia/sonic
   ⚙ tools: checkAvailability, makeReservation, cancelReservation
   ☎ listening on +14155550177 …
 
@@ -123,14 +123,19 @@ pinecall kick pines
   ⚡ pines disconnected
 ```
 
-**Why you need this:** The server protects production agents from accidental displacement — if you try to connect a new agent with the same slug while the old one is still alive, the new connection is **rejected** with an `AGENT_CONFLICT` error. Use `pinecall kick` to remove the old registration first.
+**Why you need this:** The server protects production agents from accidental displacement — if you try to connect a new agent with the same slug while the old one is still alive, the new connection is **rejected** with an `AGENT_CONFLICT` error.
 
 ```
   ✗ Agent "pines" is already connected.
-    Run pinecall kick pines to force disconnect.
+    Retrying registration automatically (stale registrations clear in ~1 min).
+    If another live instance owns it, run pinecall kick pines.
 ```
 
-> **Note:** `kick` sends a `agent.displaced` event to the old agent's WebSocket before unregistering it. If the process is still running, it will receive the event and can handle cleanup.
+> **You usually don't need to kick.** Since **v0.3.2** the SDK retries the registration on its own with backoff (5s → 10s → 20s → 40s → every 60s), and the server only counts a registration as "alive" if its socket produced a frame in the last 45s **or** answers a ping round-trip. A registration orphaned by a crash, a restart or a network blip is released within about a minute and your agent reconnects unattended.
+>
+> Reach for `kick` when a **genuinely live** second process owns the slug (two deployments of the same agent), or when you don't want to wait out the backoff.
+
+> **Note:** `kick` sends an `agent.displaced` event to the old agent's WebSocket before unregistering it. If the process is still running, it will receive the event and can handle cleanup.
 
 ### `pinecall phones`
 

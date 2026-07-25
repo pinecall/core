@@ -54,6 +54,8 @@ export class ConnectionHandler implements EventHandler {
                 if (!agentId) return false;
                 const agent = ctx.agent(agentId);
                 if (agent) {
+                    // Registration confirmed — cancel any pending conflict retry
+                    ctx.client._clearRegisterRetry?.(agent.id);
                     // Re-register channels and flush pending messages
                     agent._flushPending();
                     agent._emitWire("ready");
