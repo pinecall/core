@@ -1,0 +1,21 @@
+agent: tooltest
+description: The agent calls getOrderStatus and answers with the tool's data, not its own
+timeout: 40000
+judge:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  maxTurns: 6
+workflow: |
+  You are a customer asking about a shipment.
+
+  1. Ask exactly: "Hi, can you check the status of order ABC-123?"
+  2. The agent must answer with the CONCRETE details of that order.
+
+  The tool returns: status "held in customs", port "Rotterdam", carrier "Maersk",
+  eta 6 days. These are facts the agent can ONLY know by calling its tool.
+
+  Call test_passed if the agent's reply states the order is held in customs AND
+  mentions Rotterdam. (Carrier and ETA are a bonus, not required.)
+  Call test_failed if the agent invents a different status or port, says it cannot
+  look up orders, asks you to contact someone else, or answers vaguely without
+  any concrete status.

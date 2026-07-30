@@ -29,7 +29,7 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 { stt: "cartesia/ink-whisper" }      // Cartesia Ink-Whisper
 { stt: "elevenlabs/scribe" }         // ElevenLabs Scribe v2 (realtime)
 { stt: "assemblyai/universal" }      // AssemblyAI Universal-3
-{ stt: "soniox/realtime" }           // Soniox real-time (BYOK)
+{ stt: "soniox/realtime" }           // Soniox real-time, 60 languages
 { stt: "xai/grok-stt" }              // xAI Grok STT (BYOK)
 ```
 
@@ -48,7 +48,7 @@ const pc = new Pinecall(); // reads PINECALL_API_KEY
 const agent = pc.agent("support", {
   stt: "deepgram/flux",
   voice: "elevenlabs/sarah",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "You are a friendly support agent.",
 });
 
@@ -56,7 +56,7 @@ const agent = pc.agent("support", {
 pc.agent("support", {
   stt: { provider: "deepgram", model: "nova-3", language: "en", smart_format: true, keyterms: ["Pinecall"] },
   voice: "elevenlabs/sarah",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "...",
 });
 ```
@@ -85,8 +85,8 @@ for the full list and the live `GET /api/rates/models` query.
 | `transcribe` (AWS) | ✅ Yes | |
 | `cartesia` (ink-whisper) | ✅ Yes | Same key as Cartesia TTS — Pinecall hosts it |
 | `elevenlabs` (scribe) | ✅ Yes | Same key as ElevenLabs TTS — Pinecall hosts it |
+| `soniox` (stt-rt-v5) | ✅ Yes | 60 languages. Same key as Soniox TTS — Pinecall hosts it |
 | `assemblyai` (universal) | ❌ BYOK only | Add an AssemblyAI key |
-| `soniox` (realtime) | ❌ BYOK only | One Soniox key = STT **and** TTS |
 | `xai` (grok-stt) | ❌ BYOK only | Same xAI key as Grok LLM/TTS |
 
 > **BYOK enforcement:** if you configure a BYOK-only STT provider and your org has
@@ -223,16 +223,50 @@ stt: {
 }
 ```
 
-## Soniox (BYOK)
+## Soniox (managed)
 
-Real-time multilingual STT (60+ languages). One Soniox key serves **both** Soniox
-STT and TTS. Requires your own Soniox key.
+Real-time multilingual STT — **one model, `stt-rt-v5`, covering 60 languages** with
+no per-language model switch. One Soniox key serves **both** Soniox STT and TTS, and
+Pinecall holds it, so no key is needed.
 
 ```typescript
 stt: "soniox/realtime"
 // or
 stt: { provider: "soniox", model: "stt-rt-v5", language: "en" }
 ```
+
+`language` is sent as a **hint**, not a lock — Soniox keeps detecting across the 60
+languages, so a caller who switches mid-sentence is still transcribed. Set
+`language: "multi"` to send no hint at all and let it detect freely.
+
+### Biasing recognition (`context` / `keyterms`)
+
+Soniox biases toward your domain vocabulary with **`context`** — one free-form
+string, not a term array — capped at 10 000 characters:
+
+```typescript
+stt: {
+  provider: "soniox",
+  language: "en",
+  context: "Order codes look like PN-48291. Staff: James Crawford, Sarah Chen.",
+}
+```
+
+`keyterms` (the Deepgram Flux field) is also accepted and **joined into the same
+context string**, so an agent written for Flux keeps its bias terms when you
+switch its provider to `soniox` — no rewrite needed:
+
+```typescript
+stt: { provider: "soniox", keyterms: ["Pinecall", "WebRTC", "PN-48291"] }
+```
+
+> ⚠️ Soniox **silently ignores unknown config keys** — a misspelled field fails
+> invisibly rather than erroring. Bias terms must end up in `context`; that is
+> what `keyterms` is mapped onto.
+
+Turn detection comes from Soniox's own **endpoint detection** (server-side), which
+emits an end-of-utterance marker; the transcript is finalized on that marker rather
+than on a silence timer. VAD/turn detection is auto-derived — never configure it.
 
 ## xAI Grok (BYOK)
 
@@ -255,7 +289,7 @@ stt: { provider: "xai", model: "grok-stt", language: "en" }
 | `cartesia/ink-whisper` | Single-vendor with Cartesia TTS | Managed (shared key) |
 | `elevenlabs/scribe` | Single-vendor with ElevenLabs TTS | Managed (shared key) |
 | `assemblyai/universal` | Accuracy + diarization | BYOK only |
-| `soniox/realtime` | Multilingual (60+), single-vendor with Soniox TTS | BYOK only |
+| `soniox/realtime` | Multilingual (60 langs, one model), single-vendor with Soniox TTS | Managed (shared key) |
 | `xai/grok-stt` | Single-vendor with Grok LLM + TTS | BYOK only |
 
 For most agents, start with `deepgram/flux`. Use `deepgram/nova-3` for languages Flux doesn't cover (Arabic, Hindi, Thai, Chinese, Japanese, Korean, etc.).
@@ -281,7 +315,7 @@ When you have different phone numbers per language/region, set per-number STT ov
 ```typescript
 const agent = pc.agent("global-support", {
   prompt: "You are a multilingual support agent.",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   phoneNumbers: [
     // English — Flux (fastest, native turn detection)
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },

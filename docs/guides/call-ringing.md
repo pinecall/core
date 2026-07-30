@@ -93,7 +93,7 @@ const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
   language: "en",
   stt: "deepgram/flux",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "You are a receptionist. Be brief and helpful.",
   // Enable ringing on the phone channel
   phoneNumber: { number: "+13186330963", ringing: true },

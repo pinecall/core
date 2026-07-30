@@ -36,7 +36,7 @@ const agent = pc.agent("florencia", {
   prompt: `You are Florencia, the booking assistant for Blossom Beauty Spa.
 Help customers book appointments. Be warm and concise.
 Available services: Haircut ($30), Color ($80), Facial ($60), Massage ($90).`,
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   language: "es",
   allowedOrigins: ["http://localhost:*"],
   tools: [getAvailability],

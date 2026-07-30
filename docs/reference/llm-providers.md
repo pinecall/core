@@ -15,7 +15,7 @@ For client-side LLMs, see [ReplyStream](/api/reply-stream).
 const agent = pc.agent("my-bot", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "You are a friendly assistant. Keep responses short.",
 });
 ```
@@ -26,7 +26,7 @@ The full config object form (same field, with tuning) is interchangeable:
 
 ```typescript
 pc.agent("my-bot", {
-  llm: { provider: "openai", model: "gpt-5-chat-latest", temperature: 0.3, max_tokens: 256 },
+  llm: { provider: "openai", model: "gpt-5.3-chat-latest", temperature: 0.3, max_tokens: 256 },
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   prompt: "...",
@@ -44,16 +44,16 @@ call.update({ llm: "mistral/mistral-medium" });   // mid-call swap
 
 ```typescript
 // Recommended: provider/model
-llm: "openai/gpt-5-chat-latest"
+llm: "openai/gpt-5.3-chat-latest"
 
 // Bare model name (assumes OpenAI)
-llm: "gpt-5-chat-latest"
+llm: "gpt-5.3-chat-latest"
 
 // Both expand to:
-// { provider: "openai", model: "gpt-5-chat-latest", enabled: true }
+// { provider: "openai", model: "gpt-5.3-chat-latest", enabled: true }
 ```
 
-> The legacy `provider:model` format (e.g. `"openai:gpt-5-chat-latest"`) still works but is not recommended.
+> The legacy `provider:model` format (e.g. `"openai:gpt-5.3-chat-latest"`) still works but is not recommended.
 
 ## Managed vs bring-your-own-key (BYOK)
 
@@ -87,7 +87,7 @@ const agent = pc.agent("my-bot", {
   stt: "deepgram/flux",
   llm: {
     provider: "openai",
-    llm: "openai/gpt-5-chat-latest",
+    llm: "openai/gpt-5.3-chat-latest",
     enabled: true,
     temperature: 0.3,      // 0-2. Lower = more deterministic
     max_tokens: 256,        // caps response length
@@ -101,7 +101,7 @@ const agent = pc.agent("my-bot", {
 ## OpenAI
 
 ```typescript
-llm: "openai/gpt-5-chat-latest"
+llm: "openai/gpt-5.3-chat-latest"
 ```
 
 Or with tuning:
@@ -109,7 +109,7 @@ Or with tuning:
 ```typescript
 llm: {
   provider: "openai",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   enabled: true,
   temperature: 0.7,
   max_tokens: 512,
@@ -120,7 +120,7 @@ llm: {
 
 | Model | Best for |
 |---|---|
-| `gpt-5-chat-latest` | Most agents — strong reasoning, good cost (recommended default) |
+| `gpt-5.3-chat-latest` | Most agents — strong reasoning, good cost (recommended default) |
 | `gpt-5-chat-mini` | Highest-volume, simple flows; lowest cost |
 | `gpt-realtime` | **Speech-to-speech** — the model listens and speaks directly (no STT/TTS). Lowest latency, native barge-in. See [Realtime speech-to-speech](#realtime-speech-to-speech-gpt-realtime) below and the [full guide](/guides/realtime-speech). |
 
@@ -310,7 +310,7 @@ Define a prompt with `{{placeholders}}`. The server resolves them before each LL
 const agent = pc.agent("support-bot", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: `You are {{agent_name}}, support agent at {{company}}.
 Today is {{date}}. Customer: {{customer_name}}.`,
 });
@@ -342,10 +342,10 @@ Standard parameters supported by all providers:
 llm: { provider: "openai", model: "gpt-5-chat-mini", temperature: 0.2, max_tokens: 128 }
 
 // Natural conversation
-llm: { provider: "openai", model: "gpt-5-chat-latest", temperature: 0.7, max_tokens: 512 }
+llm: { provider: "openai", model: "gpt-5.3-chat-latest", temperature: 0.7, max_tokens: 512 }
 
 // Creative, open-ended
-llm: { provider: "openai", model: "gpt-5-chat-latest", temperature: 1.0, max_tokens: 1024 }
+llm: { provider: "openai", model: "gpt-5.3-chat-latest", temperature: 1.0, max_tokens: 1024 }
 ```
 
 ## Tools
@@ -375,7 +375,7 @@ Swap models or providers at runtime:
 
 ```typescript
 // Agent-wide (all future calls)
-agent.update({ llm: "openai/gpt-5-chat-latest" });
+agent.update({ llm: "openai/gpt-5.3-chat-latest" });
 
 // One call only
 call.update({ llm: "mistral/mistral-medium" });

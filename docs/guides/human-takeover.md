@@ -40,7 +40,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const support = pc.agent("support", {
   language: "en",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "You are a helpful support agent.",
 });
 

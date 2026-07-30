@@ -24,7 +24,7 @@ const agent = pc.agent("my-agent", {
   voice: "elevenlabs/sarah",
   language: "es",
   stt: "deepgram/flux",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "System prompt with {{template_vars}}.",
   greeting: "Hello! How can I help you today?",
   phoneNumber: "+13186330963",
@@ -45,7 +45,7 @@ const agent = pc.agent("my-agent", {
 | `whatsapp` | `WhatsAppChannelConfig[]` | WhatsApp channels to register |
 | `history` | `HistoryStore` | Conversation persistence (see [History](/guides/conversation-history)) |
 | `sessionLimits` | `SessionLimits` | Duration / idle timeout config |
-| `interruption` | `InterruptionConfig` | Energy thresholds for barge-in |
+| `interruption` | `InterruptionConfig` | Barge-in gates: min duration/volume/words, backchannel filter |
 | `analysis` | `AnalysisConfig` | Audio metrics streaming |
 | `allowedOrigins` | `string[]` | Public token access (see [Security](/security)) |
 
@@ -110,7 +110,7 @@ Hot-reload the agent's defaults. Affects all **future** calls — existing calls
 ```typescript
 agent.update({ voice: "elevenlabs/claire", language: "fr" });
 agent.update({ stt: "gladia" });
-agent.update({ llm: "openai/gpt-5-chat-latest", prompt: "..." });
+agent.update({ llm: "openai/gpt-5.3-chat-latest", prompt: "..." });
 ```
 
 ### `configureSession(callId, opts)`

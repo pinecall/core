@@ -31,8 +31,8 @@ for the full list and the live `GET /api/rates/models` query.
 | `elevenlabs` | ✅ Yes | Default, recommended |
 | `cartesia` (sonic-3.5) | ✅ Yes | |
 | `polly` (AWS) | ✅ Yes | |
+| `soniox` (tts-rt-v1) | ✅ Yes | 28 voices, 63 languages. Same key as Soniox STT |
 | `rime` | ❌ BYOK only | Add a Rime key under Provider Keys |
-| `soniox` | ❌ BYOK only | One Soniox key = TTS **and** STT |
 | `xai` (Grok) | ❌ BYOK only | Same xAI key as Grok LLM |
 
 > **BYOK enforcement:** configuring `rime` without a saved Rime key rejects agent
@@ -85,7 +85,7 @@ const pc = new Pinecall(); // reads PINECALL_API_KEY
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "You are a friendly support agent.",
 });
 
@@ -93,7 +93,7 @@ const agent = pc.agent("support", {
 pc.agent("support", {
   voice: { provider: "cartesia", voice_id: "a0e99841-...", model: "sonic-3.5", speed: 1.0, emotion: "neutral" },
   stt: "deepgram/flux",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   prompt: "...",
 });
 ```
@@ -142,7 +142,7 @@ multilingual auto-default and keeps `eleven_flash_v2_5`:
 ```typescript
 const agent = pc.agent("sofia", {
   prompt: "Sos Sofía, asistente de la clínica.",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   voice: "elevenlabs/agus",
   stt: "deepgram/flux",
   language: "es",
@@ -245,21 +245,40 @@ voice: {
 
 Shortcut: `"rime/cove"`
 
-## Soniox (BYOK)
+## Soniox (managed)
 
-Real-time TTS in 60+ languages. One Soniox key serves **both** Soniox TTS and STT.
-Requires your own Soniox key.
+Real-time TTS in **63 languages** with **28 voices** — no key needed. One Soniox
+key serves **both** Soniox TTS and STT, and Pinecall holds it.
 
 ```typescript
 voice: {
   provider: "soniox",
-  voice_id: "Adrian",   // Soniox voice name
+  voice_id: "Lucia",    // Soniox voice name
   model: "tts-rt-v1",
-  language: "en",
+  language: "es",
 }
 ```
 
-Shortcut: `"soniox/Adrian"`
+Shortcut: `"soniox/lucia"` (aliases are the lowercase voice name).
+
+**Every voice speaks every one of the 63 languages** — the voice does not pin the
+language, `language` does. What differs is the accent the voice carries:
+
+| Accent | Voices |
+|---|---|
+| Neutral | Maya, Daniel, Noah, Nina, Emma, Jack, Adrian, Claire, Grace, Owen, Mina, Kenji |
+| Spanish | Rafael, Mateo, Lucia, Sofia |
+| British | Oliver, Arthur, Isla, Victoria |
+| Australian | Cooper, Mason, Ruby, Elise |
+| Indian | Arjun, Rohan, Priya, Meera |
+
+`pinecall voices --provider=soniox --language=es` ranks the accent-matching voices
+first but still lists the rest — any of them will speak Spanish.
+
+Soniox publishes no preview URLs, so `preview_url` is `null` and previews are
+**synthesized on demand** — `pinecall voices play soniox/lucia` (or
+`GET /api/sdk/voice-preview?provider=soniox&voice=Lucia&lang=es`) renders a short
+mp3 through the live model.
 
 ## xAI Grok (BYOK)
 
@@ -284,7 +303,7 @@ Shortcut: `"xai/eve"`
 | **Cartesia** | Real-time streaming, low latency | Smaller voice library |
 | **Polly** | Cheap IVR, simple flows | Less natural |
 | **Rime** | Ultra-natural expressive English | BYOK only; English-focused |
-| **Soniox** | Multilingual (60+), single-vendor with Soniox STT | BYOK only |
+| **Soniox** | Multilingual (63 langs, 28 voices), pairs with Soniox STT on one key | Per-utterance, not sentence-streamed |
 | **xAI Grok** | Expressive Grok voices (ara/eve/leo/rex/sal) | BYOK only |
 
 For most agents, start with ElevenLabs (`eleven_flash_v2_5`) or Cartesia (`sonic-3.5`). Use Polly only for high-volume, low-engagement flows.

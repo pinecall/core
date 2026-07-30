@@ -174,6 +174,28 @@ const listAppointments = tool({
 });
 ```
 
+### Reconfiguring the session before the greeting
+
+A common use of sealed metadata is picking the session's **language or voice** from it:
+
+```typescript
+agent.on("call.started", (call) => {
+  const lang = call.metadata.lang === "en" ? "en" : "es";
+  call.update({ language: lang, voice: VOICES[lang], stt: "soniox/realtime" });
+});
+```
+
+`call.update()` is a round-trip over the agent's WebSocket, so on **WebRTC** the server
+holds the greeting for a short window (default 600 ms, `PINECALL_WEBRTC_STARTUP_CONFIG_WAIT_MS`
+on self-hosted servers) and speaks it with the updated voice and language. The wait ends the
+instant your update lands, and only applies to sessions that actually carry metadata — a
+session without metadata greets immediately, as before.
+
+On **phone** there is no token, so metadata comes from `agent.dial({ metadata })` for
+outbound; for inbound, set the language per number instead
+(`agent.addPhoneNumber(number, { language, voice })`) — that is applied before the call
+starts and needs no update.
+
 ## Restoring conversations with a `threadId`
 
 Seal a `threadId` (or any conversation key) into the token and your history store can

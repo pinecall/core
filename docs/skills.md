@@ -60,7 +60,7 @@ One skill per docs section — install all of them, or only the ones you need:
 Every skill carries the Pinecall **house rules**, so the agent never drifts from
 the supported configuration:
 
-- Example defaults: `stt: "deepgram/flux"`, `llm: "openai/gpt-5-chat-latest"`,
+- Example defaults: `stt: "deepgram/flux"`, `llm: "openai/gpt-5.3-chat-latest"`,
   `voice: "elevenlabs/sarah"`. Never `deepgram/nova-2`.
 - **Turn detection & VAD are auto-derived from the STT provider — never set
   `turnDetection` or `vad` by hand.** (Flux → native turns + native VAD; every

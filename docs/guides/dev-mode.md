@@ -32,7 +32,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const agent = pc.agent(agentId, {
   prompt: "...",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   phoneNumber: "+13186330963", // shared with prod!

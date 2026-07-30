@@ -17,7 +17,7 @@ const history = new JsonFileHistory("./data/calls.json");
 const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const agent = pc.agent("my-agent", {
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   prompt: "You are a helpful assistant with memory of past conversations.",

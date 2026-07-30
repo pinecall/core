@@ -21,8 +21,8 @@ Every STT, TTS and LLM model on Pinecall is one of two kinds:
 
 | Service | Managed providers |
 |---|---|
-| **STT** | `deepgram` (flux, nova-3), `gladia`, `transcribe` (AWS), `cartesia` (ink-whisper), `elevenlabs` (scribe) |
-| **TTS** | `elevenlabs`, `cartesia` (sonic), `polly` (AWS) |
+| **STT** | `deepgram` (flux, nova-3), `gladia`, `transcribe` (AWS), `cartesia` (ink-whisper), `elevenlabs` (scribe), `soniox` (stt-rt-v5) |
+| **TTS** | `elevenlabs`, `cartesia` (sonic), `polly` (AWS), `soniox` (tts-rt-v1) |
 | **LLM** | `openai`, `anthropic`, `google` (gemini), `mistral` |
 
 > **Realtime speech-to-speech** (`openai/gpt-realtime`, via `llm: "pinecall/gpt-realtime"`)
@@ -33,18 +33,22 @@ Every STT, TTS and LLM model on Pinecall is one of two kinds:
 > **One key, both services:** an ElevenLabs (or Cartesia) key serves *both* that
 > vendor's TTS and STT. Pinecall already holds those keys for the managed TTS, so
 > their STT (ElevenLabs **Scribe**, Cartesia **Ink-Whisper**) is **also managed** —
-> no key needed.
+> no key needed. **Soniox** works the same way: one key covers its STT
+> (`stt-rt-v5`) *and* its TTS (`tts-rt-v1`), and Pinecall holds it — so both are
+> managed, with 63 languages and 28 voices available to every org.
 
 ## What requires your own key (BYOK)
 
 | Service | BYOK-only providers |
 |---|---|
-| **STT** | `assemblyai`, `soniox`, `xai` (Grok) |
-| **TTS** | `rime`, `soniox`, `xai` (Grok voices) |
+| **STT** | `assemblyai`, `xai` (Grok) |
+| **TTS** | `rime`, `xai` (Grok voices) |
 | **LLM** | `xai` (grok), `groq`, `cerebras`, `deepseek`, `openrouter` |
 
-> One key covers multiple services: a **Soniox** key = STT + TTS; an **xAI** key =
-> Grok **LLM + TTS + STT**.
+> One key covers multiple services: an **xAI** key = Grok **LLM + TTS + STT**.
+> You can still save your *own* Soniox key under Provider Keys — when present it
+> takes priority over Pinecall's, and that usage is billed by Soniox directly
+> instead of deducting your Pinecall credits.
 
 ## Check it from the API (authoritative, live)
 

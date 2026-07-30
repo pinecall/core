@@ -50,7 +50,7 @@ Skills live alongside global `tools`:
 
 ```typescript
 const agent = pc.agent("front-desk", {
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   voice: "elevenlabs/sarah",
   prompt: "You are the receptionist at Acme. Route the caller to the right skill.",
 

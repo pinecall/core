@@ -30,7 +30,7 @@ const lookupCustomer = tool({
 
 const agent = pc.agent("receptionist", {
   prompt: "You are a helpful receptionist. Be concise.",
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
@@ -52,7 +52,7 @@ const agent = pc.agent("my-bot", { voice: "cartesia/yumiko", language: "en" });
 agent.on("turn.end", async (turn, call) => {
   const stream = call.replyStream(turn);
   const completion = await openai.chat.completions.create({
-    llm: "openai/gpt-5-chat-latest",
+    llm: "openai/gpt-5.3-chat-latest",
     messages: [
       { role: "system", content: "You are helpful. Be concise." },
       { role: "user", content: turn.text },
@@ -91,7 +91,7 @@ A single `Pinecall` instance can host multiple agents, each with a different LLM
 ```typescript
 // Server-side agent for WhatsApp + phone
 const support = pc.agent("support", {
-  llm: "openai/gpt-5-chat-latest",
+  llm: "openai/gpt-5.3-chat-latest",
   stt: "deepgram/flux",
   prompt: "...",
   phoneNumber: "+13186330963",
