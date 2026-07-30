@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.3] — 2026-07-30 — Registration conflicts end
+
+### Added
+- **`AgentConflictError` — a registration conflict now has a TERMINAL state.**
+  Retrying a name that a live process legitimately owns is a storm, not
+  persistence, so the SDK now stops and says so:
+  - the server emits the new **`AGENT_CONFLICT_FATAL`** code (with
+    `holder_alive: true`) when its liveness probe *confirmed* the holder alive
+    — the SDK stops on the spot, no retry;
+  - a plain `AGENT_CONFLICT` is retried only while a stale registration could
+    still plausibly clear: a **total budget of 90s** (2× the server's 45s
+    stale-registration window, derived from `SERVER_LIVENESS_WINDOW_MS`) for
+    the whole episode, not a per-attempt cap. Exhausting it fails with the same
+    terminal error;
+  - `holder_alive: false` still resets to fast retries and restarts the budget;
+  - the failure is programmatic, not just a log line: an `AgentConflictError`
+    (`agentId`, `reason: "server_fatal" | "retry_budget_exhausted"`, code
+    `AGENT_CONFLICT_FATAL`) is emitted on the client's `error` event.
+  Compatible both ways, no coordinated deploy: an old SDK never sees the fatal
+  code and falls through to its existing `AGENT_CONFLICT` branch; a new SDK
+  against an old server applies the 90s budget on its own.
+
+### Fixed
+- **Registration conflicts no longer storm the server when the name is
+  actively held.** The 0.3.2 retry existed for STALE registrations (the server
+  frees those in ~1 min), but when a second LIVE process legitimately owns the
+  agent name, the constant-cadence retry re-shipped the full `agent.create`
+  payload (prompt, tools — tens of KB) every ~20-40s for hours. The SDK now
+  honors the server's structured rejection (`retry_after_s`, `holder_alive`):
+  - `holder_alive: true` → backoff grows toward a **10-minute cap** (with ±15%
+    jitter) instead of the 60s stale cap;
+  - `holder_alive: false` → retries reset to **fast** (the holder died, the
+    name is about to free up);
+  - the human-facing "already connected — run `pinecall kick <agent>`" banner
+    is printed **once per conflict episode** instead of on every attempt, and a
+    success after retries logs how many it took.
+  Fully backward compatible: against an old server (no hints) the legacy
+  5s→60s backoff applies, now with jitter; an old SDK against the new server
+  simply ignores the extra error fields.
+
 ## [0.3.2] — 2026-07-25
 
 ### Fixed

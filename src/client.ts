@@ -9,6 +9,7 @@
 
 import { TypedEventBus } from "./kernel/event-bus.js";
 import { noopLogger, fileLogger } from "./kernel/logger.js";
+import { planConflictRetry, CONFLICT_RETRY_BUDGET_MS } from "./kernel/backoff.js";
 import type { Logger } from "./kernel/logger.js";
 import { WebSocketTransport } from "./transport/websocket.js";
 import { Reconnector } from "./transport/reconnect.js";
@@ -104,6 +105,29 @@ export class PinecallError extends Error {
     }
 }
 
+/**
+ * Terminal registration conflict — the agent id is held by another LIVE
+ * process and retrying cannot change that.
+ *
+ * Emitted on the client's `error` event (so it is catchable programmatically,
+ * not just a log line) when either:
+ *   - the server answered `AGENT_CONFLICT_FATAL` (its liveness probe confirmed
+ *     the holder alive), or
+ *   - the retry budget (2× the server's stale-registration window) ran out.
+ */
+export class AgentConflictError extends PinecallError {
+    constructor(
+        message: string,
+        /** The agent id that could not be registered. */
+        public readonly agentId: string,
+        /** How the terminal state was reached. */
+        public readonly reason: "server_fatal" | "retry_budget_exhausted",
+    ) {
+        super(message, "AGENT_CONFLICT_FATAL");
+        this.name = "AgentConflictError";
+    }
+}
+
 // ─── Pinecall ────────────────────────────────────────────────────────────
 
 export class Pinecall extends TypedEventBus<PinecallEvents> {
@@ -124,7 +148,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     #transport: Transport | null = null;
     #pingInterval: ReturnType<typeof setInterval> | null = null;
     /** Registration-conflict retry state: agentId → attempt count + pending timer. */
-    readonly #registerRetries = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null }>();
+    readonly #registerRetries = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null; holderAlive: boolean; startedAt: number }>();
     #intentionalClose = false;
     #connected = false;
     #connectResolve: (() => void) | null = null;
@@ -426,21 +450,44 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
      *
      * The rejection is often transient: after a network blip or a process
      * restart, the server may briefly hold our own dead socket as "alive".
-     * Backoff: 5s → 10s → 20s → 40s, then every 60s — indefinitely, because
-     * the server frees stale registrations on its own and persistence wins.
-     * Cleared on agent.created/agent.resumed and on socket close (a full
-     * reconnect re-registers every agent anyway).
+     * A new server also tells us WHICH case we're in:
+     *   - `retry_after_s` (escalating server-side) is honored directly;
+     *   - `holder_alive: true` = a real second process owns the name — cap
+     *     grows to 10 min so we never storm the server for hours;
+     *   - `holder_alive: false` = the holder died — reset to fast retries.
+     * Against an old server (no hint) the legacy 5s→60s backoff applies,
+     * now with jitter. Cleared on agent.created/agent.resumed and on socket
+     * close (a full reconnect re-registers every agent anyway).
+     *
+     * Retries are BOUNDED: the whole episode gets CONFLICT_RETRY_BUDGET_MS
+     * (2× the server's stale-registration window) — enough for any stale
+     * registration to be reaped, and no more. Past it the conflict is
+     * terminal (see #failRegistration) instead of a forever-storm. A new
+     * server short-circuits this with AGENT_CONFLICT_FATAL; an old server
+     * never sends it, and the budget alone still ends the storm.
+     *
+     * Returns true when this is the FIRST conflict of the episode (the
+     * caller logs the human-facing banner exactly once).
      */
-    #scheduleRegisterRetry(agentId: string): void {
+    #scheduleRegisterRetry(agentId: string, hint?: { retryAfterS?: number; holderAlive?: boolean }): boolean {
         let state = this.#registerRetries.get(agentId);
+        const first = !state;
         if (!state) {
-            state = { attempt: 0, timer: null };
+            state = { attempt: 0, timer: null, holderAlive: false, startedAt: Date.now() };
             this.#registerRetries.set(agentId, state);
         }
-        if (state.timer) return; // retry already scheduled
+        if (state.timer) {
+            // A retry is already scheduled; still absorb a "holder died" hint.
+            if (hint?.holderAlive === false) state.holderAlive = false;
+            return first;
+        }
 
-        const delay = Math.min(5_000 * 2 ** state.attempt, 60_000);
-        state.attempt++;
+        const plan = planConflictRetry(state, hint, Date.now());
+        if (plan.action === "terminal") {
+            this.#failRegistration(agentId, "retry_budget_exhausted");
+            return first;
+        }
+        const delay = plan.delayMs;
 
         const timer = setTimeout(() => {
             state!.timer = null;
@@ -454,12 +501,46 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         (timer as any)?.unref?.();
         state.timer = timer;
 
-        this.#logger.warn(`Registration conflict for "${agentId}" — retrying in ${Math.round(delay / 1000)}s`);
+        const line = `Registration conflict for "${agentId}" — retrying in ${Math.round(delay / 1000)}s` +
+            (state.holderAlive ? " (name actively held elsewhere)" : "");
+        // First rejection gets a visible warn; the rest stay quiet (info) —
+        // a held name used to spam an error banner every attempt for hours.
+        if (first) this.#logger.warn(line);
+        else this.#logger.info(line);
+        return first;
+    }
+
+    /**
+     * Give up on a registration — the TERMINAL state for a conflict.
+     *
+     * Reached either because the server said the holder is provably alive
+     * (`AGENT_CONFLICT_FATAL`) or because the retry budget ran out. Drops the
+     * retry state (no further attempts) and surfaces a typed
+     * {@link AgentConflictError} on the client's `error` event so a developer
+     * can catch it — a log line alone is not an API.
+     */
+    #failRegistration(agentId: string, reason: "server_fatal" | "retry_budget_exhausted"): void {
+        const state = this.#registerRetries.get(agentId);
+        if (state?.timer) clearTimeout(state.timer);
+        this.#registerRetries.delete(agentId);
+
+        const why = reason === "server_fatal"
+            ? "the server confirmed another LIVE process holds it"
+            : `no registration after ${Math.round(CONFLICT_RETRY_BUDGET_MS / 1000)}s of retries — another LIVE process holds it`;
+        const message =
+            `Agent "${agentId}" could not be registered: ${why}. ` +
+            `Either run \`pinecall kick ${agentId}\` to disconnect the current holder, ` +
+            `or register this agent under a different id.`;
+        this.#logger.error(message);
+        this.emit("error", new AgentConflictError(message, agentId, reason));
     }
 
     #clearRegisterRetry(agentId: string): void {
         const state = this.#registerRetries.get(agentId);
         if (state?.timer) clearTimeout(state.timer);
+        if (state && state.attempt > 0) {
+            this.#logger.info(`Registration for "${agentId}" succeeded after ${state.attempt} retr${state.attempt === 1 ? "y" : "ies"}`);
+        }
         this.#registerRetries.delete(agentId);
     }
 
@@ -523,7 +604,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
                 _emitWire: (event, ...args) => (this as any).emit(event, ...args),
                 _getAgent: (id) => this.#agents.get(id),
                 _allAgents: () => [...this.#agents.values()],
-                _scheduleRegisterRetry: (id) => this.#scheduleRegisterRetry(id),
+                _scheduleRegisterRetry: (id, hint) => this.#scheduleRegisterRetry(id, hint),
+                _failRegisterRetry: (id) => this.#failRegistration(id, "server_fatal"),
                 _clearRegisterRetry: (id) => this.#clearRegisterRetry(id),
             },
         };

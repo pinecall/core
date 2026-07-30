@@ -42,18 +42,52 @@ export class ErrorHandler implements EventHandler {
         // 1-minute blip into an hours-long outage — so we retry with backoff
         // until the server frees the stale registration (or forever, if a real
         // second instance owns the slug — then `pinecall kick` resolves it).
+        // AGENT_CONFLICT_FATAL is the exception: the server's liveness probe
+        // just CONFIRMED the holder alive. That is a terminal state — retrying
+        // it is a storm, so we stop immediately and say what to do instead.
         if (
             code === "AGENT_IN_USE" || code === "AGENT_CONFLICT" ||
-            errorMsg.includes("AGENT_IN_USE")
+            code === "AGENT_CONFLICT_FATAL" || errorMsg.includes("AGENT_IN_USE")
         ) {
             const agentId = wire.agent_id as string | undefined;
-            console.error(
-                `\n  \x1b[91m✗\x1b[0m Agent "${agentId || "?"}" is already connected.\n` +
-                `    Retrying registration automatically (stale registrations clear in ~1 min).\n` +
-                `    If another live instance owns it, run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m.\n`,
-            );
+
+            if (code === "AGENT_CONFLICT_FATAL") {
+                console.error(
+                    `\n  \x1b[91m✗\x1b[0m Agent "${agentId || "?"}" is held by a LIVE process — not retrying.\n` +
+                    `    Run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m to disconnect the current holder,\n` +
+                    `    or register this agent under a different id.\n`,
+                );
+                // The client hook emits the typed AgentConflictError itself;
+                // only fall back to a plain error when it isn't wired.
+                if (agentId && ctx.client._failRegisterRetry) {
+                    ctx.client._failRegisterRetry(agentId);
+                } else {
+                    ctx.client._emitWire("error", new Error(errorMsg));
+                }
+                return true;
+            }
+
+            // Structured guidance from a new server (old servers omit both).
+            const retryAfterS = wire.retry_after_s as number | undefined;
+            const holderAlive = wire.holder_alive as boolean | undefined;
+            const hint = retryAfterS != null || holderAlive != null
+                ? { retryAfterS, holderAlive }
+                : undefined;
+
+            let first: boolean | void = true;
             if (agentId) {
-                ctx.client._scheduleRegisterRetry?.(agentId);
+                first = ctx.client._scheduleRegisterRetry?.(agentId, hint);
+            }
+            // Log the human-facing banner ONCE per conflict episode — a name
+            // actively held elsewhere used to spam this every attempt for hours.
+            if (first !== false) {
+                console.error(
+                    `\n  \x1b[91m✗\x1b[0m Agent "${agentId || "?"}" is already connected` +
+                    (holderAlive ? " (held by a LIVE process)" : "") + `.\n` +
+                    `    Retrying registration automatically with backoff` +
+                    (holderAlive ? " (up to 10 min between attempts)" : " (stale registrations clear in ~1 min)") + `.\n` +
+                    `    If another live instance owns it, run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m.\n`,
+                );
             }
             ctx.client._emitWire("error", new Error(errorMsg));
             return true;
