@@ -179,6 +179,8 @@ export type {
     TokenResponse,
     FetchWebRTCTokenOptions,
     CreateTokenOptions,
+    TokenScope,
+    TokenScopeOptions,
 } from "./api/tokens.js";
 
 export { fetchTwilioBalance, fetchBalance } from "./api/balance.js";

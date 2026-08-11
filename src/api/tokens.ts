@@ -21,7 +21,28 @@ export interface FetchWebRTCTokenOptions {
     apiKey?: string;
 }
 
-export interface CreateTokenOptions {
+/**
+ * Token scope (CALL_LOG_SPEC.md §5).
+ *
+ *  · `observe`     read-only: the call log, nothing else. Agent-scoped (all
+ *                  its calls) or call-scoped (one, via `callId`).
+ *  · `participate` media + log — what today's webrtc/chat tokens already are.
+ *  · `supervise`   observe + the control verbs of §7.
+ *
+ * Optional and additive: omitting it mints exactly the token this SDK has
+ * always minted (§8 — `createToken("webrtc"|"chat")` keeps working).
+ */
+export type TokenScope = "observe" | "participate" | "supervise";
+
+/** Extra, optional token attributes. Absent ⇒ today's behavior, byte-identical. */
+export interface TokenScopeOptions {
+    /** §5 scope. Absent ⇒ the server's channel default. */
+    scope?: TokenScope;
+    /** Narrow an `observe`/`supervise` token to a single call. */
+    callId?: string;
+}
+
+export interface CreateTokenOptions extends TokenScopeOptions {
     channel: "webrtc" | "chat" | "stream";
     agentId: string;
     apiKey: string;
@@ -77,6 +98,15 @@ export async function createToken(opts: CreateTokenOptions): Promise<TokenRespon
     let url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(opts.agentId)}`;
     if (opts.metadata && Object.keys(opts.metadata).length > 0) {
         url += `&metadata=${encodeURIComponent(JSON.stringify(opts.metadata))}`;
+    }
+    // Additive (spec §5/§8): a call without scope/callId produces the exact
+    // same URL as before this parameter existed — pinned by a URL snapshot
+    // test in tests/token-url.test.ts.
+    if (opts.scope) {
+        url += `&scope=${encodeURIComponent(opts.scope)}`;
+    }
+    if (opts.callId) {
+        url += `&call_id=${encodeURIComponent(opts.callId)}`;
     }
 
     let res: Response;
