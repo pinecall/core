@@ -35,6 +35,12 @@
  * everything seen (the live case) folds incrementally in O(1); an
  * out-of-order or backfilled entry rebuilds, which is what correctness
  * costs and what makes in-order === shuffled === resumed.
+ *
+ * ── Immutability ─────────────────────────────────────────────────────────
+ * State is produced by structural sharing, never by mutation: an apply
+ * yields a new state object, new arrays, and new objects for exactly the
+ * entries it changed. Reference equality on a message therefore MEANS "this
+ * line did not change" — the contract a memoized transcript line depends on.
  */
 
 import type {
@@ -203,13 +209,33 @@ function mergeUserTurn(
         if (messages[i]!.role === "bot") { botAfter = true; break; }
     }
     if (lastUser >= 0 && !botAfter) {
-        const m = messages[lastUser]!;
+        const m = cow(messages, lastUser);
         m.text = text;
         m.interim = interim;
         m.id = id;
         return;
     }
     messages.push({ seq, role: "user", text, id, interim });
+}
+
+/**
+ * Copy-on-write: replace `list[i]` with a shallow copy and return it, so the
+ * caller mutates the copy and never an object a consumer already holds.
+ *
+ * Structural sharing of the touched path, not a deep clone — untouched
+ * siblings keep their references. This matters because the hottest render
+ * path in the whole system is word-by-word typing (`bot.word`), where the
+ * obvious consumer optimization is a memoized transcript line keyed on the
+ * message object. Mutating in place under a stable reference makes that line
+ * freeze mid-sentence while the text underneath keeps changing; a fresh
+ * ARRAY reference does not help, because the memo never looks at the array.
+ * VoiceSession got this right by replacing the tail object per word, so the
+ * reducer that supersedes it must not regress there.
+ */
+function cow<T extends object>(list: T[], i: number): T {
+    const copy = { ...list[i]! };
+    list[i] = copy;
+    return copy;
 }
 
 /** Tool args arrive parsed or as a JSON string, depending on the provider. */
@@ -289,7 +315,16 @@ export class CallLogView {
      */
     constructor(private readonly retain = 10_000) {}
 
-    /** Read-only snapshot. Reference changes on every state-affecting apply. */
+    /**
+     * Read-only snapshot, safe to retain and to compare by reference.
+     *
+     * Every state-affecting apply produces a new state object, new
+     * `messages`/`toolCalls`/`turns` arrays, and new objects for exactly the
+     * entries that changed — untouched siblings keep their identity. So
+     * `prev.messages[3] === next.messages[3]` is a truthful "this line did
+     * not change", which is what makes a memoized transcript line correct
+     * rather than merely fast.
+     */
     get state(): Readonly<CallLogState> {
         return this.#state;
     }
@@ -491,7 +526,7 @@ export class CallLogView {
                     });
                     this.#reindex(ctx, messages);
                 } else {
-                    const m = messages[idx]!;
+                    const m = cow(messages, idx);
                     if (entry.data.text) m.text = entry.data.text;
                     if (words) m.words = words;
                     m.speaking = true;
@@ -517,7 +552,7 @@ export class CallLogView {
                 } else {
                     // Never clobber an authoritative bot.speaking.text with a
                     // partial word buffer.
-                    const m = messages[idx]!;
+                    const m = cow(messages, idx);
                     if (!m.corrected && buf.length > 0 && m.text.length <= text.length) {
                         m.text = text;
                     }
@@ -531,12 +566,13 @@ export class CallLogView {
             case "bot.finished": {
                 const idx = ctx.botIndex.get(entry.data.id);
                 if (idx !== undefined) {
-                    const m = messages[idx]!;
-                    m.speaking = false;
-                    // The LLM went straight to a tool call: drop the phantom bubble.
-                    if (!m.text) {
+                    // The LLM went straight to a tool call: drop the phantom
+                    // bubble rather than copying it only to remove it.
+                    if (!messages[idx]!.text) {
                         messages.splice(idx, 1);
                         this.#reindex(ctx, messages);
+                    } else {
+                        cow(messages, idx).speaking = false;
                     }
                 }
                 state.botSpeaking = false;
@@ -547,7 +583,7 @@ export class CallLogView {
             case "bot.interrupted": {
                 const idx = ctx.botIndex.get(entry.data.id);
                 if (idx !== undefined) {
-                    const m = messages[idx]!;
+                    const m = cow(messages, idx);
                     m.speaking = false;
                     m.interrupted = true;
                 }
@@ -561,7 +597,7 @@ export class CallLogView {
                 // An event, not a mutation — replay reaches the same place.
                 const idx = ctx.bySeq.get(entry.data.supersedes);
                 if (idx !== undefined) {
-                    const m = messages[idx]!;
+                    const m = cow(messages, idx);
                     m.text = entry.data.text;
                     m.corrected = true;
                 } else {
@@ -668,9 +704,9 @@ export class CallLogView {
                         done: true,
                     });
                 }
-                for (const m of messages) {
-                    if (m.toolCallId === entry.data.id) {
-                        m.text = entry.data.error
+                for (let i = 0; i < messages.length; i++) {
+                    if (messages[i]!.toolCallId === entry.data.id) {
+                        cow(messages, i).text = entry.data.error
                             ? `${entry.data.name} failed`
                             : `${entry.data.name}`;
                     }

@@ -199,6 +199,105 @@ describe("CallLogView — the one reducer", () => {
     });
 });
 
+/**
+ * Structural sharing. This test IS the documentation of the contract the
+ * React consumer depends on: reference equality on a message means "this
+ * line did not change". Without it, a memoized transcript line keyed on the
+ * message object freezes mid-sentence during word-by-word typing — the
+ * hottest render path in the system — because the text mutates under a
+ * stable reference and the memo never re-renders.
+ */
+describe("CallLogView — copy-on-write / structural sharing", () => {
+    /** Apply one entry and report which message references survived. */
+    function applyAndDiff(upTo: number, next: AnyLogEntry) {
+        const view = new CallLogView();
+        view.applyAll(entries.slice(0, upTo));
+        const before = view.state;
+        const beforeMsgs = [...before.messages];
+        view.apply(next);
+        const after = view.state;
+        const changed = after.messages
+            .map((m, i) => (m === beforeMsgs[i] ? null : i))
+            .filter((i): i is number => i !== null);
+        return { before, after, beforeMsgs, changed };
+    }
+
+    it("replaces ONLY the message a bot.word touches", () => {
+        const wordIdx = entries.findIndex((e) => e.type === "bot.word");
+        expect(wordIdx).toBeGreaterThan(0);
+        expect(entries[wordIdx + 1]!.type).toBe("bot.word");
+        const { before, after, beforeMsgs, changed } = applyAndDiff(
+            wordIdx + 1,           // through the first bot.word
+            entries[wordIdx + 1]!, // apply the second
+        );
+        // exactly one line changed identity, and it is the bot bubble
+        expect(changed).toHaveLength(1);
+        const i = changed[0]!;
+        expect(after.messages[i]!.role).toBe("bot");
+        expect(after.messages[i]).not.toBe(beforeMsgs[i]);
+        expect(after.messages[i]!.text).not.toBe(beforeMsgs[i]!.text);
+        // every other line kept its exact reference
+        for (let k = 0; k < beforeMsgs.length; k++) {
+            if (k !== i) expect(after.messages[k]).toBe(beforeMsgs[k]);
+        }
+        // and the containers themselves are new
+        expect(after).not.toBe(before);
+        expect(after.messages).not.toBe(before.messages);
+    });
+
+    it("never mutates a snapshot a consumer already holds", () => {
+        const view = new CallLogView();
+        const wordIdx = entries.findIndex((e) => e.type === "bot.word");
+        view.applyAll(entries.slice(0, wordIdx + 1));
+        const held = view.state;
+        const heldLine = held.messages[held.messages.length - 1]!;
+        const frozenText = heldLine.text;
+        const frozenLength = held.messages.length;
+
+        view.applyAll(entries.slice(wordIdx + 1));
+
+        // The retained snapshot is exactly as it was handed out.
+        expect(heldLine.text).toBe(frozenText);
+        expect(held.messages).toHaveLength(frozenLength);
+        expect(held.messages[held.messages.length - 1]).toBe(heldLine);
+        expect(held.phase).not.toBe(view.state.phase);
+    });
+
+    it("replaces only the touched toolCall, leaving turns untouched", () => {
+        const resultIdx = entries.findIndex((e) => e.type === "tool.result");
+        const view = new CallLogView();
+        view.applyAll(entries.slice(0, resultIdx));
+        const beforeTools = [...view.state.toolCalls];
+        const beforeTurns = [...view.state.turns];
+        view.apply(entries[resultIdx]!);
+        expect(view.state.toolCalls[0]).not.toBe(beforeTools[0]);
+        expect(view.state.toolCalls[0]!.done).toBe(true);
+        view.state.turns.forEach((t, i) => {
+            if (i < beforeTurns.length) expect(t).toBe(beforeTurns[i]);
+        });
+    });
+
+    it("changes the identity of a corrected line and of nothing else", () => {
+        const corrIdx = entries.findIndex((e) => e.type === "bot.corrected");
+        const { after, beforeMsgs, changed } = applyAndDiff(corrIdx, entries[corrIdx]!);
+        expect(changed).toHaveLength(1);
+        const i = changed[0]!;
+        expect(after.messages[i]!.id).toBe("b2");
+        expect(after.messages[i]!.text).toBe("It arrives on Thursday.");
+        expect(beforeMsgs[i]!.text).toBe("It arrives on Tuesday.");
+    });
+
+    it("leaves every reference alone when an entry is deduped", () => {
+        const view = new CallLogView();
+        view.applyAll(entries);
+        const before = view.state;
+        const beforeMsgs = [...before.messages];
+        expect(view.apply(entries[10]!)).toBe(false);
+        expect(view.state).toBe(before);
+        view.state.messages.forEach((m, i) => expect(m).toBe(beforeMsgs[i]));
+    });
+});
+
 describe("forward compatibility (§1)", () => {
     it("ignores unknown types instead of rejecting them", () => {
         const view = new CallLogView();
