@@ -19,6 +19,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./log": {
+      "import": {
+        "types": "./dist/log/index.d.ts",
+        "default": "./dist/log/index.js"
+      },
+      "require": {
+        "types": "./dist/log/index.d.cts",
+        "default": "./dist/log/index.cjs"
+      }
     }
   },
   "files": [
@@ -63,6 +73,7 @@
   "devDependencies": {
     "@types/node": "^25.4.0",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.27.7",
     "mock-socket": "^9.3.1",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
