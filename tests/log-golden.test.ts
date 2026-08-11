@@ -182,6 +182,11 @@ describe("CallLogView — the one reducer", () => {
         const merged = new CallLogView();
         merged.applyAll(b.entries());   // tail first, on purpose
         merged.applyAll(a.entries());
+        // §5 (amended): entries() carries only durable facts — control
+        // markers are transport signals and are not re-served. A merged
+        // view's caught-up-ness comes from ITS OWN transport, so deliver it:
+        const marker = entries.find((e) => e.type === "log.caught_up")!;
+        merged.apply(marker);
         expect(merged.state).toEqual(inOrder);
     });
 
@@ -195,7 +200,12 @@ describe("CallLogView — the one reducer", () => {
             if (view.apply(e)) applied++;
         }
         expect(applied).toBe(entries.length);
-        expect(view.entries().map((e) => e.seq)).toEqual(entries.map((e) => e.seq));
+        // §5 (amended): control markers are dispatched, never STORED —
+        // entries() is the resume payload and carries only durable facts.
+        const durable = entries.filter(
+            (e) => e.type !== "log.caught_up" && e.type !== "log.gap",
+        );
+        expect(view.entries().map((e) => e.seq)).toEqual(durable.map((e) => e.seq));
     });
 });
 

@@ -358,6 +358,24 @@ export class CallLogView {
         if (!isLogEntry(entry)) return false;
         // §1: unknown types MUST be ignored, not rejected.
         if (!isKnownLogEntry(entry)) return false;
+
+        // §5: control markers are FULL envelopes whose seq REPEATS the last
+        // seq delivered — the dedupe below would swallow them, and storing
+        // them would poison entries(), which is the resume payload. Dispatch
+        // immediately; never store, never advance the cursor.
+        if (entry.type === "log.caught_up" || entry.type === "log.gap") {
+            this.#state = {
+                ...this.#state,
+                messages: [...this.#state.messages],
+                toolCalls: [...this.#state.toolCalls],
+                turns: [...this.#state.turns],
+            };
+            this.#step(this.#state, this.#ctx, entry);
+            this.#finish(this.#state, this.#ctx);
+            for (const fn of this.#listeners) fn(this.#state);
+            return true;
+        }
+
         // §1: consumers MUST dedupe by seq — transports overlap.
         if (this.#entries.has(entry.seq)) return false;
 
@@ -417,6 +435,11 @@ export class CallLogView {
         const ctx = emptyContext();
         for (const entry of this.entries()) this.#step(state, ctx, entry);
         this.#finish(state, ctx);
+        // Control-frame state (§5) is a TRANSPORT signal, not a log fact:
+        // markers are never stored, so a rebuild cannot re-derive them.
+        // Carry the transport's last word across.
+        state.caughtUp = this.#state.caughtUp;
+        state.gaps = this.#state.gaps;
         this.#state = state;
         this.#ctx = ctx;
     }
