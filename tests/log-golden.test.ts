@@ -223,13 +223,29 @@ describe("CallLogView — copy-on-write / structural sharing", () => {
     }
 
     it("replaces ONLY the message a bot.word touches", () => {
+        // Synthetic live-typing sequence, deliberately NOT fixture-derived: the
+        // fixture's bot.speaking carries its final text (§4 replay fidelity),
+        // so a fixture bubble's text does not change when a word arrives. Live
+        // typing starts from an empty utterance — model exactly that.
         const wordIdx = entries.findIndex((e) => e.type === "bot.word");
         expect(wordIdx).toBeGreaterThan(0);
-        expect(entries[wordIdx + 1]!.type).toBe("bot.word");
-        const { before, after, beforeMsgs, changed } = applyAndDiff(
-            wordIdx + 1,           // through the first bot.word
-            entries[wordIdx + 1]!, // apply the second
-        );
+        const bubble = {
+            ...entries[wordIdx - 1]!,
+            data: { ...(entries[wordIdx - 1]!.data as object), text: "" },
+        } as AnyLogEntry;
+        const synthetic = [...entries.slice(0, wordIdx - 1), bubble, entries[wordIdx]!];
+        const { before, after, beforeMsgs, changed } = (() => {
+            const view = new CallLogView();
+            view.applyAll(synthetic);
+            const b = view.state;
+            const bm = [...b.messages];
+            view.apply(entries[wordIdx + 1]!); // the second bot.word
+            const a = view.state;
+            const ch = a.messages
+                .map((m, i) => (m === bm[i] ? null : i))
+                .filter((i): i is number => i !== null);
+            return { before: b, after: a, beforeMsgs: bm, changed: ch };
+        })();
         // exactly one line changed identity, and it is the bot bubble
         expect(changed).toHaveLength(1);
         const i = changed[0]!;
