@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`@pinecall/sdk/log` — the Call Log contract as a subpath you can ship to a
+  browser.** A call is an append-only log of entries with a per-call monotonic
+  `seq`; live, late, reconnecting, replaying and history are all just cursors
+  over that one log, so there is one envelope and one reducer instead of a
+  shape per consumer.
+  - **`LogEntry`** — the envelope (`seq`, `ts`, `type`, `data`, call/agent ids)
+    and **`LOG_EVENT_TYPES`**, a **closed vocabulary**: `call.*`, `user.*`,
+    `bot.*`, `turn.*`, `tool.*`, `docs.sources`, `skill`, `audio.metrics`,
+    `handoff`, `supervisor`, `log.gap`, `log.caughtUp`. An entry whose `type`
+    is not in the vocabulary is not an error — `isKnownLogEntry` narrows,
+    `UnknownLogEntry` keeps it, so a newer server never breaks an older client.
+  - **`CallLogView`** (and `createCallLogView`) — THE reducer. Entries in,
+    `CallLogState` out: phase, messages, turns, tool calls, metrics, intent.
+    Updates are **copy-on-write** — only the arrays and objects an entry
+    actually touches are replaced, so `prev.messages !== next.messages` is a
+    correct and cheap render guard for React and friends. Out-of-order and
+    duplicate entries are handled by `seq`; a gap is reported, not guessed.
+  - The subpath imports nothing outside `src/log/**`, has **zero runtime
+    dependencies and no node builtins** — asserted by a test, not by intent —
+    so it costs a browser bundle nothing but the reducer.
+  - Behaviour is pinned by `fixtures/call-log-golden.json`, a fixture shared
+    verbatim with `@pinecall/web`: both packages reduce the same bytes and must
+    agree.
+- **`createToken({ scope, callId })` — read-only observers.** `scope: "observe"`
+  mints a token that can read a call log and nothing else, agent-scoped (every
+  call of an agent) or narrowed to one call with `callId`. Purely additive: a
+  call with neither option produces the exact URL it produced before.
+- **`EventStream` resumes from a cursor instead of restarting.** `seq` IS the
+  cursor, so a reconnect now asks the server for `after=<highest seq seen>` and
+  the stream deduplicates anything at or below it. `after` seeds the cursor from
+  one you persisted across page loads; `resume: false` opts out. A server that
+  knows nothing about cursors is unaffected — the parameter is only appended on
+  RE-connects, never on the first one.
+
+### Changed
+- **`channel: "stream"` now means something.** The channel and its
+  `/stream/token` endpoint have been in this map for a while with nothing on
+  the other side; with call-log v3 on the server the minted token is the one
+  the log endpoints and the observer socket actually accept. The SDK's
+  channel→endpoint map is untouched — what changed is that it now leads
+  somewhere. Requires a server carrying call-log v3.
+
 ---
 
 ## [0.3.3] — 2026-07-30 — Registration conflicts end
