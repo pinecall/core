@@ -404,7 +404,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
      */
     async createToken(
         channel: "webrtc" | "chat" | "stream",
-        agentId: string,
+        agentId: string | readonly string[],
         metadata?: Record<string, unknown>,
         opts?: TokenScopeOptions,
     ): Promise<TokenResponse> {

@@ -100,3 +100,31 @@ describe("createToken — scope and callId (§5)", () => {
         );
     });
 });
+
+describe("createToken — the agent set (§5 visibility)", () => {
+    const API = "https://api.example.test";
+
+    it("a single agent mints today's byte-identical URL", async () => {
+        const cap = captureURL();
+        await createToken({ channel: "stream", agentId: "lucia", apiKey: "sk_x", apiUrl: API });
+        expect(cap.urls[0]).toBe(`${API}/stream/token?agent_id=lucia`);
+    });
+
+    it("an agent set serializes comma-separated, order preserved", async () => {
+        const cap = captureURL();
+        await createToken({ channel: "stream", agentId: ["lucia", "bruno"], apiKey: "sk_x", apiUrl: API });
+        expect(cap.urls[0]).toBe(`${API}/stream/token?agent_id=lucia%2Cbruno`);
+    });
+
+    it("a set with scope keeps the set first, scope after", async () => {
+        const cap = captureURL();
+        await createToken({
+            channel: "stream",
+            agentId: ["lucia", "bruno"],
+            apiKey: "sk_x",
+            apiUrl: API,
+            scope: "observe",
+        });
+        expect(cap.urls[0]).toBe(`${API}/stream/token?agent_id=lucia%2Cbruno&scope=observe`);
+    });
+});

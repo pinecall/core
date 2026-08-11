@@ -44,7 +44,13 @@ export interface TokenScopeOptions {
 
 export interface CreateTokenOptions extends TokenScopeOptions {
     channel: "webrtc" | "chat" | "stream";
-    agentId: string;
+    /**
+     * One agent slug — or a non-empty list: the AGENT SET this token may see
+     * (CALL_LOG_SPEC.md §5, "VISIBILITY — the agent set"). Minted per logged
+     * session by YOUR backend, sealed in the token: the browser cannot widen
+     * it. Stream tokens only; media channels take one agent.
+     */
+    agentId: string | readonly string[];
     apiKey: string;
     apiUrl?: string;
     /**
@@ -95,7 +101,12 @@ export async function createToken(opts: CreateTokenOptions): Promise<TokenRespon
         stream: "/stream/token",
     };
     const endpoint = endpoints[opts.channel] || "/webrtc/token";
-    let url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(opts.agentId)}`;
+    // An agent SET serializes comma-separated — the server authorizes each
+    // slug through the same gate a single mint uses, then seals the set.
+    const agentParam = Array.isArray(opts.agentId)
+        ? opts.agentId.join(",")
+        : (opts.agentId as string);
+    let url = `${apiUrl}${endpoint}?agent_id=${encodeURIComponent(agentParam)}`;
     if (opts.metadata && Object.keys(opts.metadata).length > 0) {
         url += `&metadata=${encodeURIComponent(JSON.stringify(opts.metadata))}`;
     }
