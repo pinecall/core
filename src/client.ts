@@ -54,6 +54,7 @@ import type { ServerResponse } from "node:http";
 
 // REST API
 import { createToken as createTokenApi } from "./api/tokens.js";
+import type { TokenScopeOptions } from "./api/tokens.js";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -317,7 +318,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         );
 
         agent._setClient({
-            createToken: (channel, agentId, metadata) => this.createToken(channel, agentId, metadata),
+            createToken: (channel, agentId, metadata, opts) => this.createToken(channel, agentId, metadata, opts),
         });
 
         this.#agents.set(id, agent);
@@ -394,10 +395,18 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
     // ── Token generation ─────────────────────────────────────────────────
 
+    /**
+     * Mint a short-lived browser token.
+     *
+     * `opts` (optional, spec §5) narrows the token: `{ scope: "observe",
+     * callId }` mints a read-only Call Log token for a single call. Omitting
+     * it mints exactly the token this method has always minted.
+     */
     async createToken(
         channel: "webrtc" | "chat" | "stream",
         agentId: string,
         metadata?: Record<string, unknown>,
+        opts?: TokenScopeOptions,
     ): Promise<TokenResponse> {
         return createTokenApi({
             channel,
@@ -405,6 +414,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             apiKey: this.#apiKey,
             apiUrl: this.#apiUrl,
             metadata,
+            ...(opts?.scope ? { scope: opts.scope } : {}),
+            ...(opts?.callId ? { callId: opts.callId } : {}),
         });
     }
 

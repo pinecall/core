@@ -22,7 +22,7 @@ import type { AgentConfig, ChannelConfig, WhatsAppChannelConfig } from "../confi
 import type { Tool } from "../tool.js";
 import type { Skill, SkillConfig } from "../skill.js";
 import { skill as makeSkill } from "../skill.js";
-import type { TokenResponse } from "../api/tokens.js";
+import type { TokenResponse, TokenScopeOptions } from "../api/tokens.js";
 import type {
     CallStartedEvent,
     SpeechStartedEvent,
@@ -130,7 +130,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     #devCallers: string[] = [];
     /** @internal Reference to parent Pinecall client (for createToken). */
     #client: {
-        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>) => Promise<TokenResponse>;
+        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>, opts?: TokenScopeOptions) => Promise<TokenResponse>;
     } | null = null;
 
     /** @internal — created by Pinecall.agent() */
@@ -389,6 +389,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     async createToken(
         channel: "webrtc" | "chat" | "stream",
         metadata?: Record<string, unknown>,
+        opts?: TokenScopeOptions,
     ): Promise<TokenResponse> {
         if (!this.#client) {
             throw new Error(
@@ -396,12 +397,12 @@ export class Agent extends TypedEventBus<AgentEvents> {
                 "Use pc.createToken(channel, agentId) instead.",
             );
         }
-        return this.#client.createToken(channel, this.id, metadata);
+        return this.#client.createToken(channel, this.id, metadata, opts);
     }
 
     /** @internal Set the parent Pinecall client reference. */
     _setClient(client: {
-        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>) => Promise<TokenResponse>;
+        createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>, opts?: TokenScopeOptions) => Promise<TokenResponse>;
     }): void {
         this.#client = client;
     }

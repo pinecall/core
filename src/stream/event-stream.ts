@@ -34,9 +34,36 @@ export interface EventStreamOptions {
     reconnect?: boolean;
     /** Maximum reconnect attempts. Default: 10 */
     maxReconnectAttempts?: number;
+    /**
+     * Cursor to start from on the FIRST connect (CALL_LOG_SPEC.md §5).
+     * Reconnects always resume from the highest `seq` actually seen, so this
+     * is only for resuming a cursor you persisted across page loads.
+     */
+    after?: number;
+    /**
+     * Opt out of cursor resume. Default: false (resume is on).
+     * With `false`, a reconnect asks the server for `after=<lastSeq>` and the
+     * client drops anything at or below that seq — zero lost, zero
+     * duplicated (§10.3).
+     */
+    noResume?: boolean;
 }
 
-export type EventStreamStatus = "idle" | "connecting" | "connected" | "error";
+/**
+ * `caught_up` and `gap` are Call Log statuses (spec §3/§5), surfaced
+ * first-class rather than left buried in the message stream: `caught_up`
+ * means the backlog is drained and what follows is live; `gap` means the
+ * server DECLARED it cannot serve contiguously from the requested cursor
+ * (anti-Slack rule) — it is never inferred and never papered over. Both are
+ * transient: the stream returns to `connected` right after.
+ */
+export type EventStreamStatus =
+    | "idle"
+    | "connecting"
+    | "connected"
+    | "caught_up"
+    | "gap"
+    | "error";
 
 type EventHandler = (data: Record<string, unknown>) => void;
 
@@ -49,14 +76,27 @@ export class EventStream {
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private pingTimer: ReturnType<typeof setInterval> | null = null;
     private destroyed = false;
+    /** Highest Call Log `seq` seen. The resume cursor (§1: seq IS the cursor). */
+    private _lastSeq = 0;
+    /** False until the first connect completes — `after=` is for RE-connects. */
+    private hasConnected = false;
 
     constructor(private opts: EventStreamOptions) {
+        if (typeof opts.after === "number") this._lastSeq = opts.after;
         this.connect();
     }
 
     /** Current connection status. */
     get status(): EventStreamStatus {
         return this._status;
+    }
+
+    /**
+     * The cursor: the highest `seq` this stream has delivered. Persist it to
+     * resume across page loads via `after`.
+     */
+    get lastSeq(): number {
+        return this._lastSeq;
     }
 
     /** Listen for a specific agent event. Use "*" for all events. */
@@ -110,6 +150,7 @@ export class EventStream {
 
             ws.onopen = () => {
                 this.reconnectAttempt = 0;
+                this.hasConnected = true;
                 this.setStatus("connected");
                 this.pingTimer = setInterval(() => {
                     if (ws.readyState === WebSocket.OPEN) {
@@ -121,8 +162,29 @@ export class EventStream {
             ws.onmessage = (e) => {
                 try {
                     const msg = JSON.parse(typeof e.data === "string" ? e.data : "");
-                    const event = msg.event as string;
+                    // Legacy stream frames carry `event`; Call Log envelopes
+                    // carry `type` (spec §1). One socket, both shapes.
+                    const event = (msg.event ?? msg.type) as string;
                     if (!event) return;
+
+                    // §1: consumers MUST dedupe by seq. After a resume the
+                    // server may re-send from the last checkpoint it knows;
+                    // anything at or below our cursor was already delivered.
+                    const seq = msg.seq;
+                    if (typeof seq === "number" && this.opts.noResume !== true) {
+                        if (seq <= this._lastSeq) return;
+                        this._lastSeq = seq;
+                    }
+
+                    // §3/§5 statuses. Surfaced, then back to `connected` —
+                    // they are moments in the stream, not connection states.
+                    if (event === "log.caught_up") {
+                        this.setStatus("caught_up");
+                        this.setStatus("connected");
+                    } else if (event === "log.gap") {
+                        this.setStatus("gap");
+                        this.setStatus("connected");
+                    }
 
                     const handlers = this.handlers.get(event);
                     if (handlers) for (const h of handlers) h(msg);
@@ -157,7 +219,7 @@ export class EventStream {
     private async resolveURL(): Promise<string> {
         // Direct URL mode — connect to your own server
         if (this.opts.url) {
-            return this.opts.url;
+            return this.withCursor(this.opts.url);
         }
 
         // Token mode — build URL from token + agent
@@ -171,7 +233,23 @@ export class EventStream {
         let url = `${wsBase}/ws/stream?token=${encodeURIComponent(token)}`;
         if (this.opts.agent) url += `&agent=${encodeURIComponent(this.opts.agent)}`;
         if (this.opts.sessionId) url += `&session=${encodeURIComponent(this.opts.sessionId)}`;
-        return url;
+        return this.withCursor(url);
+    }
+
+    /**
+     * Append the resume cursor — on RE-connects only (§5: "reconnect = same
+     * URL with the last seen seq"). The first connect is left byte-identical
+     * to what this SDK has always sent, unless the caller explicitly passed
+     * `after`, so a server that knows nothing about cursors is unaffected.
+     */
+    private withCursor(url: string): string {
+        if (this.opts.noResume === true) return url;
+        const firstConnectWithExplicitAfter =
+            !this.hasConnected && typeof this.opts.after === "number";
+        if (!this.hasConnected && !firstConnectWithExplicitAfter) return url;
+        if (this._lastSeq <= 0) return url;
+        const sep = url.includes("?") ? "&" : "?";
+        return `${url}${sep}after=${this._lastSeq}`;
     }
 
     private setStatus(s: EventStreamStatus): void {
