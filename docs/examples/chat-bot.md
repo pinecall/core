@@ -180,5 +180,5 @@ The same agent handles **both** text (chat) and voice (WebRTC) automatically. Sa
 
 - [`@pinecall/web/chat` reference](/web/chat/overview) — full ChatSession API
 - [Browser Widget example](/examples/browser-widget) — the voice equivalent with interactive tool UI
-- [SSE Event Streaming](/guides/sse-streaming) — build a live dashboard
+- [The Call Log](/guides/call-log) — build a live dashboard over this agent's conversations
 

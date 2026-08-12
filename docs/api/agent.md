@@ -51,6 +51,44 @@ const agent = pc.agent("my-agent", {
 
 See [Reference → Providers](/reference/stt-providers) for full provider configs.
 
+## Registration
+
+`pc.agent()` returns **synchronously** — it only queues `agent.create` on the socket. The agent exists server-side once the server acks it, and only then can it be reached from outside your process (token mints, inbound routing).
+
+### `ready`
+
+`Promise<void>` that resolves when the **server** has acknowledged the registration. Await it before anything that needs the agent to exist server-side.
+
+```typescript
+const agent = pc.agent("recepcion", { prompt });
+await agent.ready;                    // the server now knows this agent
+```
+
+Rejects with `AgentConflictError` if the registration is terminally refused (the id is held by another **live** process — run `pinecall kick <id>` or pick another id). Goes back to pending if the socket drops, and resolves again once the reconnect re-registers the agent.
+
+Rejects with `ServerAtCapacityError` if the server's client-slot ceiling refused the registration. Nothing is wrong with your agent — the **server** is full:
+
+```typescript
+import { ServerAtCapacityError } from "@pinecall/sdk";
+
+try {
+    await agent.ready;
+} catch (err) {
+    if (err instanceof ServerAtCapacityError) {
+        console.error(`server full: ${err.used}/${err.limit} slots`);
+        // `pinecall agents` lists the holders; free one, then retry.
+    }
+}
+```
+
+> Worth knowing, because it used to be invisible: when a registration is refused for capacity, the agent never appears server-side, so a token mint for it answers `404 Agent '<id>' is not online`. That 404 is a *consequence*, not the cause — always read the registration error first.
+
+### `registered`
+
+`boolean` — whether the server has acked the registration right now.
+
+> You rarely need either one: `createToken()` already waits for the ack internally, so a register-then-mint sequence works without any delay on your side. Await `ready` when *you* need to know, or to surface a registration failure to your caller.
+
 ## Phone numbers
 
 ### `addPhoneNumber(number, config?)`
@@ -166,6 +204,8 @@ const token = await agent.createToken("webrtc");
 // { token, server, expiresIn }
 ```
 
+Safe to call immediately after `pc.agent()`: the mint waits for the agent's [registration ack](#ready) first, so it can't race ahead of the registration and come back `Agent '<id>' is not online`. If the agent is never registered (socket down, id held by a live process) the call **fails** rather than minting a token that would 404.
+
 **Sealed session metadata** — pass a second argument to bake trusted context into the token:
 
 ```typescript
@@ -247,9 +287,11 @@ const call = agent.call("CA7ec...");
 
 ## Observability
 
+The canonical way to observe this agent's calls — live, late, or after the fact — is the **[call log](/guides/call-log)**: mint a stream token (`pc.createToken("stream", agent.id)`) and attach from any process or browser, with replay and cursor resume.
+
 ### `stream(res?)`
 
-Open an SSE stream of this agent's events. Same shape as `pc.stream()` but scoped to one agent.
+Open an **in-process** SSE stream of this agent's events (no replay, no cursor — the client must share this process's HTTP server). Same shape as `pc.stream()` but scoped to one agent.
 
 ```typescript
 app.get("/events", () => agent.stream());
@@ -266,6 +308,8 @@ Subscribe via `agent.on(event, handler)`. All call-scoped events include `call` 
 |---|---|---|
 | `call.started` | `(call)` | New call connected |
 | `call.ended` | `(call, reason)` | Call disconnected |
+| `call.preparing` | `(call)` | Before every LLM generation — the server holds the turn while your handler refreshes per-turn `{{vars}}`. Return a promise and it waits for it. See [the guide](/guides/events#call-preparing). |
+| `call.preparingTimeout` | `(event, call)` | The `preparing` budget expired and the turn rendered with the previous values |
 
 ### User speech
 

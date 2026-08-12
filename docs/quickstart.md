@@ -179,6 +179,7 @@ No webhook URL to expose. No manual event handler. Just a function that runs in 
 
 ## Where to go next
 
+- **Build a full app, step by step** → [Guides → Build a live call app](/guides/build-a-live-call-app)
 - **Build a real phone agent** → [Guides → Inbound Voice](/guides/inbound-voice)
 - **Build a WhatsApp bot** → [Guides → WhatsApp](/guides/whatsapp)
 - **Understand the architecture** → [Concepts → Agents and Channels](/concepts/agents-and-channels)

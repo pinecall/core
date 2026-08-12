@@ -180,6 +180,8 @@ call.unmute();
 
 Stream call events as Server-Sent Events to an HTTP response. Used for "Call Me" flows where the browser needs a live transcript of an outbound call.
 
+> For observing calls in general — including ones this process didn't dial — prefer the [call log](/guides/call-log): it works from any process and survives reconnects with a cursor. `streamSSE` remains handy for the narrow "dial + pipe this one call to this one response" flow.
+
 ```typescript
 app.post("/api/call-me", async (req, res) => {
   const call = await agent.dial({
@@ -218,7 +220,7 @@ call.setPrompt("You are now in escalation mode. Be more formal.");
 
 ### `setPromptVars(vars)`
 
-Set `{{variable}}` values in the prompt template.
+Set `{{variable}}` values in the prompt template, for this call.
 
 ```typescript
 await call.setPromptVars({
@@ -226,6 +228,16 @@ await call.setPromptVars({
   tier: "premium",
 });
 ```
+
+Highest precedence: these beat the agent-level `promptVars` and stay set until
+you overwrite them. Inside a [`call.preparing`](/guides/events#call-preparing)
+handler this is the per-turn contract — `await` it (or return the promise) and
+the server holds the generation until it lands.
+
+Resolves with the resulting message count. **Rejects** if the server never
+acknowledges the request (`REQUEST_TIMEOUT` after 10 s) or refuses it
+(`REQUEST_REJECTED`, e.g. the call has no server-side LLM). Not awaiting it is
+safe — a rejection you never look at cannot crash the process.
 
 ### `addContext(text)`
 

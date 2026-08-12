@@ -113,6 +113,8 @@ Each number can override `language`, `stt`, `voice`, and `ringing`. The agent pr
 | Build a phone agent | [Guides → Inbound Voice](/guides/inbound-voice) |
 | Build a WhatsApp bot | [Guides → WhatsApp](/guides/whatsapp) |
 | Embed voice in your web app | [Guides → WebRTC in the browser](/guides/webrtc-browser) |
+| Watch calls live in a dashboard | [Guides → The Call Log](/guides/call-log) |
+| Build a full app, step by step | [Guides → Build a live call app](/guides/build-a-live-call-app) |
 | Use realtime speech-to-speech | [Guides → Realtime speech](/guides/realtime-speech) |
 | Look up a method | [API Reference](/api/pinecall) |
 | Tune STT, TTS, or the LLM | [Reference → Providers](/reference/stt-providers) |

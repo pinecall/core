@@ -43,8 +43,10 @@ app.get("/api/token", async (req, res) => {
   res.json(token);
 });
 
-// SSE event stream
-app.get("/events", (req, res) => mara.stream(res));
+// Observer token — lets a dashboard watch mara's calls via the call log
+app.get("/api/observer-token", async (req, res) => {
+  res.json(await pc.createToken("stream", "mara"));
+});
 
 app.listen(3000, () => console.log("http://localhost:3000"));
 ```

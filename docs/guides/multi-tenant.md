@@ -5,7 +5,7 @@ description: "Host many tenants on one Pinecall instance with scoped event strea
 
 # Multi-Tenant Dashboards
 
-A common pattern: you're building a SaaS where each customer has their own agents, and each customer's dashboard should only show their own calls. Pinecall's SSE filtering handles this server-side — no data leakage between tenants.
+A common pattern: you're building a SaaS where each customer has their own agents, and each customer's dashboard should only show their own calls. Pinecall handles this server-side — no data leakage between tenants. The canonical mechanism is the **[call log](/guides/call-log) stream token's agent set**: a token minted for a tenant lists exactly the agents that tenant may observe, sealed in the token's signature so the browser cannot widen it.
 
 This guide has two parts: **(1)** injecting the logged-in user's identity into the agent via **sealed token metadata** (the recommended multi-tenant pattern), and **(2)** scoping each tenant's dashboard event stream.
 
@@ -63,17 +63,24 @@ const agent = pc.agent("lumi", {
   llm: "anthropic/claude-haiku-4-5",
   tools: [listAppointments, bookAppointment], // each reads call.metadata (below)
   history: myHistoryStore,                     // persist/restore per user+thread
+  preparing: true,                             // hold each turn while pushVars runs
 });
 
 // Fill per-session prompt vars from the sealed metadata before each turn.
-const pushVars = (call) => {
+// `await` it: with `preparing` set, the server holds the generation until this
+// lands, so the values are the ones THIS turn is answered with.
+const pushVars = async (call) => {
   const m = call.metadata;                      // { companyId, userId, role, ... } — trusted
-  call.setPromptVars({
+  await call.setPromptVars({
     SESSION: `<session><user>${esc(m.userName)}</user><role>${esc(m.role)}</role></session>`,
   });
 };
 agent.on("call.preparing", pushVars);
 agent.on("call.started", pushVars);
+
+// The barrier is bounded, and a missed budget is an EVENT, not silence.
+agent.on("call.preparingTimeout", (e) =>
+  console.warn(`turn ${e.turn} rendered with stale vars (${e.waitedMs}/${e.budgetMs}ms)`));
 ```
 
 ```typescript
@@ -97,9 +104,36 @@ const listAppointments = tool({
 
 > **Sealed metadata works the same on every channel** — mint with `pc.createToken("webrtc"|"chat", agentId, metadata)` (or `agent.createToken(channel, metadata)`), then consume it in the browser via a `tokenProvider` on `new ChatSession({ agent, tokenProvider })` / `new VoiceSession({ agent, tokenProvider })`. It always surfaces as `call.metadata`. ⚠️ The `<VoiceWidget metadata={{...}} />` / `VoiceSession({ metadata })` prop is the **client-set, forgeable** variant — fine for UI hints, but seal anything you authorize on into the token. See [`createToken`](/api/pinecall) and [Conversation History](/guides/conversation-history) (persist/restore per user via metadata).
 
-## The pattern
+## Scoped dashboards: the stream token's agent set — recommended
 
-Each tenant owns one or more agents. When a tenant loads their dashboard, the SSE endpoint streams only events from their agents.
+Each tenant owns one or more agents. When a tenant loads their dashboard, your backend mints a **stream token** listing exactly the agents that tenant owns:
+
+```typescript
+app.get("/api/observer-token", authMiddleware, async (req, res) => {
+  const tenant = await db.tenants.findOne(req.auth.tenantId);
+  if (!tenant?.agents?.length) return res.status(403).end();
+
+  // The agent SET is sealed into the token's signature —
+  // the browser cannot add an agent to it.
+  const token = await pc.createToken("stream", tenant.agents);
+  res.json(token); // { token, server }
+});
+```
+
+The browser then observes with the `@pinecall/web/log` hooks — the list of live calls, the transcripts, all scoped to the sealed set:
+
+```tsx
+import { useAgentCalls, useCall } from "@pinecall/web/log/react";
+
+const { calls, live } = useAgentCalls(tenantAgent, { token, server });
+const s = useCall({ call: selected, token, server });
+```
+
+Isolation is **agent topology**: one agent (or a few) per tenant, and a token covers a call iff the call's agent is in its sealed set. A tenant holding another tenant's call id gets a `403` — the id grants nothing. This works from any topology (the dashboard talks to the voice server directly, not to your agent process) and survives reconnects with cursor resume. See [The Call Log](/guides/call-log).
+
+## Scoped in-process SSE (embedded topology only)
+
+If your agent and web server share a process, `pc.stream()`'s `agents` filter is a lighter alternative — no token mint, but no replay, no cursor, and it only works embedded.
 
 ![Multi-tenant SSE scoping](/assets/diagrams/multi-tenant-sse.png)
 
@@ -243,6 +277,6 @@ A single `Pinecall` instance handles dozens to hundreds of agents on one WebSock
 
 ## What's next
 
-- [Deployment topologies](/concepts/deployment-topologies) — embedded is required for SSE
+- [The Call Log](/guides/call-log) — the observation model behind stream tokens
+- [Deployment topologies](/concepts/deployment-topologies) — where each mechanism applies
 - [Security](/security) — token model details
-- [Events reference](/reference/events) — all events available over SSE

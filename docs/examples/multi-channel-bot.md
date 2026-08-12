@@ -123,15 +123,15 @@ app.get("/api/token", async (req, res) => {
   res.json(token);
 });
 
-// ---- Live event stream for dashboard ----
-app.get("/api/events", (req, res) => {
-  support.stream(res);
+// ---- Observer token: a dashboard watches this agent via the call log ----
+app.get("/api/observer-token", async (req, res) => {
+  res.json(await pc.createToken("stream", "acme-support"));
 });
 
 app.listen(3000, () => {
   console.log("Support bot live on phone, WhatsApp, and WebRTC");
   console.log("Token endpoint: http://localhost:3000/api/token");
-  console.log("Event stream:   http://localhost:3000/api/events");
+  console.log("Observer token: http://localhost:3000/api/observer-token");
 });
 ```
 

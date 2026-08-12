@@ -52,7 +52,7 @@ agent.on("event.name", (event, call) => {
 **Lifecycle events, in brief:**
 
 - `call.started` — a **voice** call connected (phone or WebRTC). *(Chat → `chat.started`, WhatsApp → `whatsapp.started`.)*
-- `call.preparing` — fires **before every LLM generation** (voice, chat, **and WhatsApp**). Use it to refresh per-turn prompt variables that must be current on every turn — fresh date/time, format rules — via `call.setPromptVars()`. The server waits ~150ms for your handler before it builds the prompt and calls the LLM, so variables are always just-in-time fresh (even in long-lived WhatsApp sessions).
+- `call.preparing` — fires **before every LLM generation** (voice, chat, **and WhatsApp**). Use it to refresh per-turn prompt variables that must be current on every turn — fresh date/time, live CRM state, a catalog — via `call.setPromptVars()`. The server **holds the turn** while your handler runs. Add `preparing: true` to the agent config to get a budget that survives a real network round trip; see [`call.preparing`](#call-preparing) below.
 - `call.ended` — the call finished; the `Call` is fully populated (`duration`, `endedAt`, `messages`, `transcript`).
 - `call.ringing` — an inbound call is ringing; call `accept()` or `reject()` before it connects.
 - `call.forwarded` — the call was transferred to another number/agent.
@@ -86,18 +86,73 @@ agent.on("call.started", (call) => {
 
 ### `call.preparing`
 
-Fires before **every** LLM generation — voice, chat, and WhatsApp. Use it to refresh prompt variables that need to be current on every turn (dates, format rules, etc.).
+Fires before **every** LLM generation — voice, chat, and WhatsApp. The server is
+holding the turn open for you: refresh anything the reply must be computed
+from, then let the handler finish.
 
 ```javascript
-agent.on("call.preparing", (call) => {
-  call.setPromptVars({
-    date_block: buildFreshDate(),
-    format_rules: call.transport === "phone" ? VOICE_FORMAT : CHAT_FORMAT,
+const agent = pc.agent("front-desk", {
+  prompt: "…{{TODAY}}…{{OPEN_TICKETS}}…",
+  preparing: true,                       // ← opt in: a real budget, and a loud failure
+});
+
+agent.on("call.preparing", async (call) => {
+  await call.setPromptVars({
+    TODAY: todayIn(call.metadata.tz),
+    OPEN_TICKETS: await crm.openTickets(call.metadata.userId),
   });
 });
 ```
 
-The server waits briefly (~150ms) for your handler to finish before proceeding with the LLM call.
+**Make the handler `async` and `await` your work.** The SDK waits for the
+promise your handler returns before telling the server to go ahead, so
+everything you pushed lands on *this* generation. A synchronous handler works
+too — it just finishes sooner.
+
+#### The budget
+
+| `preparing` | Budget | Behaviour |
+|---|---|---|
+| omitted | 150 ms | Legacy. After a few turns with no answer the server stops waiting at all — right for the majority of agents, which have no `call.preparing` handler. |
+| `true` | 1500 ms | Opt-in. Missing it emits `call.preparingTimeout`. |
+| `{ timeoutMs: N }` | `N` (max 5000) | Your own ceiling. |
+| `false` | 0 | The server never even signals. The cheapest option. |
+
+The budget is a **ceiling, not a delay**: the turn resumes the instant your
+handler settles, so a 20 ms handler costs 20 ms even with a 5 s budget. The wait
+also overlaps knowledge-base retrieval, so a KB-backed agent often spends
+nothing extra at all.
+
+Two things make the first turn work. On chat and WhatsApp the server fires
+`call.preparing` **at session open**, seconds before the first message, so your
+values are already in place when it arrives. And `promptVars` in the agent
+config seeds every variable at registration, so nothing can ever render as a
+literal `{{VAR}}`.
+
+<Warning>
+Per-turn values set with `call.setPromptVars()` **always win** over the
+agent-level `promptVars`, and they stay until you overwrite them. That is what
+makes a long-lived WhatsApp session keep the values it computed.
+</Warning>
+
+### `call.preparingTimeout`
+
+The server gave up waiting and generated with the previous values. Only fires
+for agents that opted in with `preparing` — silence here used to be the failure
+mode, and an app had no way to detect it.
+
+```javascript
+agent.on("call.preparingTimeout", (e, call) => {
+  metrics.increment("preparing.timeout");
+  logger.warn(`turn ${e.turn} rendered stale: ${e.waitedMs}ms of ${e.budgetMs}ms`);
+});
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `turn` | `number` | Turn counter, as the server numbers it |
+| `waitedMs` | `number` | How long the server actually waited |
+| `budgetMs` | `number` | The budget it was allowed |
 
 ### `call.ended`
 
@@ -658,9 +713,13 @@ Here's the complete sequence of events during a typical voice exchange:
 
 ---
 
-## SSE events
+## Observing events from outside the process
 
-When streamed over SSE (via `pc.stream()` or `agent.stream()`), each event has an `event:` field and a JSON `data:` body:
+Everything above is the **in-process** view: your agent's `on()` handlers. To observe the same facts from a *different* process or a browser — dashboards, monitors, history — use the [call log](/guides/call-log): every event becomes a stamped, replayable log entry (`seq` cursor, `WS /v1/attach`), readable live or after the fact with a stream token.
+
+## SSE events (in-process)
+
+When streamed over in-process SSE (via `pc.stream()` or `agent.stream()` — no cursor, no replay), each event has an `event:` field and a JSON `data:` body:
 
 ```
 event: user.message
@@ -678,6 +737,7 @@ SSE streams include: `call.started`, `bot.speaking`, `bot.word`, `message.confir
 
 ## What's next
 
+- [The Call Log](/guides/call-log) — the same events, observable from any process
 - [Events Reference](/reference/events) — compact type signatures for all events
 - [Call API](/api/call) — methods to call in response to events
 - [Turn Detection](/concepts/turn-detection) — how turn modes affect event timing
