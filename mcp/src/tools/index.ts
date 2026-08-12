@@ -16,6 +16,7 @@ import docsSearch from "./docs-search.js";
 import knowledge from "./knowledge.js";
 import listAgents from "./list-agents.js";
 import configureAgent from "./configure-agent.js";
+import chat from "./chat.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
@@ -24,6 +25,7 @@ export const tools: ToolModule<any>[] = [
     knowledge,
     listAgents,
     configureAgent,
+    chat,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";

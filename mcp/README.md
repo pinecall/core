@@ -8,6 +8,9 @@ from the call log.
 > Status: foundation. Today it ships `whoami`, `set_api_key`, `docs_search` and `knowledge`;
 > the rest of the journey (`list_models`, `list_voices`, `list_phones`, `list_agents`,
 > `configure_agent`, `chat`, `list_calls` / `get_call`) lands tool by tool.
+> Status: in progress. Today it ships `whoami`, `set_api_key` and `chat`; the rest of the
+> journey (`docs_search`, `list_models`, `list_voices`, `list_phones`, `list_agents`,
+> `configure_agent`, `list_calls` / `get_call`, `knowledge`) lands tool by tool.
 
 ## Install
 
@@ -46,6 +49,12 @@ returned by a tool — every outbound error string is scrubbed (`Session.redact`
 | `set_api_key(key)` | store a key for this session, in memory. Returns `{ ok, verified, org }` — never the key. |
 | `docs_search(query, limit?)` | semantic search over the Pinecall docs KB — retriever only, no LLM. Returns `[{ title, path, snippet, score }]`. Search before guessing an API shape, and cite the `path`. |
 | `knowledge(action, kb?, …)` | knowledge bases (RAG): `list` the org's KBs, `query` one for ranked chunks, `push` `[{path, content}]` docs into one. Push is idempotent by path; re-training is automatic. The client supplies document content — the server never reads local files. |
+| `chat(agent, message, session?, timeoutSeconds?)` | say something to an agent, get its reply: `{ reply, session, toolCalls? }`. Pass `session` back to continue the conversation with its history. Works against dev **and** prod agents — it only talks, it never mutates. Turns are capped (30s default), so an offline agent or a stalled model comes back as an error, never a hang. |
+
+**Testing is chatting.** There is deliberately no spec-runner tool: to check behaviour, ask
+the agent what a real caller would ask and read the transcript. `chat` reuses the very
+WebSocket client the CLI's `pinecall chat` / `pinecall test` use (`llm.chat` protocol) —
+no second implementation of the protocol exists.
 
 Every tool also ships its own **manual**, and the server's `instructions` field is assembled
 from the journey playbook plus those manuals — so a tool cannot drift from its documentation.
