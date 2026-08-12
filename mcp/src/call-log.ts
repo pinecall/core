@@ -106,6 +106,40 @@ export async function fetchLogPage(
     return { entries: Array.isArray(page.entries) ? page.entries : [], live: page.live, next: page.next };
 }
 
+/** Safety rail on the page loop — an agent log is small, but never unbounded. */
+const MAX_AGENT_PAGES = 20;
+
+/**
+ * Read an agent's lifecycle log whole (`GET /v1/agents/{slug}/calls`), paging
+ * to the end, and say where the end IS.
+ *
+ * `head` is what makes `observe(agent)` able to start "from now": attaching
+ * with `after = head` gets the next call that starts and not a replay of every
+ * call the agent ever took. Shared by `list_calls` and `observe` — one answer
+ * to "what has this agent done", not two.
+ */
+export async function readAgentLog(
+    session: Session,
+    server: string,
+    token: string,
+    agent: string,
+): Promise<{ entries: AnyLogEntry[]; head: number }> {
+    const entries: AnyLogEntry[] = [];
+    let after = 0;
+    for (let page = 0; page < MAX_AGENT_PAGES; page++) {
+        const res = await fetchLogPage(session, server, `/v1/agents/${encodeURIComponent(agent)}/calls`, {
+            token,
+            after,
+        });
+        if (res.entries.length === 0) break;
+        entries.push(...res.entries);
+        const next = res.next ?? maxSeq(res.entries, after);
+        if (next <= after) break; // no progress — the log is exhausted
+        after = next;
+    }
+    return { entries, head: after };
+}
+
 /** Highest seq in a page, or the cursor we came in with if the page was empty. */
 export function maxSeq(entries: readonly AnyLogEntry[], fallback: number): number {
     let out = fallback;

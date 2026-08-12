@@ -8,11 +8,7 @@
 
 import { z } from "zod";
 import { defineTool } from "./types.js";
-import { fetchLogPage, maxSeq, mintStreamToken, reduceAgentLog } from "../call-log.js";
-import type { AnyLogEntry } from "../../../src/log/types.js";
-
-/** Safety rail on the page loop — an agent log is small, but never unbounded. */
-const MAX_PAGES = 20;
+import { mintStreamToken, readAgentLog, reduceAgentLog } from "../call-log.js";
 
 export default defineTool({
     name: "list_calls",
@@ -28,19 +24,7 @@ export default defineTool({
         const limit = args.limit ?? 20;
         const { token, server } = await mintStreamToken(session, args.agent);
 
-        const entries: AnyLogEntry[] = [];
-        let after = 0;
-        for (let page = 0; page < MAX_PAGES; page++) {
-            const res = await fetchLogPage(session, server, `/v1/agents/${encodeURIComponent(args.agent)}/calls`, {
-                token,
-                after,
-            });
-            if (res.entries.length === 0) break;
-            entries.push(...res.entries);
-            const next = res.next ?? maxSeq(res.entries, after);
-            if (next <= after) break; // no progress — the log is exhausted
-            after = next;
-        }
+        const { entries } = await readAgentLog(session, server, token, args.agent);
 
         let calls = reduceAgentLog(entries);
         if (args.live) calls = calls.filter((c) => c.live);

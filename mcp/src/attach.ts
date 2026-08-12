@@ -63,19 +63,47 @@ export interface AttachResult {
     live?: boolean;
 }
 
-/** A close that is not the normal end of a quiet poll — surfaced, never swallowed. */
+/**
+ * The server REFUSING — a 4xxx application close. Surfaced, never swallowed.
+ *
+ * ⚠️ 1006 is NOT this. 1006 is "abnormal closure, no close frame was received":
+ * what a socket reports when the peer or an intermediary drops it without
+ * saying anything — exactly what happens to an idle agent-log connection. It
+ * carries no server intent at all, so treating it as a refusal turned every
+ * quiet `observe(agent)` into an error (tk-8f3277, seen on a live call).
+ * Silence is silence: it answers `{ timedOut: true }`.
+ */
 export class AttachClosedError extends Error {
     readonly code: number;
     constructor(code: number, reason: string, target: AttachTarget) {
         const what = target.call ? `call ${target.call}` : `agent ${target.agent}`;
         super(
-            `The call log closed the connection for ${what} (code ${code}${reason ? `: ${reason}` : ""}). ` +
-            `Codes in the 4000s are the server refusing: an expired or wrong-scope stream token, ` +
-            `or an id the token's agent set does not cover. Retry — the token is minted fresh each call.`,
+            `The call log refused the connection for ${what} (${reason || `code ${code}`}). ` +
+            `That is the server saying no: an expired or wrong-scope stream token, or an id the ` +
+            `token's agent set does not cover. Retry — the token is minted fresh each call.`,
         );
         this.name = "AttachClosedError";
         this.code = code;
     }
+}
+
+/**
+ * Does this frame carry the server's refusal?
+ *
+ * ⚠️ Measured against voice.pinecall.io, NOT assumed: a bad token does not get
+ * a 4xxx close at all — the server sends `{"error":"Invalid or expired token"}`
+ * and then closes **1000**, the politest code there is. So the close code alone
+ * cannot tell a refusal from a quiet log in either direction: 1006 is silence
+ * that looked like a refusal, and 1000-after-an-error-frame is a refusal that
+ * looks like silence. The FRAME is the signal; the 4xxx range is kept as a
+ * refusal too, for any deployment that does use it.
+ */
+function refusalText(value: Record<string, any>): string | undefined {
+    // A log entry is `{seq, type, data, …}`; the refusal frame has no `type` at
+    // all, so an entry that merely reports an error in its payload is not one.
+    if (typeof value.type === "string") return undefined;
+    if (typeof value.error === "string" && value.error) return value.error;
+    return undefined;
 }
 
 export function attachUrl(t: AttachTarget): string {
@@ -86,6 +114,18 @@ export function attachUrl(t: AttachTarget): string {
     if (t.agent) url.searchParams.set("agent", t.agent);
     url.searchParams.set("after", String(t.after));
     return url.toString();
+}
+
+/**
+ * Is this close code the server refusing us?
+ *
+ * Only the 4000–4999 private range is: those are chosen and sent by the
+ * application. 1006 in particular is synthesized by the WebSocket layer itself
+ * when the connection died without a close frame — nobody said anything, so it
+ * cannot mean "no".
+ */
+export function isRefusal(code: number): boolean {
+    return code >= 4000 && code <= 4999;
 }
 
 /** `log.caught_up` / `log.gap` repeat a seq and mean "state", not "news". */
@@ -108,6 +148,8 @@ export function attachOnce(
     return new Promise<AttachResult>((resolve, reject) => {
         const entries: AnyLogEntry[] = [];
         let live: boolean | undefined;
+        /** The server's own "no", if it sent one. */
+        let refusal: string | undefined;
         let settled = false;
         let connected = false;
 
@@ -165,6 +207,15 @@ export function attachOnce(
             }
             if (!entry || typeof entry !== "object") return;
 
+            // The refusal frame. Nothing can follow it — the server closes right
+            // after — so answer with the reason now rather than waiting out a
+            // budget that will produce nothing.
+            const refused = refusalText(entry as Record<string, any>);
+            if (refused) {
+                refusal = refused;
+                return finish({ error: new AttachClosedError(0, refused, target) });
+            }
+
             // Some deployments open with a small `{live}` hello rather than an
             // entry. Take the hint and drop it — it carries no seq.
             if (typeof (entry as any).live === "boolean" && (entry as any).type === undefined) {
@@ -184,14 +235,21 @@ export function attachOnce(
 
         ws.on("close", (code: number, reasonBuf: Buffer) => {
             const hasNews = entries.some((e) => !isControl(e));
-            // A normal close after news (or a server that hangs up politely on
-            // an ended call) is an answer; a refusal is not.
-            if (hasNews || code === 1000 || code === 1001 || code === 1005) return done(!hasNews);
-            finish({ error: new AttachClosedError(code, String(reasonBuf ?? ""), target) });
+            // Only a 4xxx code is the SERVER speaking — an application close it
+            // chose to send (bad token, wrong scope, an id outside the token's
+            // agent set). Everything else — 1000/1001/1005 and above all 1006,
+            // the "dropped without a close frame" pseudo-code — is the transport
+            // ending, which for a log with nothing to say is an ANSWER.
+            if (hasNews || !(refusal || isRefusal(code))) return done(!hasNews);
+            finish({ error: new AttachClosedError(code, refusal ?? String(reasonBuf ?? ""), target) });
         });
 
         ws.on("error", (err: Error) => {
             if (entries.some((e) => !isControl(e))) return done(false);
+            // Same reasoning one layer down: once the socket was UP, a transport
+            // error (ECONNRESET on an idle poll) is silence, not a refusal. A
+            // failure before `open` is a real connection problem and still throws.
+            if (connected) return done(true);
             finish({ error: err });
         });
     });

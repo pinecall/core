@@ -114,7 +114,7 @@ Fourteen tools, listed in journey order — the same order they appear in the se
 | `list_phones(free?)` | every number with its owner — `{ number, agent, live, dev_override?, country, inInventory }` plus `{ total, free, assigned }`. `agent: null` is the only free one. |
 | `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
 | `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
-| `observe(call_id? \| agent?, after?, waitSeconds?)` | the **live** half: a long poll over the log. Holds one WS open and returns the moment entries past `after` arrive — same reduced shape as `get_call`. Nothing happening returns `{ timedOut: true }` with the cursor unmoved, never an error. With `agent` it returns when a call **starts**, handing back its id. |
+| `observe(agent? \| call_id?, after?, call_after?, waitSeconds?)` | the **live** half: a long poll over the log. Holds one WS open and returns the moment entries past `after` arrive — same reduced shape as `get_call`. Nothing happening returns `{ timedOut: true }` with the cursor unmoved, never an error. With `agent` it is the **whole loop**: it waits for a call to start, answers with that call's id *and* its first entries, then keeps streaming that call's transcript on the following calls, then goes back to waiting when it ends — `following` says which log it is on. |
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). Every row carries `usable` — managed, or the org has that provider's BYOK key. |
@@ -138,9 +138,22 @@ call cannot be pushed to, so "live" is a long poll: it attaches to `WS /v1/attac
 as soon as the log says something, and **closes the socket before returning** — the cursor
 is the only state, so nothing is held between calls and an abandoned loop leaks nothing.
 Loop it while a human talks to the agent, feeding `nextAfter` back each time; `timedOut`
-means only that nothing happened, so call again with the same cursor. Start on `agent` when
-you do not have a call id yet — it returns the instant one starts. Then `get_call` for the
-finished transcript, which is why both answer in the same shape.
+means only that nothing happened, so call again with the same cursor.
+
+**One loop, not two.** `observe(agent)` does the whole job, so a caller never has to poll
+one log for an id and then start a second loop over another: with nothing running it tails
+the agent's lifecycle log *from now*; when a call starts, that same answer already carries
+`call` **and** the call's first entries; from then on the identical `observe(agent, after)`
+tails **that call's** log, so the transcript streams turn by turn; when the call ends it
+goes back to waiting for the next one. `following` (`"agent"` / `"call"`) says where it is,
+`callAfter` exposes the call-log cursor for a caller that wants to drive it itself
+(`call_after`, or `observe(call_id)` directly). Then `get_call` for the finished transcript,
+which is why all of them answer in the same shape.
+
+⚠️ A quiet agent-log socket is dropped by the server without a close frame, which surfaces
+as WebSocket code **1006**. That is silence, not a refusal: only a `4xxx` code means the
+server said no, and only that raises. Classifying 1006 as a refusal made every `observe`
+on an idle agent throw and end the caller's loop.
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). Every row carries `usable` — managed, or the org has that provider's BYOK key. |

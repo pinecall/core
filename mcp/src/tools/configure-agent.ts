@@ -72,11 +72,7 @@ export default defineTool({
         "Create or hot-reload a DEV agent (slug must start with dev-) and hold it live for this session, so chat and calls can reach it.",
     schema,
     manual:
-        "A re-configure REPLACES the config: resend every field you still want. A non-`dev-` slug is refused. " +
-        "Held (`heldBySession`) for this session. No `tools` param: code tools need an SDK process (`pinecall run`) — `docs_search` it. " +
-        "`phoneNumber` is verified against live routing — the server silently refuses (`PHONE_IN_USE`) a number another `dev-` " +
-        "agent holds. `routed:false` → `routedTo` answers, not you: take a free `list_phones` number. Relay `dialThisNumber` to the " +
-        "human; never dial null.",
+        "A re-configure REPLACES the config: resend every field you still want. Non-`dev-` refused; `heldBySession` for this session. No `tools` param — code tools need an SDK process (`run_agent` / `pinecall run`, `docs_search` it). `phoneNumber` is verified against live routing: the server refuses (`PHONE_IN_USE`) a number another dev agent holds, so `routed:false` + `routedTo` means take a free `list_phones` number. Relay `dialThisNumber`; never invite a call when it is null.",
     async handler(args: any, { session }) {
         const slug = String(args.slug ?? "").trim();
         if (!slug.startsWith(DEV_PREFIX)) throw new ProdSlugRefused(slug);
