@@ -51,6 +51,7 @@ returned by a tool — every outbound error string is scrubbed (`Session.redact`
 | `whoami` | the org this key belongs to — name, slug, plan, credits. The auth probe: call it first. |
 | `set_api_key(key)` | store a key for this session, in memory. Returns `{ ok, verified, org }` — never the key. |
 | `docs_search(query, limit?)` | semantic search over the Pinecall docs KB — retriever only, no LLM. Returns `[{ title, path, snippet, score }]`. Search before guessing an API shape, and cite the `path`. |
+| `get_doc(path)` | the WHOLE docs page behind a `docs_search` hit, as markdown: `{ path, title, markdown, truncated }`. The `.md` is optional (`guides/call-log`). Same KB `docs_search` queries, so the two cannot disagree. An unknown path returns `{ error, path, suggestions }`, never a crash. |
 | `knowledge(action, kb?, …)` | knowledge bases (RAG): `list` the org's KBs, `query` one for ranked chunks, `push` `[{path, content}]` docs into one. Push is idempotent by path; re-training is automatic. The client supplies document content — the server never reads local files. |
 | `chat(agent, message, session?, timeoutSeconds?)` | say something to an agent, get its reply: `{ reply, session, toolCalls? }`. Pass `session` back to continue the conversation with its history. Works against dev **and** prod agents — it only talks, it never mutates. Turns are capped (30s default), so an offline agent or a stalled model comes back as an error, never a hang. |
 
