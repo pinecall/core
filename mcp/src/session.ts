@@ -102,7 +102,35 @@ export class Session {
     redact(text: string): string {
         let out = text;
         if (this.#apiKey) out = out.split(this.#apiKey).join("[redacted]");
+        for (const secret of this.#secrets) out = out.split(secret).join("[redacted]");
         return out.replace(/\bpk_[A-Za-z0-9_-]{6,}/g, "pk_[redacted]");
+    }
+
+    /**
+     * Secrets that are NOT the Pinecall key but pass through this process for
+     * the length of one tool call — a provider key handed to `byok('set')`.
+     * They must be scrubbed from anything outbound exactly like the API key is,
+     * and they must not outlive the call, so registration is scoped: the secret
+     * is added before `fn` runs and removed in `finally`, whether it threw or not.
+     */
+    #secrets = new Set<string>();
+
+    async withSecret<T>(secret: string, fn: () => Promise<T>): Promise<T> {
+        const value = (secret ?? "").trim();
+        // A trivially short "secret" would turn common substrings into [redacted].
+        const track = value.length >= 6;
+        if (track) this.#secrets.add(value);
+        try {
+            return await fn();
+        } catch (err) {
+            // The envelope in server.ts redacts too, but it runs AFTER this scope
+            // has dropped the secret — so an error carrying the key must be
+            // scrubbed here, while the secret is still registered.
+            const message = err instanceof Error ? err.message : String(err);
+            throw new Error(this.redact(message));
+        } finally {
+            if (track) this.#secrets.delete(value);
+        }
     }
 
     /** GET on the voice server — reuses the SDK's apiFetch, no second HTTP client. */

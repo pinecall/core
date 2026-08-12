@@ -25,6 +25,7 @@ import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
 import playVoice from "./play-voice.js";
 import subscribe from "./subscribe.js";
+import byok from "./byok.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
@@ -44,6 +45,7 @@ export const tools: ToolModule<any>[] = [
     playVoice,
     // billing — the human's side of the journey: plan, credits, a payment link
     subscribe,
+    byok,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";
