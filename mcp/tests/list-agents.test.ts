@@ -83,7 +83,7 @@ const live = process.env.PINECALL_API_KEY ? describe : describe.skip;
 
 live("list_agents against the real org", () => {
     it("shows bernardo online and dev- sandboxes", async () => {
-        const session = new Session();
+        const session = new Session(process.env, "/pinecall-tests-no-home");
         const out: any = await listAgents.handler({}, { session });
 
         expect(out.total).toBeGreaterThan(0);
