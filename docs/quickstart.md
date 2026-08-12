@@ -183,4 +183,5 @@ No webhook URL to expose. No manual event handler. Just a function that runs in 
 - **Build a real phone agent** → [Guides → Inbound Voice](/guides/inbound-voice)
 - **Build a WhatsApp bot** → [Guides → WhatsApp](/guides/whatsapp)
 - **Understand the architecture** → [Concepts → Agents and Channels](/concepts/agents-and-channels)
+- **Call your agent from a mobile app** → [@pinecall/ionic (Mobile)](/mobile/ionic-overview)
 - **Look up every method** → [API Reference](/api/pinecall)

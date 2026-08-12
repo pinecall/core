@@ -10,6 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Docs: `guides/project-structure.md`** — the recommended layout for a Pinecall
+  app, first in the Guides nav because it is what "starting a project" routes to:
+  `apps/agents/<name>/` one process per agent (`index.mjs` + `specs/` + a `.env`
+  holding only `PINECALL_API_KEY`), the token endpoint beside the agent it mints
+  for, `packages/` for domain code with no `@pinecall` import in it, and the web
+  app as a separate deployable. Pushed to the docs knowledge base.
+- **`mcp/PARITY.md`** — audit of every authenticated playground route (and the
+  platform's JSON resource routes) against the MCP tools, each row either mapped
+  to its tool or marked GAP with a proposed tool shape.
+- **Docs: a mobile section.** `@pinecall/ionic` and `@pinecall/react-native`
+  existed only as package READMEs and were invisible to the docs site and the
+  knowledge base. New nav group **"@pinecall/ionic (Mobile)"** with
+  `docs/mobile/ionic-overview.md` (why a native plugin instead of the webview,
+  install + iOS permissions, the token endpoint, the headless `CallClient`
+  store and the `useCallClient` hook, `direction: outgoing | incoming`,
+  platform support and the Android `ConnectionService` notes),
+  `docs/mobile/background-calls-pushkit.md` (the PushKit / VoIP-push reference
+  implementation for ringing a backgrounded or killed app — paid Apple
+  Developer account required) and `docs/mobile/react-native.md` (the React
+  Native package: same architecture and API, no web fallback). Linked from
+  `index.md` "What you can build" and the quickstart's next steps, and pushed
+  to the docs knowledge base.
 - **`@pinecall/sdk/log` — the Call Log contract as a subpath you can ship to a
   browser.** A call is an append-only log of entries with a per-call monotonic
   `seq`; live, late, reconnecting, replaying and history are all just cursors
