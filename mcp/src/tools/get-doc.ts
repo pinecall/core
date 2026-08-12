@@ -124,19 +124,7 @@ export default defineTool({
             .min(1)
             .describe("The doc path from a docs_search hit, e.g. guides/call-log (the .md is optional)"),
     },
-    manual: [
-        "**`get_doc`** — the WHOLE page. `docs_search` finds where an answer lives; `get_doc`",
-        "reads it. Args: `{ path }` — the `path` off a search hit, with or without the `.md`",
-        "(`guides/call-log` and `guides/call-log.md` are the same page).",
-        "Returns `{ path, title, markdown, truncated }`; `truncated: true` means the page was",
-        "longer than 40k chars and you are seeing the head of it.",
-        "**Prefer `get_doc` over reasoning from snippets**: a search snippet is 400 chars out of",
-        "the middle of a chunk, so it drops the imports, the surrounding options and the caveats —",
-        "read the page before you write code against it.",
-        "An unknown path is not an error you should retry blindly: it comes back as",
-        "`{ error, path, suggestions: [{ path, title }] }` — pick a suggestion or search again.",
-        "It reads the same knowledge base `docs_search` queries, so the two can never disagree.",
-    ].join("\n"),
+    manual: "Read whole pages before coding: a snippet is 400 chars of one chunk, without imports or caveats. Unknown path → `suggestions`.",
     async handler(args: { path: string }, { session }): Promise<GetDocResult | GetDocMiss> {
         const wanted = (args.path ?? "").trim();
         const docs = await listDocs(session);

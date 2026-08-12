@@ -80,23 +80,7 @@ export default defineTool({
             .optional()
             .describe("action=push: the documents, content included — this server never reads local files"),
     },
-    manual: [
-        "**`knowledge`** — the org's knowledge bases. A KB grounds an agent via RAG: attach it",
-        "with `knowledgeBase: \"<kbId>\"` in the agent config and the retrieved chunks are injected",
-        "into the prompt (put `{{RAG_CONTEXT}}` in the prompt, or leave it out to auto-inject).",
-        "",
-        "- `knowledge('list')` → `{ knowledgeBases: [{ id, name, docs, status }] }`. Start here; ids are 24-hex.",
-        "- `knowledge('query', kb, query, k?)` → `{ hits: [{ title, path, snippet, score }] }` — ranked chunks,",
-        "  retrieval only, no LLM. `kb` may be an id or an exact name, and may be omitted when the org has one KB.",
-        "- `knowledge('push', kb, docs)` where `docs` is `[{ path, content, title? }]`. **You supply the content** —",
-        "  read the file yourself and pass the text; this server will not read a local path for you.",
-        "  Push is **idempotent by `path`**: pushing the same path again REPLACES that document, it does not",
-        "  duplicate it. Re-training the index is **automatic** — do not look for a reindex step.",
-        "",
-        "Knowledge bases are a paid feature: a 402 means the org's plan does not include them.",
-        "Never push scratch or test content into a customer-facing KB — create a throwaway KB instead",
-        "(`pinecall knowledge create \"<name>\"` in the CLI).",
-    ].join("\n"),
+    manual: "RAG. Attach with `knowledgeBase: \"<kbId>\"`; chunks auto-inject, or place `{{RAG_CONTEXT}}`. `push` takes content YOU read, idempotent by `path`, reindexed automatically.",
     async handler(
         args: {
             action: "list" | "query" | "push";

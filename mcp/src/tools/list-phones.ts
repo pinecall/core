@@ -144,27 +144,7 @@ export default defineTool({
             .optional()
             .describe("Only the unassigned numbers — the ones safe to claim."),
     },
-    manual: [
-        "**`list_phones`** — the org's numbers and who holds each one. Rows are",
-        "`{ number, agent, live, dev_override?, country, name?, inInventory }` plus a",
-        "`{ total, free, assigned }` summary. `free: true` filters to the unassigned ones.",
-        "",
-        "`agent: null` is the ONLY free number — pass it as `configure_agent`'s `phoneNumber`",
-        "to wire it. **Never take an assigned one**: a number listed against an agent belongs",
-        "to that agent, the server refuses the claim, and even where it would not, pointing a",
-        "second agent at it silently steals that agent's inbound calls.",
-        "",
-        "`agent` is the STORED owner, so it stays correct while the owning process is down —",
-        "`live: false` with a non-null `agent` means \"owned, currently offline\", NOT free.",
-        "",
-        "`dev_override` is a `dev-` agent temporarily hijacking routing for that number. It",
-        "evaporates when that agent disconnects and the stored owner takes the number back;",
-        "it is the normal way to test against a real number and is not a number to fight over.",
-        "",
-        "If a claim on a `free` row still comes back `PHONE_IN_USE`, a `dev-` agent OUTSIDE",
-        "this org is holding it live — that override is deliberately not visible here (it",
-        "would leak another org's agents). Pick another free number, or retry later.",
-    ].join("\n"),
+    manual: "`agent: null` is the only free number. A stored `agent` with `live: false` is owned-but-offline, NOT free: a second agent steals its calls.",
     async handler(args: { free?: boolean }, { session }) {
         const [org, live] = await Promise.all([
             // The stored assignment — survives the owner being offline.

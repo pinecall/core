@@ -117,24 +117,7 @@ export default defineTool({
     description:
         "The org's agents with their online state, channels and phone numbers — who exists and who is running right now.",
     schema: {},
-    manual: [
-        "**`list_agents`** — the org's agents. Returns",
-        "`{ agents: [{ slug, online, dev, channels, phones?, model?, voice? }], total, online, offline, dev, devOverrides }`.",
-        "",
-        "Read it before touching anything:",
-        "",
-        "- **`dev: true` (a `dev-*` slug) is a sandbox** — those are the ONLY agents you may",
-        "  reconfigure. `configure_agent` refuses everything else, by design.",
-        "- **`online: true` means a live process owns that agent** — a pm2 service, a `pinecall run`,",
-        "  someone's laptop. Reconfiguring an online production agent is a clobber that its owner",
-        "  undoes on its next reconnect. Do not try.",
-        "- The list is the voice server's live registry, so an agent that no process is running",
-        "  simply does not appear. `online: false` entries are agents still claimed by a phone",
-        "  route whose process has dropped — a broken number, worth reporting.",
-        "- `devOverrides` maps a phone to the dev agent temporarily answering it.",
-        "",
-        "You can `chat` with any agent here, prod included — that is the testing story.",
-    ].join("\n"),
+    manual: "`online: true` means a live process owns that agent — reconfiguring it is a clobber. Only `dev: true` slugs are yours; `devOverrides` = phone → dev agent.",
     async handler(_args, { session }) {
         const data = await session.server<RawResponse>("/api/sdk/agents");
         return shapeAgents(data);

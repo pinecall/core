@@ -53,27 +53,7 @@ export default defineTool({
     schema: {
         kind: z.enum(KINDS).describe("llm, stt or tts — which agent-config field you are filling."),
     },
-    manual: [
-        "**`list_models`** — the catalog of accepted models. `kind: \"llm\" | \"stt\" | \"tts\"`.",
-        "Every row's `shortcut` is the EXACT string to paste into a config: `stt: \"deepgram/flux\"`,",
-        "`llm: \"openai/gpt-5.3-chat-latest\"`. The format is `provider/model`; the bare form",
-        "(`llm: \"gpt-5.3-chat-latest\"`) means OpenAI, and `aliasForms` lists equivalent spellings",
-        "(`claude/…` = `anthropic/…`, `gemini/…` = `google/…`).",
-        "",
-        "**Pick STT by language, not by taste.** `deepgram/flux` is the default — lowest latency,",
-        "native turn detection — but it covers ~20 languages and does NOT include Arabic, Hindi,",
-        "Thai or Urdu. For those use `deepgram/nova-3` (60+ languages), or `soniox/realtime`",
-        "(one model, 60 languages, detects mid-sentence switches). Read each row's `notes`: they",
-        "carry the language coverage verbatim from the docs.",
-        "",
-        "`managed: false` means BYOK — the org must have saved that provider's key or agent",
-        "registration is rejected with `PROVIDER_KEY_REQUIRED`. `managed` is refreshed from the",
-        "live rate table on every call; the rest of the row is a build-time snapshot of the docs,",
-        "dated in `staleAsOf`.",
-        "",
-        "For `kind: \"tts\"` the rows are PROVIDERS — a TTS shortcut names a voice",
-        "(`elevenlabs/sarah`), so use `list_voices` to get the actual strings.",
-    ].join("\n"),
+    manual: "Paste `shortcut` verbatim (`provider/model`; bare = OpenAI). Pick STT by language: `deepgram/flux` is the default but ~20 languages (no Arabic, Hindi, Thai, Urdu) — else `nova-3`/`soniox/realtime`. `managed: false` = BYOK.",
     async handler(args: { kind: Kind }, { session }) {
         const kind = args.kind;
         const entry = CATALOG.kinds[kind];
