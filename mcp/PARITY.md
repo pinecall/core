@@ -235,7 +235,10 @@ a missing tool, never a missing credential. The two exceptions are `/api/admin/*
 
 All **n/a** — machine-to-machine, token-authenticated, called by the voice
 server on the agent's behalf. Their *effects* are what MCP already surfaces:
-phone activation happens when `configure_agent` sets `phoneNumber`, and the
+phone activation happens when `configure_agent` sets `phoneNumber` — and note
+it is only an *attempt*: the voice server refuses the number when another live
+`dev-` agent holds its routing override, so `configure_agent` reads the routing
+map back and reports `routed`/`routedTo` rather than the request. The
 conversation log is what `list_calls`/`get_call` read.
 
 ---
