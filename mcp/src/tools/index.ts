@@ -12,10 +12,14 @@
 import type { ToolModule } from "./types.js";
 import whoami from "./whoami.js";
 import setApiKey from "./set-api-key.js";
+import listModels from "./list-models.js";
+import listVoices from "./list-voices.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
     setApiKey,
+    listModels,
+    listVoices,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";

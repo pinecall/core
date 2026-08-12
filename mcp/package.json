@@ -10,14 +10,16 @@
   },
   "files": [
     "dist",
+    "scripts",
     "README.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "npm run gen:catalog && tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "gen:catalog": "node scripts/gen-catalog.mjs"
   },
   "engines": {
     "node": ">=20"
