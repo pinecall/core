@@ -13,11 +13,18 @@
  *    socket that made it (see agent-hosts.ts for the citation). So the client
  *    is HELD for the MCP session — `heldBySession: true` — and the agent stops
  *    existing when this MCP server exits.
+ *
+ * 3. `phoneNumber` is NOT a stored config field — it becomes a `channel.add`
+ *    frame, which is fire-and-forget and can be REFUSED with a `PHONE_IN_USE`
+ *    error event that the SDK only console.warns about. So this tool verifies
+ *    the claim by reading the server's routing state back before reporting
+ *    anything. See phone-routing.ts for the mechanism and the incident.
  */
 
 import { z } from "zod";
 import { defineTool } from "./types.js";
 import { agentHosts } from "../agent-hosts.js";
+import { verifyPhoneRouting, type PhoneRouting, type RoutingState } from "../phone-routing.js";
 import type { AgentConfig } from "../../../src/config/agent.js";
 
 export const DEV_PREFIX = "dev-";
@@ -64,7 +71,12 @@ export default defineTool({
     description:
         "Create or hot-reload a DEV agent (slug must start with dev-) and hold it live for this session, so chat and calls can reach it.",
     schema,
-    manual: "A re-configure REPLACES the config: resend every field you still want. A non-`dev-` slug is refused. Held (`heldBySession`) for this session. No `tools` param: code tools need an SDK process (`pinecall run`) — `docs_search` it.",
+    manual:
+        "A re-configure REPLACES the config: resend every field you still want. A non-`dev-` slug is refused. " +
+        "Held (`heldBySession`) for this session. No `tools` param: code tools need an SDK process (`pinecall run`) — `docs_search` it. " +
+        "`phoneNumber` is verified against live routing — the server silently refuses (`PHONE_IN_USE`) a number another `dev-` " +
+        "agent holds. `routed:false` → `routedTo` answers, not you: take a free `list_phones` number. Relay `dialThisNumber` to the " +
+        "human; never dial null.",
     async handler(args: any, { session }) {
         const slug = String(args.slug ?? "").trim();
         if (!slug.startsWith(DEV_PREFIX)) throw new ProdSlugRefused(slug);
@@ -83,13 +95,39 @@ export default defineTool({
             apiUrl: session.serverUrl,
         });
 
+        // A phone claim is fire-and-forget on the wire and can be REFUSED
+        // silently (PHONE_IN_USE). Never report it as applied on faith —
+        // read the server's routing state back and say what is true.
+        // The schema only accepts a string, so this is always the E.164 form.
+        const requestedPhone = typeof config.phoneNumber === "string" ? config.phoneNumber : undefined;
+        let phone: PhoneRouting | undefined;
+        if (requestedPhone !== undefined) {
+            phone = await verifyPhoneRouting(slug, requestedPhone, () =>
+                session.server<RoutingState>("/api/sdk/agents"),
+            );
+        }
+
+        // `applied` is a claim of effect, so a refused number must not appear in it.
+        const applied = Object.keys(config)
+            .filter((k) => k !== "phoneNumber" || phone?.routed)
+            .sort();
+
         return {
             slug,
             live: true,
             heldBySession: true,
             revision: host.revision,
-            applied: Object.keys(config).sort(),
-            phoneNumber: config.phoneNumber ?? null,
+            applied,
+            ...(phone
+                ? {
+                      phoneNumber: phone.routed ? phone.number : null,
+                      routed: phone.routed,
+                      ...(phone.routedTo ? { routedTo: phone.routedTo } : {}),
+                      reason: phone.reason,
+                      dialThisNumber: phone.dial,
+                      ...(phone.callersWhitelist ? { callersWhitelist: phone.callersWhitelist } : {}),
+                  }
+                : { phoneNumber: null }),
             note:
                 host.revision > 1
                     ? "Hot-reloaded in place — the next chat turn uses this config."
