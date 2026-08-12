@@ -18,6 +18,8 @@ import listAgents from "./list-agents.js";
 import configureAgent from "./configure-agent.js";
 import chat from "./chat.js";
 import listPhones from "./list-phones.js";
+import listCalls from "./list-calls.js";
+import getCall from "./get-call.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
@@ -28,6 +30,9 @@ export const tools: ToolModule<any>[] = [
     configureAgent,
     chat,
     listPhones,
+    // debug — the call log, last leg of the journey
+    listCalls,
+    getCall,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";

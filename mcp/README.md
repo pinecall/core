@@ -55,6 +55,15 @@ returned by a tool — every outbound error string is scrubbed (`Session.redact`
 the agent what a real caller would ask and read the transcript. `chat` reuses the very
 WebSocket client the CLI's `pinecall chat` / `pinecall test` use (`llm.chat` protocol) —
 no second implementation of the protocol exists.
+| `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
+| `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
+
+`list_calls` / `get_call` are the **debugger**: after any chat or phone call, read the log
+instead of guessing. They read [call-log v3](../docs/guides/call-log.md) over a `stream`
+token minted per request with `scope: "observe"` (read-only, and narrowed to the single call
+for `get_call`) — the API key never reaches the log endpoints. The call reduction is
+`CallLogView` from `@pinecall/sdk/log`, the same one reducer the browser client uses, so
+ephemeral interim transcripts collapse exactly as they do in a live UI.
 
 Every tool also ships its own **manual**, and the server's `instructions` field is assembled
 from the journey playbook plus those manuals — so a tool cannot drift from its documentation.
@@ -96,12 +105,15 @@ src/
   server.ts        registry → McpServer; the single error/redaction envelope
   instructions.ts  the journey playbook + buildInstructions(tools)
   session.ts       the API key, the two base URLs, the HTTP seam
+  call-log.ts      stream-token minting + the agent-log → rows fold
   tools/
     types.ts       the ToolModule contract + defineTool()
     index.ts       THE REGISTRY
     whoami.ts
     set-api-key.ts
     knowledge.ts
+    list-calls.ts
+    get-call.ts
 ```
 
 `session.ts` imports `apiFetch` from the SDK's own `src/api/http.ts` — there is no second
