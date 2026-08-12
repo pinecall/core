@@ -49,4 +49,21 @@ describe("instructions assembly", () => {
         const headings = [...text.matchAll(/^### (.+)$/gm)].map((m) => m[1]);
         expect(headings).toEqual(tools.map((t) => t.name));
     });
+
+    /**
+     * HARD CAP. The instructions load into EVERY client's context window on
+     * connect, before the user has asked anything — so this is a budget, not a
+     * style rule. A new tool pays for its section by shortening someone's
+     * manual, never by growing the total.
+     */
+    it("fits the 4000-char context budget", () => {
+        expect(buildInstructions(tools).length).toBeLessThanOrEqual(4000);
+    });
+
+    it("keeps every manual short enough to read at a glance", () => {
+        for (const t of tools) {
+            expect(t.manual.split("\n").length, t.name).toBeLessThanOrEqual(10);
+            expect(t.manual.trim().length, t.name).toBeGreaterThan(0);
+        }
+    });
 });
