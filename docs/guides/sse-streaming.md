@@ -5,7 +5,15 @@ description: "Stream agent events to your frontend in real time with Server-Sent
 
 # SSE Event Streaming
 
-The SDK can stream every agent event (calls, speech, tools, metrics) to any HTTP client as Server-Sent Events. Build live dashboards, call monitors, or analytics pipelines with a single endpoint.
+> **Building a dashboard or observing calls? Use the [call log](/guides/call-log) instead.**
+> SSE only exists inside the process that runs the agent, has no cursor, and a
+> disconnected client silently loses everything emitted while it was away. The
+> call log (`WS /v1/attach` + `@pinecall/web/log`) works from **any** process,
+> replays what you missed, and reconnects without losing an entry. SSE remains
+> useful as a zero-dependency, in-process tap — e.g. piping raw events into an
+> analytics pipeline that lives in the same process as the agent.
+
+The SDK can stream every agent event (calls, speech, tools, metrics) to any HTTP client as Server-Sent Events, as long as the client connects to the process that runs the agent.
 
 ## The basics
 
@@ -166,7 +174,7 @@ SSE streaming requires the agent and the HTTP endpoint to run in the **same proc
 | Agent + web server in one process | ✅ | `pc.stream()` has direct access to events |
 | Agent in a separate process (Docker, serverless) | ❌ | Events never reach the web server process |
 
-If you run agents in separate containers (the "separated" topology), you'd need a shared event bus (Redis Pub/Sub, NATS) between the agent and the dashboard. See [Deployment Topologies](/concepts/deployment-topologies).
+If you run agents in separate processes, don't build an event bus — that's exactly the case the [call log](/guides/call-log) exists for: any process attaches to `WS /v1/attach` with a stream token and reads the same log, with replay and cursor resume included. See [Deployment Topologies](/concepts/deployment-topologies).
 
 ## Framework examples
 
@@ -201,7 +209,7 @@ fastify.get("/events", (req, reply) => {
 
 ## What's next
 
-- [WebSocket Streaming](/guides/ws-streaming) — bidirectional alternative with session scoping
+- [The Call Log](/guides/call-log) — the canonical way to observe calls, from any process
+- [WebSocket Streaming](/guides/ws-streaming) — bidirectional in-process alternative
 - [Events reference](/reference/events) — every event with payload shapes
-- [Deployment Topologies](/concepts/deployment-topologies) — when SSE is available
-- [Multi-tenant](/guides/multi-tenant) — scope streams per customer
+- [Multi-tenant](/guides/multi-tenant) — scope observation per customer

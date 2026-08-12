@@ -19,7 +19,7 @@ Before topology, understand the two communication patterns:
 
 ![Browser channels — WebRTC token flow](/assets/diagrams/webrtc-browser-arch.png)
 
-This split is why some topologies support SSE event streaming and others don't — SSE requires the agent to be in the same process as your web server.
+This split used to decide whether you could build live dashboards — in-process SSE/WS streaming requires the agent to share a process with your web server. **The [call log](/guides/call-log) removed that constraint**: any process (or the browser itself, with a stream token) attaches to `WS /v1/attach` on the voice server and observes calls with replay and cursor resume. In-process SSE remains a convenience of the embedded topology, not a requirement for observability.
 
 ## Topology 1: Embedded
 
@@ -50,7 +50,7 @@ Agent runs as a separate process from your web app. The web app handles HTTP, th
 - Crash isolation — a web bug doesn't kill calls in flight
 
 **Cons:**
-- No SSE — the web app can't stream events from the agent process directly. If you need live dashboards, the agent has to expose its own SSE endpoint or push to a shared bus (Redis, NATS).
+- No in-process SSE — the web app can't tap the agent process's event emitter directly. For live dashboards use the [call log](/guides/call-log) (`WS /v1/attach` + a stream token minted by the agent process) — no shared bus needed.
 - Two deployments to manage
 
 **When to use:** higher-traffic apps, when ops cares about independent scaling, when you want to avoid the "web deploy kills in-flight calls" problem.
@@ -86,8 +86,7 @@ Run it with `pinecall run agent/index.js` for a polished boot banner and live tr
 
 **Cons:**
 - No browser channels (no WebRTC, no chat) unless someone else mints tokens
-- No SSE
-- No dashboards from this process
+- No token endpoint means no browser dashboards either — though the calls themselves are still observable via the [call log](/guides/call-log) from any process holding a stream token
 
 **When to use:** IoT devices, intercoms, single-purpose phone bots, WhatsApp-only bots, scheduled outbound campaigns.
 
@@ -95,7 +94,8 @@ Run it with `pinecall run agent/index.js` for a polished boot banner and live tr
 
 | Feature | Embedded | Standalone | Headless |
 |---|---|---|---|
-| SSE (`agent.stream()`) | ✅ | ❌ | ❌ |
+| [Call log](/guides/call-log) dashboards | ✅ | ✅ | ✅ |
+| In-process SSE (`agent.stream()`) | ✅ | ❌ | ❌ |
 | WebRTC / Chat | ✅ | ✅ (token from web app) | ❌ (or you build it) |
 | Phone / SIP | ✅ | ✅ | ✅ |
 | WhatsApp | ✅ | ✅ | ✅ |
@@ -115,6 +115,6 @@ Migration between topologies is cheap. The agent code is the same in all three. 
 
 ## What's next
 
+- [The Call Log](/guides/call-log) — topology-independent observability
 - [Multi-tenant dashboards](/guides/multi-tenant) — embed multiple agents, scope events per user
 - [Dev mode](/guides/dev-mode) — run prod and dev agents on the same phone number
-- [SSE streaming reference](/reference/events) — for embedded dashboards

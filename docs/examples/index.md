@@ -166,7 +166,7 @@ agent.addWhatsapp({
 });
 ```
 
-📖 Related: [WhatsApp Guide](/guides/whatsapp) · [Human Takeover](/guides/human-takeover) · [SSE Streaming](/guides/sse-streaming)
+📖 Related: [WhatsApp Guide](/guides/whatsapp) · [Human Takeover](/guides/human-takeover) · [The Call Log](/guides/call-log)
 
 ---
 

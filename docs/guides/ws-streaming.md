@@ -5,6 +5,11 @@ description: "Stream agent events over WebSocket for bidirectional, real-time co
 
 # WebSocket Event Streaming
 
+> **Building a dashboard or observing calls? Use the [call log](/guides/call-log) instead.**
+> `agent.ws()` shares SSE's limits: in-process only, no cursor, disconnect = data
+> lost. The call log's `WS /v1/attach` gives you the same live feed from any
+> process, plus replay and cursor resume, with hooks in `@pinecall/web/log/react`.
+
 The SDK can stream agent events over WebSocket — a bidirectional alternative to [SSE streaming](/guides/sse-streaming). Like SSE, your agent and web server must run in the same process. Unlike SSE, WebSocket supports **two-way communication** and works better for complex client apps.
 
 ## When to use WebSocket vs SSE
@@ -230,6 +235,7 @@ Like SSE, WebSocket streaming requires the agent and web server in the **same pr
 
 ## What's next
 
-- [SSE Streaming](/guides/sse-streaming) — the simpler, one-way alternative
+- [The Call Log](/guides/call-log) — the canonical way to observe calls, from any process
+- [SSE Streaming](/guides/sse-streaming) — the simpler, one-way in-process alternative
 - [WebRTC Browser](/guides/webrtc-browser) — for voice calling from the browser
 - [Events Reference](/reference/events) — every event with payload shapes

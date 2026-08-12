@@ -39,6 +39,8 @@
           "guides/project-structure",
           "guides/inbound-voice",
           "guides/outbound-calls",
+          "guides/build-a-live-call-app",
+          "guides/call-log",
           "guides/events",
           "guides/live-listening",
           "guides/whatsapp",

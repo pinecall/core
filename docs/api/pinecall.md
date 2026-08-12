@@ -91,6 +91,8 @@ const agent = pc.agent("support", {
 | `stt` | `string \| STTConfig` | STT shortcut (e.g. `deepgram/flux`) |
 | `llm` | `string \| LLMConfig` | LLM shortcut (e.g. `openai/gpt-5.3-chat-latest`) or full config |
 | `prompt` | `string` | System prompt for the LLM |
+| `promptVars` | `Record<string, string>` | Default `{{var}}` values, seeded at registration so nothing ever renders as a literal `{{VAR}}` |
+| `preparing` | `boolean \| { timeoutMs }` | Opt in to the pre-turn barrier: the server holds each generation while your [`call.preparing`](/guides/events#call-preparing) handler refreshes per-turn variables |
 | `greeting` | `string \| { text, addToHistory? } \| (call) => string` | Greeting spoken on inbound calls. Added to LLM history by default. |
 | `tools` | `Tool[]` | Declarative tool definitions created with `tool()` |
 | `phoneNumber` | `string \| PhoneNumberConfig` | Phone number or SIP URI to register (Twilio) |
@@ -141,6 +143,8 @@ const token = await pc.createToken("webrtc", "mara");
 // { token, server, expiresIn }
 ```
 
+For an agent **this client owns**, the mint is ordered after the server's registration ack (see [`agent.ready`](/api/agent#ready)) — so registering and minting in consecutive statements works, with no delay of your own. Agents owned by another process are minted straight through.
+
 **Sealed session metadata** — pass a third argument to bake trusted context into the token:
 
 ```typescript
@@ -157,9 +161,21 @@ The metadata is **sealed into the signed token on your server**, so the browser 
 
 See [Security](/security) for the full token model.
 
+### `createToken("stream", agents)`
+
+The same method also mints **observation** tokens for the [call log](/guides/call-log): pass `"stream"` and one agent slug — or a **list** of slugs — and the returned token lets its holder observe those agents' calls (live tail, replay, history) without participating. The agent set is sealed into the token's signature; the browser cannot widen it.
+
+```typescript
+const t = await pc.createToken("stream", "mara");            // one agent
+const t = await pc.createToken("stream", ["mara", "sales"]); // an agent set
+// → { token, server }
+```
+
+Consume it in the browser with `@pinecall/web/log/react` (`useAgentCalls`, `useCall`). See [The Call Log](/guides/call-log).
+
 ### `stream(res?, options?)`
 
-Open an SSE stream of agent events. Works with any framework — returns a Web API `Response` or writes to a Node.js `ServerResponse`.
+Open an SSE stream of agent events — **in-process only** (the HTTP endpoint must live in this same process, and there is no replay or cursor; for dashboards prefer the [call log](/guides/call-log)). Works with any framework — returns a Web API `Response` or writes to a Node.js `ServerResponse`.
 
 ```typescript
 // Web API (Remix, Next.js, Hono, Bun)

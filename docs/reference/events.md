@@ -59,21 +59,43 @@ A new WhatsApp session started (first message from a new contact). Receives both
 ### `call.preparing`
 
 ```typescript
-agent.on("call.preparing", (call: Call) => { });
+agent.on("call.preparing", (call: Call) => void | Promise<unknown>);
 ```
 
-Fires before **every** LLM generation — voice, chat, and WhatsApp. Use it to refresh per-call variables that need to be current for every turn:
+Fires before **every** LLM generation — voice, chat, and WhatsApp. The server
+holds the turn open while your handler runs, so anything you push here lands on
+*this* generation:
 
 ```typescript
-agent.on("call.preparing", (call) => {
-  call.setPromptVars({
-    date_block: buildFreshDate(),
-    format_rules: call.transport === "phone" ? VOICE_FORMAT : CHAT_FORMAT,
+agent.on("call.preparing", async (call) => {
+  await call.setPromptVars({
+    TODAY: todayIn(call.metadata.tz),
+    OPEN_TICKETS: await crm.openTickets(call.metadata.userId),
   });
 });
 ```
 
-The server waits briefly (~150ms) for your handler to call `setPromptVars()` before proceeding with the LLM call. This runs just-in-time, so variables are always fresh — even in long-lived WhatsApp sessions.
+Return a promise (an `async` handler does) and the SDK waits for it before
+releasing the turn. The wait is bounded by the agent's `preparing` budget —
+150 ms if undeclared, 1500 ms with `preparing: true`, or your own `timeoutMs`.
+The turn resumes the moment the handler settles, so the budget is a ceiling, not
+a delay. See the [events guide](/guides/events#call-preparing).
+
+### `call.preparingTimeout`
+
+```typescript
+agent.on("call.preparingTimeout", (event: PreparingTimeoutEvent, call: Call) => { });
+```
+
+The server gave up waiting for `call.preparing` and generated with the previous
+values. Only fires for agents that opted in with `preparing`.
+
+| Field | Type |
+|-------|------|
+| `callId` | `string` |
+| `turn` | `number` |
+| `waitedMs` | `number` |
+| `budgetMs` | `number` |
 
 ### `call.ended`
 
@@ -349,18 +371,29 @@ agent.on("audio.metrics", (event: {
 
 Use for live waveform UIs, energy meters, or VAD visualization.
 
-## SSE events
+## The call log envelope
 
-When streamed over SSE (via `pc.stream()` or `agent.stream()`), each event has an `event:` field and a JSON `data:` body with `agent` ID:
+Observed through the [call log](/guides/call-log) (`WS /v1/attach`, `GET /v1/calls/{id}/events`), every fact arrives as a stamped log entry — the canonical shape for anything outside the agent process:
+
+```json
+{"seq":12,"ts":1786537584.4,"call":"CA123","agent":"mara","type":"user.message","ephemeral":false,"data":{"id":"msg_abc","text":"Hello","final":true}}
+```
+
+`seq` is the cursor: dedupe by it, resume from it. See [The Call Log](/guides/call-log) for the full vocabulary and the control markers (`log.gap`, `log.caught_up`).
+
+## SSE events (in-process)
+
+When streamed over in-process SSE (via `pc.stream()` or `agent.stream()`), each event has an `event:` field and a JSON `data:` body with `agent` ID:
 
 ```
 event: user.message
 data: {"callId":"CA123","text":"Hello","messageId":"msg_abc","agent":"mara"}
 ```
 
-A `:ping` comment is sent every 30s as keepalive.
+A `:ping` comment is sent every 30s as keepalive. Note there is no `seq` here — SSE has no cursor and no replay; that's the call log's job.
 
 ## What's next
 
+- [The Call Log](/guides/call-log) — observing these events from any process
 - [`Call` API reference](/api/call) — methods to call in response to events
-- [Multi-tenant](/guides/multi-tenant) — scope SSE event streams
+- [Multi-tenant](/guides/multi-tenant) — scope observation per customer

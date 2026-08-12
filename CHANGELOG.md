@@ -32,6 +32,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Native package: same architecture and API, no web fallback). Linked from
   `index.md` "What you can build" and the quickstart's next steps, and pushed
   to the docs knowledge base.
+- **`@pinecall/sdk/log` — the Call Log contract as a subpath you can ship to a
+  browser.** A call is an append-only log of entries with a per-call monotonic
+  `seq`; live, late, reconnecting, replaying and history are all just cursors
+  over that one log, so there is one envelope and one reducer instead of a
+  shape per consumer.
+  - **`LogEntry`** — the envelope (`seq`, `ts`, `type`, `data`, call/agent ids)
+    and **`LOG_EVENT_TYPES`**, a **closed vocabulary**: `call.*`, `user.*`,
+    `bot.*`, `turn.*`, `tool.*`, `docs.sources`, `skill`, `audio.metrics`,
+    `handoff`, `supervisor`, `log.gap`, `log.caughtUp`. An entry whose `type`
+    is not in the vocabulary is not an error — `isKnownLogEntry` narrows,
+    `UnknownLogEntry` keeps it, so a newer server never breaks an older client.
+  - **`CallLogView`** (and `createCallLogView`) — THE reducer. Entries in,
+    `CallLogState` out: phase, messages, turns, tool calls, metrics, intent.
+    Updates are **copy-on-write** — only the arrays and objects an entry
+    actually touches are replaced, so `prev.messages !== next.messages` is a
+    correct and cheap render guard for React and friends. Out-of-order and
+    duplicate entries are handled by `seq`; a gap is reported, not guessed.
+  - The subpath imports nothing outside `src/log/**`, has **zero runtime
+    dependencies and no node builtins** — asserted by a test, not by intent —
+    so it costs a browser bundle nothing but the reducer.
+  - Behaviour is pinned by `fixtures/call-log-golden.json`, a fixture shared
+    verbatim with `@pinecall/web`: both packages reduce the same bytes and must
+    agree.
+- **`createToken({ scope, callId })` — read-only observers.** `scope: "observe"`
+  mints a token that can read a call log and nothing else, agent-scoped (every
+  call of an agent) or narrowed to one call with `callId`. Purely additive: a
+  call with neither option produces the exact URL it produced before.
+- **`EventStream` resumes from a cursor instead of restarting.** `seq` IS the
+  cursor, so a reconnect now asks the server for `after=<highest seq seen>` and
+  the stream deduplicates anything at or below it. `after` seeds the cursor from
+  one you persisted across page loads; `resume: false` opts out. A server that
+  knows nothing about cursors is unaffected — the parameter is only appended on
+  RE-connects, never on the first one.
+
+### Changed
+- **Docs: the call log is the documented way to observe calls.** Two new
+  guides — `guides/call-log.md` (the model: envelope, `seq` cursor, the two
+  logs, stream tokens with a sealed agent set, `/v1` endpoints, the
+  `@pinecall/web/log` hooks) and `guides/build-a-live-call-app.md` (step by
+  step: a Soniox + Mistral Small + ElevenLabs restaurant agent with a browser
+  talk tab and a live phone-line dashboard). Every page that presented
+  in-process SSE/WS streaming as *the* observability story (sse-streaming,
+  ws-streaming, deployment-topologies, multi-tenant, events, reference/events,
+  the examples, `pc.stream()`/`agent.stream()`/`call.streamSSE()` API pages)
+  now says what those streams actually are — in-process taps with no cursor
+  and no replay — and points dashboards at the call log. Documented the
+  agent-log gotcha: in an agent log the envelope's `call` is `null` and the
+  id lives in `data.call`.
+- **`channel: "stream"` now means something.** The channel and its
+  `/stream/token` endpoint have been in this map for a while with nothing on
+  the other side; with call-log v3 on the server the minted token is the one
+  the log endpoints and the observer socket actually accept. The SDK's
+  channel→endpoint map is untouched — what changed is that it now leads
+  somewhere. Requires a server carrying call-log v3.
+
+### Fixed
+- **`await call.setPromptVars()` (and `getHistory`, `setHistory`, `addHistory`,
+  `clearHistory`, `setPrompt`, `addContext`) never resolved.** The server's
+  `history.updated` / `history.data` acks carry no `agent_id`, and the SDK's
+  dispatcher resolved the owning agent from exactly that field — so every ack
+  was dropped before it reached the promise waiting for it, and any caller that
+  awaited one of these hung forever with no error, no log, and no way to detect
+  it. Acks are now routed by `call_id`, which is unambiguous across the agents
+  multiplexed on one socket. **This half works against an unchanged server**, so
+  the hang is fixed the moment the SDK is upgraded.
+- **Concurrent history requests could resolve each other.** They all key on the
+  event name `history.updated`, so a second request overwrote the first one's
+  resolver in the pending map. Requests now carry a `request_id` that a current
+  server echoes; correlation falls back to the event name for older servers.
+- **A request that is never answered now rejects** (`REQUEST_TIMEOUT`, 10s)
+  instead of leaving a promise pending forever, and a server that refuses one
+  rejects with `REQUEST_REJECTED`. Fire-and-forget callers are unaffected: the
+  returned promise is internally marked as handled, so an unawaited rejection
+  cannot take the process down.
+
+### Added
+- **`preparing` — an opt-in budget for the pre-turn hook, and a loud failure
+  when it is missed.** `call.preparing` fires before every generation and the
+  server holds the turn while your handler runs; that wait was a fixed 150 ms
+  charged to *every* agent whether or not it had a handler, and its expiry was
+  silent. From a host 172 ms away (measured, one real deployment) the race was
+  lost on **every single turn** and the app rendered its prompt with the
+  previous turn's values, forever, without a single log line.
+
+  ```ts
+  pc.agent("front-desk", { preparing: true });                 // 1500ms budget
+  pc.agent("front-desk", { preparing: { timeoutMs: 2500 } });  // your own, max 5000
+  pc.agent("front-desk", { preparing: false });                // never wait at all
+  ```
+
+  - The SDK now **awaits what your handler returns** and answers the server
+    `llm.ready` when it settles, so the turn resumes the instant you are done —
+    the budget is a ceiling, not a delay. Make the handler `async` and `await`
+    your `setPromptVars` and it is guaranteed to land on *this* generation.
+  - Omitting `preparing` keeps the exact previous behaviour; the server also
+    stops waiting after a few turns with no answer, which reclaims the 150 ms
+    for the majority of agents, which have no `call.preparing` handler at all.
+  - New **`call.preparingTimeout`** event (on the `Call` and the `Agent`) with
+    `turn`, `waitedMs` and `budgetMs`, plus a logged warning. Opted-in agents
+    only.
+  - Requires a server with the matching change for the budget and the event; an
+    older server ignores the field and keeps its 150 ms wait.
+- **`agent.ready` / `agent.registered` — the registration ack is now observable.**
+  `pc.agent()` returns synchronously and only *queues* `agent.create` on the
+  socket, so until now a caller had no way to know when the agent actually
+  existed server-side. `agent.ready` is a `Promise<void>` that resolves on the
+  server's `agent.created` / `agent.resumed`, rejects with `AgentConflictError`
+  on a terminal conflict, and goes back to pending if the socket drops (it
+  resolves again once the reconnect re-registers the agent). `agent.registered`
+  is the boolean form.
+- **`ServerAtCapacityError` — a full server no longer masquerades as a broken
+  agent.** When the voice server's `max_clients` ceiling refuses a registration
+  it now sends `code: "SERVER_AT_CAPACITY"` with `used` / `limit`, and the SDK
+  rejects `agent.ready` (and emits on the client's `error` event) with a typed
+  `ServerAtCapacityError` carrying the server's message verbatim plus the slot
+  counts. Previously the refusal arrived as a nondescript `REGISTRATION_ERROR`
+  and the only visible symptom was the *token mint* answering
+  `Agent '<id>' is not online` — a claim about the agent when the truth was
+  about the server. It is not a name conflict, so it does not enter the
+  `AGENT_CONFLICT` retry backoff. Requires a server with the matching change;
+  older servers keep the old generic behaviour.
+
+### Fixed
+- **`createToken()` no longer races the registration it depends on.** Registering
+  an agent and minting a token for it in the next statement sent an HTTP request
+  that overtook the still-in-flight `agent.create` WebSocket frame, and the
+  server correctly answered `404 Agent '<id>' is not online` for a registration
+  that was valid and healthy — the mint had simply arrived first. `pc.createToken()`
+  (and `agent.createToken()`, which delegates to it) now awaits the agent's
+  registration ack when the agent belongs to this client; agents owned by another
+  process are minted straight through as before. The wait ends the moment the ack
+  arrives — no fixed delay — and if the agent is never registered the mint fails
+  with `AGENT_NOT_REGISTERED` / `AgentConflictError` instead of returning a token
+  that would 404. Server-side unchanged: no coordinated deploy.
 
 ---
 
