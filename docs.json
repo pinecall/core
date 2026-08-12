@@ -55,6 +55,7 @@
           "guides/ws-streaming",
           "guides/dev-mode",
           "guides/call-ringing",
+          "guides/mcp",
           "guides/testing-agents"
         ]
       },
