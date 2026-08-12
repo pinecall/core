@@ -82,7 +82,7 @@
         "group": "@pinecall/web (Browser)",
         "pages": [
           {
-            "group": "Voice \u2014 core",
+            "group": "Voice — core",
             "pages": [
               "web/core/overview",
               "web/core/voice-session",
@@ -113,6 +113,14 @@
               "web/components/overview"
             ]
           }
+        ]
+      },
+      {
+        "group": "@pinecall/ionic (Mobile)",
+        "pages": [
+          "mobile/ionic-overview",
+          "mobile/background-calls-pushkit",
+          "mobile/react-native"
         ]
       },
       {
