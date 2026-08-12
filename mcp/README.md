@@ -105,8 +105,8 @@ Fourteen tools, listed in journey order — the same order they appear in the se
 | `list_phones(free?)` | every number with its owner — `{ number, agent, live, dev_override?, country, inInventory }` plus `{ total, free, assigned }`. `agent: null` is the only free one. |
 | `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
 | `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
-| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
-| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
+| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). Every row carries `usable` — managed, or the org has that provider's BYOK key. |
+| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. Rows carry `usable` too. |
 | `play_voice(voice, text?, language?)` | plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
 
 **Testing is chatting.** There is deliberately no spec-runner tool: to check behaviour, ask
@@ -120,8 +120,8 @@ token minted per request with `scope: "observe"` (read-only, and narrowed to the
 for `get_call`) — the API key never reaches the log endpoints. The call reduction is
 `CallLogView` from `@pinecall/sdk/log`, the same one reducer the browser client uses, so
 ephemeral interim transcripts collapse exactly as they do in a live UI.
-| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
-| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
+| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). Every row carries `usable` — managed, or the org has that provider's BYOK key. |
+| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. Rows carry `usable` too. |
 | `play_voice(voice, text?, language?)` | Plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
 | `subscribe(plan?)` | plan, credits and the plan catalogue, plus a **Stripe link the human opens**. No argument = read-only + a Billing Portal URL. With `plan` = a Checkout URL, or an in-place plan change for an org that already subscribes — see below. |
 
@@ -197,6 +197,25 @@ shortcuts. `GET {playground}/api/rates/models` is live and authoritative but ret
   guess. If the rate table is unreachable the docs value is used and `managedSource` says so.
 
 Regenerate after editing the provider docs: `npm run gen:catalog` (also runs on `npm run build`).
+
+### `usable`: what *this* org can actually run
+
+`managed: false` is a fact about the model — it needs somebody's key. It does not say
+whether **you** have one. So every `list_models` and `list_voices` row also carries:
+
+| field | meaning |
+|---|---|
+| `usable: true` | pick it — it is managed, or the org already has that provider's key |
+| `usable: false` + `unusableReason: "needs-byok"` | `byok('set', provider, key)` first, or the agent is rejected with `PROVIDER_KEY_REQUIRED` at registration |
+| `byokUnknown: true` | the credentials lookup failed; `usable` fell back to `managed` alone |
+
+The join is **one** `GET /api/credentials` per tool call — the same listing `byok` shows,
+fetched through the shared `src/byok-status.ts` so the three tools cannot drift — matched at
+provider level and case-insensitively. A provider you cannot hand a key to (`pinecall`,
+`polly`) is never blocked for want of one: `byok` would refuse that provider name, so
+"needs-byok" there would be advice nobody could follow. And the lookup is tolerant by
+design: a credentials endpoint that 500s degrades the *answer* (`byokUnknown`), it never
+fails the catalog.
 
 ## The instructions are the product
 
