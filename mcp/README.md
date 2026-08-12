@@ -117,6 +117,25 @@ ephemeral interim transcripts collapse exactly as they do in a live UI.
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `play_voice(voice, text?, language?)` | Plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
+| `byok(action?, provider?, key?)` | your own provider keys: `list` → `[{provider, configured, addedAt?}]`, `set` (provider + key), `remove`. Saving a key moves that provider's usage off your Pinecall credits and onto the provider's own bill — see below. |
+
+### `byok`: your own provider key, and what it does to the bill
+
+`byok` writes the org's Provider Keys through the authenticated
+`/api/credentials` endpoints — the same store the dashboard's **Provider Keys**
+screen uses. Saving a key for a provider Pinecall serves *managed* makes yours win:
+that usage is billed by the provider **directly** instead of deducting Pinecall
+credits. For BYOK-only providers (`xai`, `groq`, `cerebras`, `deepseek`,
+`openrouter`, `assemblyai`, `rime`) there is no managed key at all — without yours,
+agent registration is rejected with `PROVIDER_KEY_REQUIRED`. The full split:
+[managed vs BYOK](../docs/reference/managed-vs-byok.md).
+
+**Nothing readable ever comes back.** `list` reports `configured: true` and nothing
+else — the API's `apiKeyPreview` (the *leading* eight characters of the stored key)
+is deliberately dropped rather than forwarded, and there is no read-back path. On
+`set` the key transits once: it is registered with the session's `redact()` for the
+duration of that one call, so an upstream error quoting it is scrubbed before it can
+escape, and the result is redacted before it is returned.
 
 ### `play_voice`: audio on the user's machine
 
