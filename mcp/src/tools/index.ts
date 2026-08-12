@@ -24,6 +24,7 @@ import getCall from "./get-call.js";
 import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
 import playVoice from "./play-voice.js";
+import subscribe from "./subscribe.js";
 import byok from "./byok.js";
 
 export const tools: ToolModule<any>[] = [
@@ -42,6 +43,8 @@ export const tools: ToolModule<any>[] = [
     listModels,
     listVoices,
     playVoice,
+    // billing — the human's side of the journey: plan, credits, a payment link
+    subscribe,
     byok,
 ];
 

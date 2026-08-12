@@ -123,6 +123,26 @@ ephemeral interim transcripts collapse exactly as they do in a live UI.
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `play_voice(voice, text?, language?)` | Plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
+| `subscribe(plan?)` | plan, credits and the plan catalogue, plus a **Stripe link the human opens**. No argument = read-only + a Billing Portal URL. With `plan` = a Checkout URL, or an in-place plan change for an org that already subscribes — see below. |
+
+### `subscribe`: the link is the product
+
+Nothing money-shaped is implemented here. The tool composes four endpoints the Playground
+already serves — `GET /api/orgs/me`, `GET /api/plans`, `POST /api/billing/portal`,
+`POST /api/billing/checkout` — and returns what they give back. `STRIPE_SECRET_KEY` lives in
+the Playground process only; the MCP never sees a card, a secret or a Stripe id, and what
+crosses the wire is a hosted-page URL that the **human** opens.
+
+Two behaviours worth knowing before you call it with a `plan`:
+
+- an org with **no** subscription gets `checkoutUrl` — a Stripe Checkout page;
+- an org that **already** subscribes has its subscription switched in place with proration
+  and gets `{ applied: true, changed: "upgrade" | "downgrade" }` and no URL. That is a real
+  billing change, so ask the human first. With no argument the tool cannot charge anything.
+
+`portalUrl` is `null` with a `portalUnavailable` reason (code `NO_CUSTOMER`) when the org has
+never paid — there is no Stripe customer to open a portal for yet. That is an answer, not an
+error.
 | `byok(action?, provider?, key?)` | your own provider keys: `list` → `[{provider, configured, addedAt?}]`, `set` (provider + key), `remove`. Saving a key moves that provider's usage off your Pinecall credits and onto the provider's own bill — see below. |
 
 ### `byok`: your own provider key, and what it does to the bill
