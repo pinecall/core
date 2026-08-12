@@ -58,6 +58,9 @@ export class ConnectionHandler implements EventHandler {
                     ctx.client._clearRegisterRetry?.(agent.id);
                     // Re-register channels and flush pending messages
                     agent._flushPending();
+                    // The agent exists server-side ONLY from here on — settle
+                    // `agent.ready` so a token mint can be ordered after it.
+                    agent._markRegistered();
                     agent._emitWire("ready");
                     ctx.logger.info(`Agent ${agent.id} ${wire.event === "agent.created" ? "created" : "resumed"}`);
                 }

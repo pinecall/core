@@ -108,6 +108,14 @@ export interface AgentEvents {
     // Human-in-the-loop
     "session.paused": (event: { sessionId?: string; contact?: string }) => void;
     "session.resumed": (event: { sessionId?: string; contact?: string }) => void;
+
+    // Pre-turn hook — see CallEvents["call.preparing"]. Returning a promise
+    // holds the turn until it settles.
+    "call.preparing": (call: Call) => void | Promise<unknown>;
+    "call.preparingTimeout": (
+        event: import("./call.js").PreparingTimeoutEvent,
+        call: Call,
+    ) => void;
 }
 
 // ─── Agent class ─────────────────────────────────────────────────────────
@@ -132,6 +140,11 @@ export class Agent extends TypedEventBus<AgentEvents> {
     #client: {
         createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>, opts?: TokenScopeOptions) => Promise<TokenResponse>;
     } | null = null;
+    /** True once the SERVER acknowledged this agent (`agent.created`/`agent.resumed`). */
+    #registered = false;
+    #readyPromise!: Promise<void>;
+    #readyResolve!: () => void;
+    #readyReject!: (err: Error) => void;
 
     /** @internal — created by Pinecall.agent() */
     constructor(
@@ -146,6 +159,17 @@ export class Agent extends TypedEventBus<AgentEvents> {
         this.#tools = config.tools ?? [];
         this.#skills = config.skills ?? [];
         this.#sendRaw = send;
+        this.#armReady();
+    }
+
+    #armReady(): void {
+        this.#readyPromise = new Promise<void>((resolve, reject) => {
+            this.#readyResolve = resolve;
+            this.#readyReject = reject;
+        });
+        // Awaiting `ready` is optional, so a rejection must never surface as an
+        // unhandledRejection crash in a process that never looked at it.
+        this.#readyPromise.catch(() => {});
     }
 
     /**
@@ -183,6 +207,36 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** Get the current agent config. */
     getConfig(): AgentConfig {
         return this.#config;
+    }
+
+    /**
+     * True once the SERVER has acknowledged this agent's registration.
+     *
+     * `pc.agent()` returns synchronously — it only *queues* `agent.create` on
+     * the socket. Until the server answers `agent.created`, the agent does not
+     * exist server-side, so token mints and inbound routing 404 on it.
+     */
+    get registered(): boolean {
+        return this.#registered;
+    }
+
+    /**
+     * Resolves when the SERVER has acknowledged this agent's registration
+     * (`agent.created` / `agent.resumed`) — NOT when `pc.agent()` returned.
+     *
+     * Await this before doing anything that requires the agent to exist
+     * server-side (minting a chat/WebRTC token, dialing out). Rejects with
+     * {@link AgentConflictError} if the registration is terminally refused.
+     * Goes back to pending if the socket drops, and resolves again once the
+     * reconnect re-registers the agent.
+     *
+     * @example
+     * const agent = pc.agent("recepcion", { prompt });
+     * await agent.ready;                       // server now knows it
+     * const { token } = await agent.createToken("chat");
+     */
+    get ready(): Promise<void> {
+        return this.#readyPromise;
     }
 
     // ── Channel management ───────────────────────────────────────────────
@@ -646,6 +700,19 @@ export class Agent extends TypedEventBus<AgentEvents> {
         this.emit(event, ...args);
     }
 
+    /**
+     * @internal Run agent-level `call.preparing` handlers and hand back what
+     * they returned, so async ones can be awaited before the turn is released.
+     */
+    _emitPreparing(call: Call): unknown[] {
+        return this.emitCollect("call.preparing", call);
+    }
+
+    /** @internal True when the app is listening for the pre-turn hook. */
+    _hasPreparingListener(): boolean {
+        return this.listenerCount("call.preparing") > 0;
+    }
+
     /** @internal Get a call by ID. */
     _getCall(callId: string): Call | undefined {
         return this.#calls.get(callId);
@@ -736,6 +803,35 @@ export class Agent extends TypedEventBus<AgentEvents> {
             this.#sendRaw(msg);
         }
         this.#pendingQueue = [];
+    }
+
+    /**
+     * @internal The server acknowledged this agent (`agent.created`/`agent.resumed`).
+     * Settles `ready` — this is the ONLY moment the agent exists server-side.
+     */
+    _markRegistered(): void {
+        this.#registered = true;
+        this.#readyResolve();
+    }
+
+    /**
+     * @internal The socket dropped — the server no longer holds this
+     * registration, so `ready` goes back to pending until the reconnect
+     * re-registers us. Without this, a mint during a reconnect would race
+     * against `agent.create` all over again.
+     */
+    _markUnregistered(): void {
+        if (!this.#registered) return;
+        this.#registered = false;
+        this.#armReady();
+    }
+
+    /**
+     * @internal The registration was terminally refused (see AgentConflictError).
+     * Rejects `ready` so an awaiting caller fails loudly instead of hanging.
+     */
+    _failRegistration(err: Error): void {
+        this.#readyReject(err);
     }
 }
 

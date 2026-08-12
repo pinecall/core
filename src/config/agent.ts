@@ -71,6 +71,33 @@ export interface AgentConfig {
      */
     promptVars?: Record<string, string>;
     /**
+     * Opt in to the pre-turn barrier: before every generation the server fires
+     * `call.preparing` and HOLDS the turn until your handler answers (or the
+     * budget runs out).
+     *
+     * Set it when the app computes values per turn — live CRM state, a catalog,
+     * a clock in the tenant's timezone — and the generation must not run with
+     * the previous ones.
+     *
+     * ```ts
+     * pc.agent("front-desk", { preparing: true });                 // 1500ms budget
+     * pc.agent("front-desk", { preparing: { timeoutMs: 2500 } });  // your own
+     * pc.agent("front-desk", { preparing: false });                // never wait
+     * ```
+     *
+     * - **omitted** — legacy behaviour: the server waits 150ms, and gives up on
+     *   waiting entirely after a few turns with no answer. Fine for the majority
+     *   of agents, which have no `call.preparing` handler at all.
+     * - **`true` / `{ timeoutMs }`** — a real budget (capped at 5000ms), and a
+     *   `call.preparingTimeout` event whenever it is missed. The turn resumes the
+     *   instant your handler settles, so the budget is a ceiling, not a delay.
+     * - **`false`** — the server never even signals. The cheapest option.
+     *
+     * The wait overlaps knowledge-base retrieval, so a KB-backed agent often
+     * spends nothing extra at all.
+     */
+    preparing?: boolean | { enabled?: boolean; timeoutMs?: number };
+    /**
      * IANA timezone (e.g. `"Europe/Madrid"`, `"America/Lima"`). The server
      * resolves the built-in date/time vars — `{{date}}`, `{{time}}`, `{{day}}`,
      * `{{datetime}}`, `{{date_block}}` — in THIS zone, on every transport

@@ -33,6 +33,12 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     // IANA timezone → server resolves built-in {{date}}/{{time}}/{{day}}/{{date_block}}
     // in this zone (all transports), so an agent "in Madrid" reports the right hour.
     if ((opts as any).timezone !== undefined) payload.timezone = (opts as any).timezone;
+    // Pre-turn barrier opt-in. camelCase timeoutMs → snake_case on the wire,
+    // like every other config key; a server that predates it ignores the field
+    // and keeps its legacy 150ms wait.
+    if ((opts as any).preparing !== undefined) {
+        payload.preparing = normalizePreparing((opts as any).preparing);
+    }
     if ((opts as any).rawPrompt !== undefined) payload.raw_prompt = (opts as any).rawPrompt;
     if ((opts as any).tools !== undefined) {
         const tools = (opts as any).tools as any[];
@@ -54,6 +60,17 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     }
 
     return payload;
+}
+
+/** Normalize the `preparing` shortcut to its wire shape. */
+export function normalizePreparing(
+    value: boolean | { enabled?: boolean; timeoutMs?: number } | undefined,
+): unknown {
+    if (typeof value !== "object" || value === null) return value;
+    const out: Record<string, unknown> = {};
+    if (value.enabled !== undefined) out.enabled = value.enabled;
+    if (value.timeoutMs !== undefined) out.timeout_ms = value.timeoutMs;
+    return out;
 }
 
 /**

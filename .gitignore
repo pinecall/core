@@ -11,3 +11,16 @@ NEXT.md
 # after the spec file — e.g. pines-intro.voice.spec.yaml → pines-intro.voice.*
 *.voice.wav
 *.voice.transcript.txt
+
+# taskops
+.taskops/remote.json
+.taskops/pending.jsonl
+.taskops/trees/
+.taskops/hook-seen.json
+.taskops/live.sqlite*
+.taskops/ui.json
+.taskops/board.local-*/
+
+# Worktrees de trabajo (taskops y los de call-log): nunca al repo.
+.worktrees/
+.taskops/

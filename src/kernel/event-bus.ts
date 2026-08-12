@@ -67,6 +67,33 @@ export class TypedEventBus<E extends EventMap> {
         }
     }
 
+    /**
+     * Like `emit`, but KEEPS what each handler returned.
+     *
+     * Exists for `call.preparing`: the server holds the turn open while the app
+     * refreshes its per-turn variables, so the SDK has to know when the app is
+     * actually done — which for an async handler means awaiting the promise it
+     * returned. Plain `emit` throws that value away, and the SDK could only
+     * guess, which is exactly how the barrier used to be lost.
+     */
+    protected emitCollect<K extends keyof E>(event: K, ...args: Parameters<E[K]>): unknown[] {
+        const set = this.#handlers.get(event);
+        if (!set) return [];
+        const results: unknown[] = [];
+        for (const handler of set) {
+            try {
+                results.push((handler as (...a: unknown[]) => unknown)(...args));
+            } catch (err) {
+                if (this.#onError) {
+                    this.#onError(err, String(event), args as unknown[]);
+                } else {
+                    queueMicrotask(() => { throw err; });
+                }
+            }
+        }
+        return results;
+    }
+
     listenerCount<K extends keyof E>(event: K): number {
         return this.#handlers.get(event)?.size ?? 0;
     }

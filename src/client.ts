@@ -8,6 +8,7 @@
  */
 
 import { TypedEventBus } from "./kernel/event-bus.js";
+import { PinecallError } from "./kernel/errors.js";
 import { noopLogger, fileLogger } from "./kernel/logger.js";
 import { planConflictRetry, CONFLICT_RETRY_BUDGET_MS } from "./kernel/backoff.js";
 import type { Logger } from "./kernel/logger.js";
@@ -99,12 +100,7 @@ export interface PinecallEvents {
     "session.timeout": (...args: any[]) => void;
 }
 
-export class PinecallError extends Error {
-    constructor(message: string, public code?: string) {
-        super(message);
-        this.name = "PinecallError";
-    }
-}
+export { PinecallError } from "./kernel/errors.js";
 
 /**
  * Terminal registration conflict — the agent id is held by another LIVE
@@ -128,6 +124,36 @@ export class AgentConflictError extends PinecallError {
         this.name = "AgentConflictError";
     }
 }
+
+/**
+ * The server ran out of client slots — it refused to register this agent.
+ *
+ * A distinct type because it is a distinct fact with a distinct remedy. The
+ * server used to report the refusal as a nondescript REGISTRATION_ERROR, and
+ * the token-mint endpoints — which only see that the agent never appeared —
+ * answered `Agent 'x' is not online`. Nothing about the agent is wrong: the
+ * SERVER is full. Surface the server's own words verbatim.
+ */
+export class ServerAtCapacityError extends PinecallError {
+    constructor(
+        message: string,
+        /** The agent id that could not be registered. */
+        public readonly agentId: string,
+        /** Client slots in use, as reported by the server (if provided). */
+        public readonly used?: number,
+        /** The server's max_clients ceiling (if provided). */
+        public readonly limit?: number,
+    ) {
+        super(message, "SERVER_AT_CAPACITY");
+        this.name = "ServerAtCapacityError";
+    }
+}
+
+/**
+ * How long `createToken` waits for a locally-owned agent's `agent.created`
+ * before failing with AGENT_NOT_REGISTERED. Mirrors the connect() timeout.
+ */
+const REGISTRATION_WAIT_MS = 10_000;
 
 // ─── Pinecall ────────────────────────────────────────────────────────────
 
@@ -396,11 +422,19 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     // ── Token generation ─────────────────────────────────────────────────
 
     /**
-     * Mint a short-lived browser token.
+     * Mint a short-lived browser token for an agent.
      *
      * `opts` (optional, spec §5) narrows the token: `{ scope: "observe",
      * callId }` mints a read-only Call Log token for a single call. Omitting
      * it mints exactly the token this method has always minted.
+     *
+     * Ordered AFTER the agent's server-side registration: `pc.agent()` returns
+     * synchronously and only queues `agent.create` on the socket, so a mint
+     * issued in the next statement used to overtake it on the wire and come
+     * back `404 Agent '<id>' is not online` — a valid, healthy registration
+     * refused purely because the HTTP request beat the WebSocket frame. For an
+     * agent this client owns we wait for `agent.created` first. Agents owned by
+     * another process are minted straight through (nothing local to wait on).
      */
     async createToken(
         channel: "webrtc" | "chat" | "stream",
@@ -408,6 +442,10 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         metadata?: Record<string, unknown>,
         opts?: TokenScopeOptions,
     ): Promise<TokenResponse> {
+        // An agent set (§5) awaits each locally-owned registration, so a mint
+        // issued right after pc.agent(...) cannot race any member's create.
+        const ids = Array.isArray(agentId) ? agentId : [agentId as string];
+        for (const id of ids) await this.#awaitRegistration(id);
         return createTokenApi({
             channel,
             agentId,
@@ -437,6 +475,35 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     }
 
     // ── Private methods ──────────────────────────────────────────────────
+
+    /**
+     * Wait until the server has acknowledged a locally-owned agent.
+     *
+     * NOT a grace period: the wait ends the moment `agent.created` arrives (sub-
+     * millisecond on a live socket). The deadline exists only so a caller inside
+     * a request handler cannot hang forever while the socket is down — and it
+     * fails with the real reason instead of minting a token that would 404.
+     */
+    async #awaitRegistration(agentId: string): Promise<void> {
+        const agent = this.#agents.get(agentId);
+        if (!agent || agent.registered) return;
+
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new PinecallError(
+                `Agent "${agentId}" was not registered by the server within ` +
+                `${Math.round(REGISTRATION_WAIT_MS / 1000)}s — it cannot be used yet ` +
+                `(is the client connected?).`,
+                "AGENT_NOT_REGISTERED",
+            )), REGISTRATION_WAIT_MS);
+            (timer as any)?.unref?.();
+        });
+        try {
+            await Promise.race([agent.ready, deadline]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
 
     #send(data: Record<string, unknown>): void {
         if (this.#transport?.isOpen) {
@@ -543,7 +610,11 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             `Either run \`pinecall kick ${agentId}\` to disconnect the current holder, ` +
             `or register this agent under a different id.`;
         this.#logger.error(message);
-        this.emit("error", new AgentConflictError(message, agentId, reason));
+        const err = new AgentConflictError(message, agentId, reason);
+        // Fail anyone awaiting `agent.ready` (e.g. a token mint) instead of
+        // leaving them pending on a registration that will never land.
+        this.#agents.get(agentId)?._failRegistration(err);
+        this.emit("error", err);
     }
 
     #clearRegisterRetry(agentId: string): void {
@@ -635,9 +706,13 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         // Reconnect re-registers every agent — drop per-agent retry timers
         this.#clearAllRegisterRetries();
 
-        // End all active calls
+        // End all active calls. The server drops every registration on this
+        // socket too, so `ready` goes back to pending until the reconnect
+        // re-registers each agent — otherwise a mint during a reconnect would
+        // race `agent.create` exactly like a cold start does.
         for (const agent of this.#agents.values()) {
             agent._endAllCalls(reason);
+            agent._markUnregistered();
         }
 
         this.emit("disconnected", reason);

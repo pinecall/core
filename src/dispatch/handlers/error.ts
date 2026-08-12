@@ -9,6 +9,7 @@
 
 import type { EventHandler, DispatchContext } from "../handler.js";
 import type { WireEvent } from "../../protocol/wire.js";
+import { ServerAtCapacityError } from "../../client.js";
 
 export class ErrorHandler implements EventHandler {
     readonly events = ["error"] as const;
@@ -32,6 +33,29 @@ export class ErrorHandler implements EventHandler {
                     agent._getChannels().delete(phone);
                 }
             }
+            return true;
+        }
+
+        // SERVER_AT_CAPACITY — the server's max_clients ceiling refused this
+        // registration. NOT a conflict, NOT a bad config, and above all NOT an
+        // offline agent: retrying the same call cannot help until a slot frees.
+        // It reached us as a generic REGISTRATION_ERROR before, and the only
+        // symptom a consumer saw afterwards was the token mint answering
+        // "Agent 'x' is not online" — which is why this gets its own type and
+        // its own words, verbatim from the server.
+        if (code === "SERVER_AT_CAPACITY" || errorMsg.startsWith("SERVER_AT_CAPACITY:")) {
+            const agentId = (wire.agent_id as string | undefined) ?? "";
+            const used = wire.used as number | undefined;
+            const limit = wire.limit as number | undefined;
+            const err = new ServerAtCapacityError(errorMsg, agentId, used, limit);
+            console.error(
+                `\n  \x1b[91m✗\x1b[0m Server at capacity — agent "${agentId || "?"}" was NOT registered` +
+                (used != null && limit != null ? ` (${used}/${limit} client slots used)` : "") + `.\n` +
+                `    The agent is not offline: the server refused it a slot.\n` +
+                `    Free slots (\x1b[96mpinecall agents\x1b[0m shows the holders) or raise the server cap.\n`,
+            );
+            if (agentId) ctx.agent(agentId)?._failRegistration(err);
+            ctx.client._emitWire("error", err);
             return true;
         }
 
@@ -91,6 +115,15 @@ export class ErrorHandler implements EventHandler {
             }
             ctx.client._emitWire("error", new Error(errorMsg));
             return true;
+        }
+
+        // REGISTRATION_ERROR — the server refused this agent for a reason that
+        // no retry can fix (bad config). The client cap used to land here too;
+        // it has its own code now, above. Fail anyone awaiting
+        // `agent.ready` right away instead of letting them wait out a deadline.
+        if (code === "REGISTRATION_ERROR") {
+            const agentId = wire.agent_id as string | undefined;
+            if (agentId) ctx.agent(agentId)?._failRegistration(new Error(errorMsg));
         }
 
         // Generic error — emit on client

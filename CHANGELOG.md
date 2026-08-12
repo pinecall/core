@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-12
+
 ### Added
 - **Docs: `guides/project-structure.md`** — the recommended layout for a Pinecall
   app, first in the Guides nav because it is what "starting a project" routes to:

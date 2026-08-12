@@ -26,7 +26,7 @@
  */
 
 // Core classes
-export { Pinecall, PinecallError, AgentConflictError } from "./client.js";
+export { Pinecall, PinecallError, AgentConflictError, ServerAtCapacityError } from "./client.js";
 export type { PinecallOptions, PinecallEvents } from "./client.js";
 export type { StreamOptions } from "./sse/stream.js";
 

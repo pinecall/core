@@ -166,7 +166,9 @@ describe("ErrorHandler — AGENT_CONFLICT_FATAL is terminal", () => {
 
 describe("ConnectionHandler — retry state reset", () => {
     it("clears the retry on agent.created", () => {
-        const agent = { id: "pines", _flushPending: vi.fn(), _emitWire: vi.fn() };
+        // `_markRegistered` is part of the real Agent's ack path (it settles
+        // `agent.ready`); the double needs it, the assertions below are unchanged.
+        const agent = { id: "pines", _flushPending: vi.fn(), _emitWire: vi.fn(), _markRegistered: vi.fn() };
         const ctx = makeCtx({}, agent);
         new ConnectionHandler().handle({ event: "agent.created", agent_id: "pines" } as any, ctx);
         expect(ctx.client._clearRegisterRetry).toHaveBeenCalledWith("pines");
@@ -174,7 +176,9 @@ describe("ConnectionHandler — retry state reset", () => {
     });
 
     it("clears the retry on agent.resumed", () => {
-        const agent = { id: "pines", _flushPending: vi.fn(), _emitWire: vi.fn() };
+        // `_markRegistered` is part of the real Agent's ack path (it settles
+        // `agent.ready`); the double needs it, the assertions below are unchanged.
+        const agent = { id: "pines", _flushPending: vi.fn(), _emitWire: vi.fn(), _markRegistered: vi.fn() };
         const ctx = makeCtx({}, agent);
         new ConnectionHandler().handle({ event: "agent.resumed", agent_id: "pines" } as any, ctx);
         expect(ctx.client._clearRegisterRetry).toHaveBeenCalledWith("pines");

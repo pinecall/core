@@ -11,6 +11,7 @@
  */
 
 import { TypedEventBus } from "../kernel/event-bus.js";
+import { PinecallError } from "../kernel/errors.js";
 import { generateId } from "../kernel/id.js";
 import { ReplyStream } from "./reply-stream.js";
 import type { Turn } from "./turn.js";
@@ -62,9 +63,35 @@ export interface CallEvents {
     "llm.toolCall": (event: ToolCallEvent) => void;
     "skill.loaded": (event: SkillEvent) => void;
     "skill.unloaded": (event: SkillEvent) => void;
-    "call.preparing": (call: Call) => void;
+    /**
+     * The server is about to generate a reply and is HOLDING the turn open for
+     * you. Refresh per-turn prompt variables here.
+     *
+     * Return a promise (an `async` handler does this for you) and the SDK waits
+     * for it before telling the server to go ahead — so an awaited
+     * `call.setPromptVars()` inside this handler is guaranteed to land on THIS
+     * generation, not the next one.
+     */
+    "call.preparing": (call: Call) => void | Promise<unknown>;
+    /**
+     * The server gave up waiting for `call.preparing` and generated with the
+     * previous values. Only fires for agents that opted in with `preparing`.
+     * This is the loud failure — a silent one is what this replaced.
+     */
+    "call.preparingTimeout": (event: PreparingTimeoutEvent) => void;
     "session.timeout": (event: SessionTimeoutEvent) => void;
     "ended": (reason: string) => void;
+}
+
+/** Payload of `call.preparingTimeout`. */
+export interface PreparingTimeoutEvent {
+    callId: string;
+    /** Turn counter, as the server numbers it. */
+    turn: number;
+    /** How long the server actually waited, in ms. */
+    waitedMs: number;
+    /** The budget it was allowed to wait, in ms. */
+    budgetMs: number;
 }
 
 /** Emitted when a skill is activated/deactivated on a call. */
@@ -89,7 +116,15 @@ export interface ForwardOptions {
 
 // ─── Call class ──────────────────────────────────────────────────────────
 
+/**
+ * How long a history/prompt request waits for its server ack before rejecting.
+ * Generous on purpose — this is a failure detector, not a latency budget. The
+ * turn's own budget is the `preparing` one, enforced server-side.
+ */
+export const REQUEST_TIMEOUT_MS = 10_000;
+
 export class Call extends TypedEventBus<CallEvents> {
+    static #requestSeq = 0;
     readonly id: string;
     readonly from: string;
     readonly to: string;
@@ -350,61 +385,133 @@ export class Call extends TypedEventBus<CallEvents> {
 
     // ── History management (server-side LLM) ─────────────────────────────
 
-    /** @internal Send a request and wait for a specific response event. */
+    /**
+     * @internal Send a request and wait for its response event.
+     *
+     * Correlated by `request_id`, which the server echoes. Two reasons:
+     * concurrent requests used to overwrite each other in the pending map (they
+     * all key on "history.updated"), and a late reply could resolve the wrong
+     * caller. Servers that don't echo it fall back to event-name keying, which
+     * is what shipped before.
+     *
+     * The timeout is the point: without one, an ack that never routes leaves
+     * `await call.setPromptVars()` pending FOREVER, which is how the whole
+     * mechanism managed to fail without anyone noticing.
+     */
     #request(sendEvent: string, responseEvent: string, data: Record<string, unknown> = {}): Promise<any> {
-        return new Promise((resolve) => {
-            this.#pendingResponses.set(responseEvent, resolve);
-            this.#send({ event: sendEvent, call_id: this.id, ...data });
+        const requestId = `rq_${(++Call.#requestSeq).toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+        const promise = new Promise<any>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.#pendingResponses.delete(responseEvent);
+                this.#pendingResponses.delete(requestId);
+                reject(new PinecallError(
+                    `Timed out after ${REQUEST_TIMEOUT_MS}ms waiting for "${responseEvent}" ` +
+                    `in reply to "${sendEvent}" on call ${this.id}.`,
+                    "REQUEST_TIMEOUT",
+                ));
+            }, REQUEST_TIMEOUT_MS);
+            const settle = (payload: any) => { clearTimeout(timer); resolve(payload); };
+            // Registered under BOTH keys: request_id for a server that echoes it,
+            // event name for one that doesn't.
+            this.#pendingResponses.set(responseEvent, settle);
+            this.#pendingResponses.set(requestId, settle);
+            this.#send({ event: sendEvent, call_id: this.id, request_id: requestId, ...data });
+        });
+        return promise.then((res) => {
+            // The server acks even when it could not find a handler for the
+            // call, and says so — better a rejection the app can see than the
+            // silence that used to leave the promise pending for good.
+            if (res?.error) {
+                throw new PinecallError(
+                    `"${sendEvent}" was rejected by the server on call ${this.id}: ${res.error}`,
+                    "REQUEST_REJECTED",
+                );
+            }
+            return res;
         });
     }
 
-    async getHistory(): Promise<Array<{ role: string; content: string }>> {
-        const res = await this.#request("history.get", "history.data");
-        return res.messages ?? [];
+    /**
+     * Mark a returned promise as handled so a fire-and-forget caller — the
+     * overwhelmingly common shape, `call.setPromptVars(v)` with no `await` —
+     * cannot bring the process down with an unhandled rejection when a request
+     * fails. A caller that DOES await still receives the error.
+     */
+    static #handled<T>(p: Promise<T>): Promise<T> {
+        p.catch(() => {});
+        return p;
     }
 
-    async addHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
-        const res = await this.#request("history.add", "history.updated", { messages });
-        return res.count ?? 0;
+    getHistory(): Promise<Array<{ role: string; content: string }>> {
+        return Call.#handled(
+            this.#request("history.get", "history.data").then((res) => res.messages ?? []),
+        );
     }
 
-    async setHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
-        const res = await this.#request("history.set", "history.updated", { messages });
-        return res.count ?? 0;
+    addHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
+        return Call.#handled(
+            this.#request("history.add", "history.updated", { messages })
+                .then((res) => res.count ?? 0),
+        );
     }
 
-    async clearHistory(): Promise<number> {
-        const res = await this.#request("history.clear", "history.updated");
-        return res.count ?? 0;
+    setHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
+        return Call.#handled(
+            this.#request("history.set", "history.updated", { messages })
+                .then((res) => res.count ?? 0),
+        );
     }
 
-    async setPrompt(prompt: string): Promise<number> {
+    clearHistory(): Promise<number> {
+        return Call.#handled(
+            this.#request("history.clear", "history.updated").then((res) => res.count ?? 0),
+        );
+    }
+
+    setPrompt(prompt: string): Promise<number> {
         this._promptTemplate = prompt;
         return this.#sendPrompt(prompt);
     }
 
-    async setPromptFile(filePath: string): Promise<number> {
-        // Lazy import — browser-safe, fixes the require("path")/require("fs") bundler issue
-        const { readFileSync } = await import("node:fs");
-        const { resolve } = await import("node:path");
-        const resolved = resolve(this._promptsDir, filePath);
-        this._promptTemplate = readFileSync(resolved, "utf-8").trim();
-        return this.#sendPrompt(this._promptTemplate);
+    setPromptFile(filePath: string): Promise<number> {
+        return Call.#handled((async () => {
+            // Lazy import — browser-safe, fixes the require("path")/require("fs") bundler issue
+            const { readFileSync } = await import("node:fs");
+            const { resolve } = await import("node:path");
+            const resolved = resolve(this._promptsDir, filePath);
+            this._promptTemplate = readFileSync(resolved, "utf-8").trim();
+            return this.#sendPrompt(this._promptTemplate);
+        })());
     }
 
-    async setPromptVars(vars: Record<string, string>): Promise<number> {
-        const res = await this.#request("history.set_vars", "history.updated", { vars });
-        return res.count ?? 0;
+    /**
+     * Push `{{var}}` values for the CURRENT turn. Highest precedence: they beat
+     * the agent-level `promptVars` and stay until you overwrite them.
+     *
+     * Inside a `call.preparing` handler this is the per-turn contract — return
+     * the promise (or `await` it) and the server holds the generation until it
+     * lands. Resolves with the message count, or rejects if the server never
+     * acknowledges it.
+     */
+    setPromptVars(vars: Record<string, string>): Promise<number> {
+        return Call.#handled(
+            this.#request("history.set_vars", "history.updated", { vars })
+                .then((res) => res.count ?? 0),
+        );
     }
 
-    async addContext(text: string): Promise<number> {
-        const res = await this.#request("history.add_context", "history.updated", { text });
-        return res.count ?? 0;
+    addContext(text: string): Promise<number> {
+        return Call.#handled(
+            this.#request("history.add_context", "history.updated", { text })
+                .then((res) => res.count ?? 0),
+        );
     }
 
-    async #sendPrompt(text: string): Promise<number> {
-        const res = await this.#request("history.set_instructions", "history.updated", { prompt: text });
-        return res.count ?? 0;
+    #sendPrompt(text: string): Promise<number> {
+        return Call.#handled(
+            this.#request("history.set_instructions", "history.updated", { prompt: text })
+                .then((res) => res.count ?? 0),
+        );
     }
 
     // ── Dispatch-only API (friend methods) ───────────────────────────────
@@ -434,13 +541,30 @@ export class Call extends TypedEventBus<CallEvents> {
 
     /** @internal Resolve a pending history request/response promise. */
     _applyHistoryResponse(eventType: string, data: Record<string, unknown>): boolean {
-        const resolver = this.#pendingResponses.get(eventType);
+        // request_id first — exact correlation when the server echoes it.
+        const requestId = data.request_id as string | undefined;
+        const resolver = (requestId ? this.#pendingResponses.get(requestId) : undefined)
+            ?? this.#pendingResponses.get(eventType);
         if (resolver) {
+            if (requestId) this.#pendingResponses.delete(requestId);
             this.#pendingResponses.delete(eventType);
             resolver(data);
             return true;
         }
         return false;
+    }
+
+    /**
+     * @internal Run the `call.preparing` handlers and hand back whatever they
+     * returned, so the caller can await async ones before releasing the turn.
+     */
+    _emitPreparing(): unknown[] {
+        return this.emitCollect("call.preparing", this);
+    }
+
+    /** @internal True when the app is listening for the pre-turn hook. */
+    _hasPreparingListener(): boolean {
+        return this.listenerCount("call.preparing") > 0;
     }
 
     /** @internal Apply user.message — tracks lastMessageId and turn state. */
