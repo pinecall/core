@@ -38,8 +38,7 @@ export default defineTool({
         "Run your project's agent entry file as a managed child process (like `pinecall run`), so an agent with code tools is live and chattable. Also stop/status/logs.",
     schema,
     manual:
-        "The loop: write agent code → `run_agent` (start) → `chat` → `run_agent` action:\"logs\" when a reply is off → action:\"stop\". Needed whenever the agent has code tools — `configure_agent` cannot carry functions. ONE process per session: a second start stops the first (reported as `replaced`) and it is killed when this server exits.\n" +
-        "SECURITY: this executes YOUR project's code locally with your API key in its env — the same trust as running it in the IDE terminal. Only files inside the server's working directory are accepted.",
+        "The loop: write agent code → start → `chat` → `logs` when a reply is off → `stop`. Needed when the agent has code tools (`configure_agent` cannot carry functions). ONE process per session; killed when this server exits. SECURITY: runs YOUR project's code locally with your key in its env — IDE-terminal trust, files inside cwd only.",
     async handler(
         args: { file?: string; action?: "start" | "stop" | "status" | "logs"; lines?: number },
         { session },
