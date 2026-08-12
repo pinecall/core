@@ -5,9 +5,10 @@ working voice agent without leaving the editor: read the docs, discover the mode
 catalog, configure a **dev** agent, iterate on it by chatting with it, and debug real calls
 from the call log.
 
-> **Status: the journey is complete.** All 14 tools ship — `whoami`, `set_api_key`,
+> **Status: the journey is complete.** All 17 tools ship — `whoami`, `set_api_key`,
 > `docs_search`, `get_doc`, `knowledge`, `list_agents`, `configure_agent`, `chat`,
-> `list_phones`, `list_calls`, `get_call`, `list_models`, `list_voices`, `play_voice` —
+> `list_phones`, `list_calls`, `get_call`, `observe`, `list_models`, `list_voices`,
+> `play_voice`, `subscribe`, `byok` —
 > plus the `pinecall mcp install` one-command installer. What is deliberately absent:
 > no spec-runner (chat **is** the testing story), no outbound dialling, no account
 > creation, and no code tools — `tool()` and webhooks need a running SDK process.
@@ -105,6 +106,7 @@ Fourteen tools, listed in journey order — the same order they appear in the se
 | `list_phones(free?)` | every number with its owner — `{ number, agent, live, dev_override?, country, inInventory }` plus `{ total, free, assigned }`. `agent: null` is the only free one. |
 | `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
 | `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
+| `observe(call_id? \| agent?, after?, waitSeconds?)` | the **live** half: a long poll over the log. Holds one WS open and returns the moment entries past `after` arrive — same reduced shape as `get_call`. Nothing happening returns `{ timedOut: true }` with the cursor unmoved, never an error. With `agent` it returns when a call **starts**, handing back its id. |
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `play_voice(voice, text?, language?)` | plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
@@ -120,6 +122,15 @@ token minted per request with `scope: "observe"` (read-only, and narrowed to the
 for `get_call`) — the API key never reaches the log endpoints. The call reduction is
 `CallLogView` from `@pinecall/sdk/log`, the same one reducer the browser client uses, so
 ephemeral interim transcripts collapse exactly as they do in a live UI.
+
+`observe` is the same debugger pointed at the **future** instead of the past. An MCP tool
+call cannot be pushed to, so "live" is a long poll: it attaches to `WS /v1/attach`, answers
+as soon as the log says something, and **closes the socket before returning** — the cursor
+is the only state, so nothing is held between calls and an abandoned loop leaks nothing.
+Loop it while a human talks to the agent, feeding `nextAfter` back each time; `timedOut`
+means only that nothing happened, so call again with the same cursor. Start on `agent` when
+you do not have a call id yet — it returns the instant one starts. Then `get_call` for the
+finished transcript, which is why both answer in the same shape.
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `play_voice(voice, text?, language?)` | Plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
