@@ -5,9 +5,9 @@ working voice agent without leaving the editor: read the docs, discover the mode
 catalog, configure a **dev** agent, iterate on it by chatting with it, and debug real calls
 from the call log.
 
-> Status: foundation. Today it ships `whoami` and `set_api_key`; the rest of the journey
+> Status: foundation. Today it ships `whoami`, `set_api_key` and `knowledge`; the rest of the journey
 > (`docs_search`, `list_models`, `list_voices`, `list_phones`, `list_agents`,
-> `configure_agent`, `chat`, `list_calls` / `get_call`, `knowledge`) lands tool by tool.
+> `configure_agent`, `chat`, `list_calls` / `get_call`) lands tool by tool.
 
 ## Install
 
@@ -44,6 +44,7 @@ returned by a tool — every outbound error string is scrubbed (`Session.redact`
 |---|---|
 | `whoami` | the org this key belongs to — name, slug, plan, credits. The auth probe: call it first. |
 | `set_api_key(key)` | store a key for this session, in memory. Returns `{ ok, verified, org }` — never the key. |
+| `knowledge(action, kb?, …)` | knowledge bases (RAG): `list` the org's KBs, `query` one for ranked chunks, `push` `[{path, content}]` docs into one. Push is idempotent by path; re-training is automatic. The client supplies document content — the server never reads local files. |
 
 Every tool also ships its own **manual**, and the server's `instructions` field is assembled
 from the journey playbook plus those manuals — so a tool cannot drift from its documentation.
@@ -90,6 +91,7 @@ src/
     index.ts       THE REGISTRY
     whoami.ts
     set-api-key.ts
+    knowledge.ts
 ```
 
 `session.ts` imports `apiFetch` from the SDK's own `src/api/http.ts` — there is no second
