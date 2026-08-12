@@ -105,7 +105,7 @@ describe("get_doc", () => {
     const live = process.env.PINECALL_API_KEY ? it : it.skip;
 
     live("returns the REAL full markdown of guides/call-log", async () => {
-        const session = new Session();
+        const session = new Session(process.env, "/pinecall-tests-no-home");
         const res = (await getDoc.handler({ path: "guides/call-log" }, { session })) as GetDocResult;
         expect(res.path).toBe("guides/call-log.md");
         expect(res.title).toBe("The Call Log");
@@ -116,7 +116,7 @@ describe("get_doc", () => {
     });
 
     live("answers a bogus path with suggestions instead of crashing", async () => {
-        const session = new Session();
+        const session = new Session(process.env, "/pinecall-tests-no-home");
         const miss = (await getDoc.handler({ path: "guides/does-not-exist" }, { session })) as GetDocMiss;
         expect(miss.error).toBeTruthy();
         expect(miss.suggestions.length).toBeGreaterThan(0);

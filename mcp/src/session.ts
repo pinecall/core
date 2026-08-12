@@ -1,17 +1,21 @@
 /**
  * Session — the one place that knows the API key.
  *
- * The key comes from PINECALL_API_KEY at boot, or from the `set_api_key`
- * tool, which stores it IN MEMORY for the life of this process only. It is
- * never written to disk, never logged, and never included in a tool result
- * (see `redact()` — every outbound error string goes through it).
+ * At boot the key is resolved by `resolveApiKey()` (see credentials.ts):
+ * env → ~/.pinecall/credentials → a read-only scan of the shell rc files.
+ * It can also arrive from the `set_api_key` tool, which stores it IN MEMORY
+ * for the life of this process — and writes the credentials store only when
+ * asked with `persist`. The key is never logged and never included in a tool
+ * result (see `redact()` — every outbound error string goes through it).
  *
  * Endpoints are the SAME ones the CLI uses:
  *   · voice server  (PINECALL_URL,  default https://voice.pinecall.io) — apiFetch from the SDK
  *   · playground    (PINECALL_PLAYGROUND_URL, default https://playground.pinecall.io) — /api/orgs/me
  */
 
+import { homedir } from "node:os";
 import { apiFetch, DEFAULT_API_URL } from "../../src/api/http.js";
+import { resolveApiKey, writeCredentials, type KeySource } from "./credentials.js";
 
 export const DEFAULT_PLAYGROUND_URL = "https://playground.pinecall.io";
 
@@ -19,9 +23,13 @@ export const DEFAULT_PLAYGROUND_URL = "https://playground.pinecall.io";
 export class MissingApiKeyError extends Error {
     constructor() {
         super(
-            "No Pinecall API key in this session. Set PINECALL_API_KEY in the MCP " +
-            "server env, or call the `set_api_key` tool with your pk_... key " +
-            "(stored in memory for this session only).",
+            "No Pinecall API key in this session. Looked in PINECALL_API_KEY, " +
+            "~/.pinecall/credentials, and the shell rc files (~/.zshenv, ~/.zshrc, " +
+            "~/.bash_profile, ~/.bashrc, ~/.profile) — an IDE spawns this server " +
+            "without your shell, so an `export` in a terminal does not reach it. " +
+            "Fix it by setting PINECALL_API_KEY in the MCP server's env block, or " +
+            "call the `set_api_key` tool with your pk_... key (add persist: true to " +
+            "save it to ~/.pinecall/credentials, mode 0600, for next time).",
         );
         this.name = "MissingApiKeyError";
     }
@@ -30,13 +38,35 @@ export class MissingApiKeyError extends Error {
 export class Session {
     /** In memory only. Never serialized. */
     #apiKey: string;
+    /** The home dir the credentials store lives under — overridable for tests. */
+    readonly #home: string;
     readonly serverUrl: string;
     readonly playgroundUrl: string;
 
-    constructor(env: NodeJS.ProcessEnv = process.env) {
-        this.#apiKey = env.PINECALL_API_KEY ?? "";
+    /** Where the current key came from. Reported by `whoami`, never the key itself. */
+    keySource: KeySource;
+    /** True when an rc-file hit was copied into ~/.pinecall/credentials at boot. */
+    keyPersisted: boolean;
+    /** The rc file a "shell-rc" hit came from — a path, not a secret. */
+    keyRcFile?: string;
+
+    constructor(env: NodeJS.ProcessEnv = process.env, home: string = homedir()) {
+        this.#home = home;
+        const resolved = resolveApiKey(env, home);
+        this.#apiKey = resolved.apiKey;
+        this.keySource = resolved.source;
+        this.keyPersisted = resolved.persisted;
+        this.keyRcFile = resolved.rcFile;
         this.serverUrl = (env.PINECALL_URL ?? DEFAULT_API_URL).replace(/\/+$/, "");
         this.playgroundUrl = (env.PINECALL_PLAYGROUND_URL ?? DEFAULT_PLAYGROUND_URL).replace(/\/+$/, "");
+    }
+
+    /** A one-line, key-free note about where the key came from — or null. */
+    keyNotice(): string | null {
+        if (this.keySource !== "shell-rc") return null;
+        return this.keyPersisted
+            ? `Key was not in this server's env — found by reading ${this.keyRcFile} and saved to ~/.pinecall/credentials (0600), so this one-time scan will not be needed again.`
+            : `Key was not in this server's env — found by reading ${this.keyRcFile}, but ~/.pinecall/credentials could not be written, so the scan will repeat next start.`;
     }
 
     hasApiKey(): boolean {
@@ -49,9 +79,20 @@ export class Session {
         return this.#apiKey;
     }
 
-    /** `set_api_key`. Returns nothing — a caller must not be able to read it back. */
-    setApiKey(key: string): void {
+    /**
+     * `set_api_key`. Returns whether it was persisted — never the key, which a
+     * caller must not be able to read back.
+     *
+     * With `persist`, the key is written to ~/.pinecall/credentials at 0600:
+     * the one sanctioned disk write, so the next session (and the CLI) find it
+     * without the user re-pasting.
+     */
+    setApiKey(key: string, persist = false): boolean {
         this.#apiKey = key.trim();
+        this.keySource = "session";
+        this.keyRcFile = undefined;
+        this.keyPersisted = persist ? writeCredentials(this.#apiKey, this.#home) : false;
+        return this.keyPersisted;
     }
 
     /**
