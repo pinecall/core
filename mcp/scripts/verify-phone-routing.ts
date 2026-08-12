@@ -1,8 +1,10 @@
 /**
- * Live proof for tk-051a52 — run against the REAL server, not a mock.
+ * Live proof for tk-051a52 — one shot against the REAL server, not a mock.
  *
- *   npx tsx scripts/verify-phone-routing.ts            # the three assertions
- *   FREE_NUM=+1... HOLD_MS=900000 npx tsx scripts/...  # then hold it open for a real call
+ *   TAKEN_NUM=+1... FREE_NUM=+1... npx tsx scripts/verify-phone-routing.ts
+ *
+ * It registers, asserts, releases everything and exits. It never stays
+ * resident and never holds a number.
  *
  * It exercises the actual configure_agent handler three ways:
  *   A) claim a number another live `dev-` agent holds -> must report routed:false + routedTo
@@ -58,13 +60,10 @@ const main = async () => {
         c.routed === false && c.routedTo === "dev-fixphone-a" && c.dialThisNumber === null;
     console.log(`\nRESULT: ${ok ? "ALL THREE CORRECT" : "MISMATCH"}`);
 
-    if (process.env.HOLD_MS) {
-        // Free the second slug so only dev-fixphone-a owns the route, then wait
-        // for a human to dial FREE and prove the routing end to end.
-        await agentHosts.release("dev-fixphone-b");
-        console.log(`Holding ${FREE} on dev-fixphone-a for ${process.env.HOLD_MS}ms — call it now.`);
-        await new Promise((r) => setTimeout(r, Number(process.env.HOLD_MS)));
-    }
+    // One shot: never leave a dev agent holding a number after it exits. To
+    // prove routing with a REAL inbound call, register the agent the normal way
+    // (`configure_agent` in a live MCP session) and watch it with `observe` —
+    // that is the tool that exists so nobody hand-rolls a polling loop.
     await agentHosts.releaseAll();
     process.exit(ok ? 0 : 1);
 };
