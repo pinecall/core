@@ -13,6 +13,7 @@ import type { ToolModule } from "./types.js";
 import whoami from "./whoami.js";
 import setApiKey from "./set-api-key.js";
 import docsSearch from "./docs-search.js";
+import getDoc from "./get-doc.js";
 import knowledge from "./knowledge.js";
 import listAgents from "./list-agents.js";
 import configureAgent from "./configure-agent.js";
@@ -22,11 +23,13 @@ import listCalls from "./list-calls.js";
 import getCall from "./get-call.js";
 import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
+import playVoice from "./play-voice.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
     setApiKey,
     docsSearch,
+    getDoc,
     knowledge,
     listAgents,
     configureAgent,
@@ -37,6 +40,7 @@ export const tools: ToolModule<any>[] = [
     getCall,
     listModels,
     listVoices,
+    playVoice,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";
