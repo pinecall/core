@@ -6,6 +6,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
+import { mkdtempSync, rmSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { tools } from "../src/tools/index.js";
@@ -66,7 +68,11 @@ describe("@pinecall/mcp server over stdio", () => {
     });
 
     it("without a key, a tool errors naming set_api_key and echoes no key", async () => {
-        const bare = await connect({ PINECALL_API_KEY: "" });
+        // An EMPTY home, so the key-discovery chain (env → ~/.pinecall/credentials
+        // → shell rc scan) finds nothing and the real developer's key stays out
+        // of this assertion. Never point a test at the real HOME.
+        const emptyHome = mkdtempSync(path.join(os.tmpdir(), "pinecall-mcp-nohome-"));
+        const bare = await connect({ PINECALL_API_KEY: "", HOME: emptyHome, USERPROFILE: emptyHome });
         try {
             const res: any = await bare.callTool({ name: "whoami", arguments: {} });
             expect(res.isError).toBe(true);
@@ -75,6 +81,7 @@ describe("@pinecall/mcp server over stdio", () => {
             expect(text).not.toMatch(/pk_[A-Za-z0-9]/);
         } finally {
             await bare.close();
+            rmSync(emptyHome, { recursive: true, force: true });
         }
     });
 

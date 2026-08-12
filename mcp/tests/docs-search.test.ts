@@ -77,7 +77,7 @@ describe("docs_search", () => {
     const live = process.env.PINECALL_API_KEY ? it : it.skip;
 
     live("finds guides/call-log at the top of the REAL docs KB", async () => {
-        const session = new Session();
+        const session = new Session(process.env, "/pinecall-tests-no-home");
         const hits = (await docsSearch.handler({ query: "call log cursor" }, { session })) as DocsHit[];
         expect(hits.length).toBeGreaterThan(0);
         expect(hits[0].path).toBe("guides/call-log.md");
@@ -86,7 +86,7 @@ describe("docs_search", () => {
     });
 
     live("answers a garbage query with a list, not an error", async () => {
-        const session = new Session();
+        const session = new Session(process.env, "/pinecall-tests-no-home");
         const hits = (await docsSearch.handler(
             { query: "asdkjhasd qwiuey zxcvbnm 88888", limit: 3 },
             { session },

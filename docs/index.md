@@ -46,6 +46,7 @@ That snippet is a production-ready agent. The SDK auto-connects on construction,
 - **Multi-channel agents** — the same agent handling phone, WhatsApp, and browser calls simultaneously
 - **Outbound campaigns** — programmatic outbound calls with TTS greetings
 - **Embedded copilots** — voice inside your web app via the React widget
+- **Native mobile calls** — a real CallKit phone call to your agent from an Ionic/Capacitor or React Native app ([mobile](/mobile/ionic-overview))
 
 ## How the SDK is organized
 

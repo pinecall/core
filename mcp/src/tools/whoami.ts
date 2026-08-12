@@ -11,9 +11,11 @@ export default defineTool({
     name: "whoami",
     description: "The org this API key belongs to — name, slug, plan/tier and remaining credits.",
     schema: {},
-    manual: "Call it FIRST — the auth probe. A 401 means every other tool fails the same way.",
+    manual:
+        "Call it FIRST — the auth probe; a 401 means every tool fails the same. `keySource` names where the key came from; on `shell-rc` relay the `notice` (key persisted to ~/.pinecall/credentials, scan is one-time).",
     async handler(_args, { session }) {
         const org = await session.playground<any>("/orgs/me");
+        const notice = session.keyNotice();
         return {
             org: org.name ?? null,
             slug: org.slug ?? null,
@@ -24,6 +26,10 @@ export default defineTool({
             verified: org.verified ?? null,
             server: session.serverUrl,
             playground: session.playgroundUrl,
+            // Where the key came from — a provenance label, never the key.
+            keySource: session.keySource,
+            ...(session.keySource === "shell-rc" ? { persisted: session.keyPersisted } : {}),
+            ...(notice ? { notice } : {}),
         };
     },
 });
