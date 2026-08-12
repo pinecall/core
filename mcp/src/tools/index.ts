@@ -14,12 +14,14 @@ import whoami from "./whoami.js";
 import setApiKey from "./set-api-key.js";
 import docsSearch from "./docs-search.js";
 import knowledge from "./knowledge.js";
+import listAgents from "./list-agents.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
     setApiKey,
     docsSearch,
     knowledge,
+    listAgents,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";
