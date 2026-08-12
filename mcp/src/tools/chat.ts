@@ -29,7 +29,7 @@ export default defineTool({
             .optional()
             .describe(`Budget for this turn, connect included (default ${DEFAULT_TIMEOUT_MS / 1000}s)`),
     },
-    manual: "The testing path — there is no test-runner tool. Converse: ask what a real caller would and judge the transcript. The returned `session` id IS the thread: pass it back to continue, each reply is matched to the message you sent (`in_reply_to`), and sessions live in server memory, 15 min idle. `toolCalls` appears only when a tool fired.",
+    manual: "The testing path — there is no test-runner tool. Converse: ask what a real caller would and judge the transcript. The returned `session` id IS the thread: pass it back to continue; each reply is matched to your message (`in_reply_to`); 15 min idle.",
     async handler(
         args: { agent: string; message: string; session?: string; timeoutSeconds?: number },
         { session },

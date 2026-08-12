@@ -23,7 +23,7 @@ export default defineTool({
             .describe("Also save it to ~/.pinecall/credentials (mode 0600) so future sessions and the CLI find it"),
     },
     manual:
-        "Only when no discovery path found the key (env · ~/.pinecall/credentials · shell rc). `persist: true` also writes the credentials file (0600, shared with the CLI) — ask the user first. `verified: false` = stored but failing.",
+        "Only when discovery found no key. `persist: true` also writes ~/.pinecall/credentials (0600, CLI-shared) — ask first. `verified: false` = stored but failing.",
     async handler(args: { key: string; persist?: boolean }, { session }) {
         const persisted = session.setApiKey(args.key, args.persist === true);
         try {

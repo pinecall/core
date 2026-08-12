@@ -12,7 +12,7 @@ export default defineTool({
     description: "The org this API key belongs to — name, slug, plan/tier and remaining credits.",
     schema: {},
     manual:
-        "Call it FIRST — the auth probe; a 401 means every tool fails the same. `keySource` names where the key came from; on `shell-rc` relay the `notice` (key persisted to ~/.pinecall/credentials, scan is one-time).",
+        "Call it FIRST — the auth probe; a 401 means every tool fails the same. `keySource` names where the key came from; on `shell-rc` relay the `notice`.",
     async handler(_args, { session }) {
         const org = await session.playground<any>("/orgs/me");
         const notice = session.keyNotice();
