@@ -23,15 +23,7 @@ export default defineTool({
         live: z.boolean().optional().describe("Only calls still running."),
         limit: z.number().int().min(1).max(200).optional().describe("Max rows (default 20)."),
     },
-    manual: [
-        "**`list_calls`** — the index of the call log. `{ agent, live?, limit? }` →",
-        "`{ agent, calls: [{ call, live, direction, from, startedAt, endedAt, reason }], truncated }`,",
-        "newest first. It reads the agent's LIFECYCLE log, so there are no transcripts here —",
-        "take a `call` id and pass it to `get_call`.",
-        "",
-        "After a `chat` turn or a phone call, this is where you find the id of what just",
-        "happened. `live: true` narrows to calls still running.",
-    ].join("\n"),
+    manual: "The lifecycle index, no transcripts: find the `call` id of what just happened, then read it with `get_call`.",
     async handler(args: { agent: string; live?: boolean; limit?: number }, { session }) {
         const limit = args.limit ?? 20;
         const { token, server } = await mintStreamToken(session, args.agent);

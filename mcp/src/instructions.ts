@@ -11,32 +11,32 @@ import type { ToolModule } from "./tools/types.js";
 
 export const PLAYBOOK = `# Pinecall MCP — zero to a production voice agent
 
-You are wired into a real Pinecall org. These tools let you build, run and debug a
-voice/chat agent without leaving the editor.
-
 ## The journey
 
-1. **Authenticate** — \`whoami\`. It names the org you are about to change. No key? \`set_api_key\`.
-2. **Read the docs** — \`docs_search\` before you guess an API. The SDK surface is small and specific.
-3. **Discover the catalog** — \`list_models\`, \`list_voices\`, \`list_phones\`. Never invent a model id,
-   a voice id or a phone number: they are org-specific and a wrong one fails at call time, not at config time.
-4. **Configure a DEV agent** — \`configure_agent\` with a slug that starts with \`dev-\`. This is enforced,
-   not advisory: registering an agent HOT-RELOADS the live one, so touching a production slug clobbers the
-   agent a running process owns, and its next reconnect clobbers you back. Prod agents are deployed from
-   code by their own process, never from here.
-5. **Iterate by talking to it** — \`chat\`. Chat IS the testing story: send a message, read the reply,
-   fix the prompt, send again. There is deliberately no spec-runner tool; a transcript you read yourself
-   is the check. \`chat\` works against ANY agent, production included — it only talks, it never mutates.
-6. **Debug the real thing** — \`list_calls\` / \`get_call\` for the actual session log of a real call:
-   turns, tool invocations, latencies, errors.
+1. \`whoami\` — proves the key, names the org. No key? \`set_api_key\`.
+2. Read the docs for what you are building (below). Never guess a shape.
+3. Pick from the live catalog, not memory: \`list_models\`, \`list_voices\` (+ \`play_voice\`), \`list_phones\`.
+4. \`configure_agent\`, \`dev-\` slug only. Registering HOT-RELOADS the live agent, so a prod
+   slug clobbers the process owning it — and its reconnect clobbers you back.
+5. Iterate with \`chat\`; it never mutates, so prod is safe to chat.
+   **Chat IS the testing story** — no test-runner tool: spec testing is deliberately disabled.
+6. Wire a number: a free \`list_phones\` row as \`phoneNumber\`.
+7. Debug: \`list_calls\` → \`get_call\`.
 
-## House rules
+Ground with \`knowledge\`, survey with \`list_agents\`, ship via \`pc.agent(...)\`.
 
-- **\`dev-\` prefix for anything you create.** It is the whole safety model.
-- **Never print an API key.** No tool returns one; do not ask the user to paste one into a file.
-- **Results are small JSON on purpose.** Paginate with \`after=\` rather than asking for everything.
-- **Verify against reality.** A config that type-checks is not an agent that answers the phone —
-  \`chat\` it, then read a real call.
+## Read before you write
+
+\`docs_search\` locates a page, \`get_doc\` reads it whole. Start from:
+first agent → \`quickstart\` + \`guides/build-a-live-call-app\` · phone → \`guides/inbound-voice\`,
+\`guides/outbound-calls\` · WhatsApp → \`guides/whatsapp\` · tools → \`guides/tools-and-functions\` ·
+browser voice/chat → \`web/widget/overview\`, \`web/chat/overview\` · call log → \`guides/call-log\` ·
+multi-tenant → \`guides/multi-tenant\`.
+
+## Not here — say so, do not fake it
+
+- No outbound dialling, no account creation (pinecall.io); \`play_voice\` needs stdio speakers.
+- Never print an API key. Page with \`after\`.
 
 ## The tools`;
 

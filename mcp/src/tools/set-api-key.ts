@@ -22,18 +22,8 @@ export default defineTool({
             .optional()
             .describe("Also save it to ~/.pinecall/credentials (mode 0600) so future sessions and the CLI find it"),
     },
-    manual: [
-        "**`set_api_key`** — needed when the key reached none of the three discovery paths",
-        "(the server's env, `~/.pinecall/credentials`, a shell rc file). By default the key",
-        "lives in memory for this process and disappears when the session ends. Pass",
-        "`persist: true` to ALSO write it to `~/.pinecall/credentials` (JSON `{api_key}`, mode",
-        "0600) — that file is the one thing this server ever writes, it is shared with the",
-        "`pinecall` CLI, and it is what makes the key survive a restart. Ask the user before",
-        "persisting. The result is `{ ok, verified, persisted, org }` — if `verified` is false",
-        "the key was stored but the org lookup failed, so fix the key before going further.",
-        "The key never appears in any tool result. Never paste a key into any OTHER tool's",
-        "arguments.",
-    ].join("\n"),
+    manual:
+        "Only when discovery found no key. `persist: true` also writes ~/.pinecall/credentials (0600, CLI-shared) — ask first. `verified: false` = stored but failing.",
     async handler(args: { key: string; persist?: boolean }, { session }) {
         const persisted = session.setApiKey(args.key, args.persist === true);
         try {

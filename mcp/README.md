@@ -5,15 +5,12 @@ working voice agent without leaving the editor: read the docs, discover the mode
 catalog, configure a **dev** agent, iterate on it by chatting with it, and debug real calls
 from the call log.
 
-> Status: foundation. Today it ships `whoami`, `set_api_key`, `docs_search` and `knowledge`;
-> the rest of the journey (`list_models`, `list_voices`, `list_phones`, `list_agents`,
-> `configure_agent`, `chat`, `list_calls` / `get_call`) lands tool by tool.
-> Status: in progress. Today it ships `whoami`, `set_api_key` and `chat`; the rest of the
-> journey (`docs_search`, `list_models`, `list_voices`, `list_phones`, `list_agents`,
-> `configure_agent`, `list_calls` / `get_call`, `knowledge`) lands tool by tool.
-> Status: in progress. Today it ships `whoami`, `set_api_key`, `list_models` and
-> `list_voices`; the rest of the journey (`docs_search`, `list_phones`, `list_agents`,
-> `configure_agent`, `chat`, `list_calls` / `get_call`, `knowledge`) lands tool by tool.
+> **Status: the journey is complete.** All 14 tools ship — `whoami`, `set_api_key`,
+> `docs_search`, `get_doc`, `knowledge`, `list_agents`, `configure_agent`, `chat`,
+> `list_phones`, `list_calls`, `get_call`, `list_models`, `list_voices`, `play_voice` —
+> plus the `pinecall mcp install` one-command installer. What is deliberately absent:
+> no spec-runner (chat **is** the testing story), no outbound dialling, no account
+> creation, and no code tools — `tool()` and webhooks need a running SDK process.
 
 ## Install
 
@@ -92,6 +89,9 @@ explicit `set_api_key(persist: true)`.
 
 ## Tools
 
+Fourteen tools, listed in journey order — the same order they appear in the server's
+`instructions`.
+
 | tool | what it does |
 |---|---|
 | `whoami` | the org this key belongs to — name, slug, plan, credits, plus `keySource` (where the key was found). The auth probe: call it first. |
@@ -99,14 +99,20 @@ explicit `set_api_key(persist: true)`.
 | `docs_search(query, limit?)` | semantic search over the Pinecall docs KB — retriever only, no LLM. Returns `[{ title, path, snippet, score }]`. Search before guessing an API shape, and cite the `path`. |
 | `get_doc(path)` | the WHOLE docs page behind a `docs_search` hit, as markdown: `{ path, title, markdown, truncated }`. The `.md` is optional (`guides/call-log`). Same KB `docs_search` queries, so the two cannot disagree. An unknown path returns `{ error, path, suggestions }`, never a crash. |
 | `knowledge(action, kb?, …)` | knowledge bases (RAG): `list` the org's KBs, `query` one for ranked chunks, `push` `[{path, content}]` docs into one. Push is idempotent by path; re-training is automatic. The client supplies document content — the server never reads local files. |
+| `list_agents()` | every agent in the org with `online`, `dev`, `channels`, `phones`, plus `devOverrides`. Read it before touching anything: `online: true` means a live process owns that agent. |
+| `configure_agent(slug, prompt, llm?, voice?, language?, greeting?, phoneNumber?)` | create or hot-reload a **`dev-`** agent and hold it live for this session. A non-`dev-` slug is refused, with no override. A re-configure replaces the whole config — it does not merge. |
 | `chat(agent, message, session?, timeoutSeconds?)` | say something to an agent, get its reply: `{ reply, session, toolCalls? }`. Pass `session` back to continue the conversation with its history. Works against dev **and** prod agents — it only talks, it never mutates. Turns are capped (30s default), so an offline agent or a stalled model comes back as an error, never a hang. |
+| `list_phones(free?)` | every number with its owner — `{ number, agent, live, dev_override?, country, inInventory }` plus `{ total, free, assigned }`. `agent: null` is the only free one. |
+| `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
+| `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
+| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
+| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
+| `play_voice(voice, text?, language?)` | plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
 
 **Testing is chatting.** There is deliberately no spec-runner tool: to check behaviour, ask
 the agent what a real caller would ask and read the transcript. `chat` reuses the very
 WebSocket client the CLI's `pinecall chat` / `pinecall test` use (`llm.chat` protocol) —
 no second implementation of the protocol exists.
-| `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
-| `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
 
 `list_calls` / `get_call` are the **debugger**: after any chat or phone call, read the log
 instead of guessing. They read [call-log v3](../docs/guides/call-log.md) over a `stream`
@@ -172,8 +178,18 @@ shortcuts. `GET {playground}/api/rates/models` is live and authoritative but ret
 
 Regenerate after editing the provider docs: `npm run gen:catalog` (also runs on `npm run build`).
 
-Every tool also ships its own **manual**, and the server's `instructions` field is assembled
-from the journey playbook plus those manuals — so a tool cannot drift from its documentation.
+## The instructions are the product
+
+Every tool ships its own **manual**, and the server's `instructions` field is assembled from
+the journey playbook (`src/instructions.ts`) plus those manuals — so a tool cannot exist
+undocumented and its manual cannot go stale in a second file.
+
+That text loads into **every** client's context on connect, before the user has asked
+anything, so it is on a **hard 4000-character budget pinned by a test**
+(`tests/session.test.ts`). A new tool pays for its section by shortening someone's manual,
+never by growing the total. Keep a manual to the non-obvious: the trap, the invariant, the
+thing a competent agent would get wrong — the "what it does" already lives in the tool's
+`description`.
 
 ## Adding a tool
 
@@ -216,13 +232,11 @@ src/
   tools/
     types.ts       the ToolModule contract + defineTool()
     index.ts       THE REGISTRY
-    whoami.ts
-    set-api-key.ts
-    knowledge.ts
-    list-calls.ts
-    get-call.ts
-    list-models.ts
-    list-voices.ts
+    whoami.ts  set-api-key.ts
+    docs-search.ts  get-doc.ts  knowledge.ts
+    list-agents.ts  configure-agent.ts  chat.ts
+    list-phones.ts  list-calls.ts  get-call.ts
+    list-models.ts  list-voices.ts  play-voice.ts
   catalog.generated.ts   GENERATED — the shortcut table (npm run gen:catalog)
 scripts/
   gen-catalog.mjs        docs/reference/*.md → catalog.generated.ts
@@ -244,8 +258,8 @@ npm run typecheck
 
 The test suite starts the actual server as a subprocess and drives it with the MCP client:
 it asserts `tools/list` matches the registry, that `instructions` carries the playbook plus
-one section per tool, that a missing key errors naming `set_api_key`, and that no key text
-ever comes back out. The catalog tests hit the **real** endpoints (both are public reads):
+exactly one section per tool and stays inside the 4000-char budget, that a missing key errors
+naming `set_api_key`, and that no key text ever comes back out. The catalog tests hit the **real** endpoints (both are public reads):
 `list_models("stt")` must carry `deepgram/flux` and `soniox/realtime` with their language
 notes, and `list_voices({ language: "es" })` must return Spanish voices only, every one of
 them a usable `provider/alias` string.

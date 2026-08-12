@@ -30,19 +30,7 @@ export default defineTool({
         query: z.string().min(1).describe("What you want to know, in natural language, e.g. 'call log cursor'"),
         limit: z.number().int().min(1).max(20).optional().describe("How many chunks to return (default 6)"),
     },
-    manual: [
-        "**`docs_search`** — before guessing ANY Pinecall API shape, option name, event",
-        "name or CLI flag, search the docs. It is semantic retrieval over the official",
-        "Pinecall docs KB, no LLM in the loop, so it is fast and cheap — use it freely.",
-        "Args: `{ query, limit? }` (default 6). Returns",
-        "`[{ title, path, snippet, score }]`, best first.",
-        "**Cite the `path`** when you use an answer, so the user can check it.",
-        "A query with no matches returns an empty list — that is an answer, not an error.",
-        "It is nearest-neighbour retrieval, so an off-topic query still comes back with",
-        "its nearest chunks: read `score` and the snippet before trusting a hit. A top",
-        "score around 1.0 or above, well clear of the rest, is a real match; a flat run",
-        "of ~0.8 scores means the docs do not cover it — say so instead of inventing an API.",
-    ].join("\n"),
+    manual: "It locates; `get_doc` reads. Nearest-neighbour: a `score` near 1.0 clear of the rest is real, a flat ~0.8 run means the docs do not cover it.",
     async handler(args: { query: string; limit?: number }, { session }): Promise<DocsHit[]> {
         const query = args.query.trim();
         if (!query) return [];
