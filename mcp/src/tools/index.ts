@@ -22,6 +22,7 @@ import listCalls from "./list-calls.js";
 import getCall from "./get-call.js";
 import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
+import playVoice from "./play-voice.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
@@ -37,6 +38,7 @@ export const tools: ToolModule<any>[] = [
     getCall,
     listModels,
     listVoices,
+    playVoice,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";

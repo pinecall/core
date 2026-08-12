@@ -69,6 +69,20 @@ for `get_call`) — the API key never reaches the log endpoints. The call reduct
 ephemeral interim transcripts collapse exactly as they do in a live UI.
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
+| `play_voice(voice, text?, language?)` | Plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
+
+### `play_voice`: audio on the user's machine
+
+On the stdio transport this process runs on the user's machine, so it can reach their
+speakers. It fetches the same sample the playground's voice picker plays
+(`GET /api/sdk/voice-preview`): providers with a provider-hosted clip (elevenlabs,
+cartesia) expose a `preview_url` on `GET /api/sdk/voices` and that file is fetched
+directly — free and instant, but the words are fixed, so `text` is echoed back as
+`textIgnored`. Providers without one (rime, xai) are synthesized from `text` and need
+that provider's key on the org. Bytes go to a temp file in `os.tmpdir()` and are played
+with `afplay` (darwin), `ffplay`/`aplay`/`mpg123` (linux) or `Media.SoundPlayer` (win32);
+the player is killed at 15s. Over a remote transport there are no speakers to reach — set
+`PINECALL_MCP_NO_PLAYBACK=1` and the result carries `played: false` plus the `previewUrl`.
 
 ### The catalog: what is live and what is a snapshot
 
