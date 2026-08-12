@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Docs: `guides/project-structure.md`** — the recommended layout for a Pinecall
+  app, first in the Guides nav because it is what "starting a project" routes to:
+  `apps/agents/<name>/` one process per agent (`index.mjs` + `specs/` + a `.env`
+  holding only `PINECALL_API_KEY`), the token endpoint beside the agent it mints
+  for, `packages/` for domain code with no `@pinecall` import in it, and the web
+  app as a separate deployable. Pushed to the docs knowledge base.
+- **`mcp/PARITY.md`** — audit of every authenticated playground route (and the
+  platform's JSON resource routes) against the MCP tools, each row either mapped
+  to its tool or marked GAP with a proposed tool shape.
 - **Docs: a mobile section.** `@pinecall/ionic` and `@pinecall/react-native`
   existed only as package READMEs and were invisible to the docs site and the
   knowledge base. New nav group **"@pinecall/ionic (Mobile)"** with

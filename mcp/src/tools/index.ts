@@ -17,10 +17,12 @@ import getDoc from "./get-doc.js";
 import knowledge from "./knowledge.js";
 import listAgents from "./list-agents.js";
 import configureAgent from "./configure-agent.js";
+import runAgent from "./run-agent.js";
 import chat from "./chat.js";
 import listPhones from "./list-phones.js";
 import listCalls from "./list-calls.js";
 import getCall from "./get-call.js";
+import observe from "./observe.js";
 import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
 import playVoice from "./play-voice.js";
@@ -35,11 +37,14 @@ export const tools: ToolModule<any>[] = [
     knowledge,
     listAgents,
     configureAgent,
+    // code tools need a process — the user's own file, run like `pinecall run`
+    runAgent,
     chat,
     listPhones,
     // debug — the call log, last leg of the journey
     listCalls,
     getCall,
+    observe,
     listModels,
     listVoices,
     playVoice,

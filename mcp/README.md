@@ -5,9 +5,17 @@ working voice agent without leaving the editor: read the docs, discover the mode
 catalog, configure a **dev** agent, iterate on it by chatting with it, and debug real calls
 from the call log.
 
-> **Status: the journey is complete.** All 14 tools ship — `whoami`, `set_api_key`,
+> **Status: the journey is complete.** All 17 tools ship — `whoami`, `set_api_key`,
+> `docs_search`, `get_doc`, `knowledge`, `list_agents`, `configure_agent`, `run_agent`,
+> `chat`, `list_phones`, `list_calls`, `get_call`, `list_models`, `list_voices`,
+> `play_voice`, `subscribe`, `byok` — plus the `pinecall mcp install` one-command
+> installer. What is deliberately absent: no spec-runner (chat **is** the testing
+> story), no outbound dialling and no account creation. Code tools (`tool()`,
+> webhooks) cannot travel in `configure_agent` — a function is not serializable — so
+> they get `run_agent`, which runs your own entry file through `pinecall run`.
 > `docs_search`, `get_doc`, `knowledge`, `list_agents`, `configure_agent`, `chat`,
-> `list_phones`, `list_calls`, `get_call`, `list_models`, `list_voices`, `play_voice` —
+> `list_phones`, `list_calls`, `get_call`, `observe`, `list_models`, `list_voices`,
+> `play_voice`, `subscribe`, `byok` —
 > plus the `pinecall mcp install` one-command installer. What is deliberately absent:
 > no spec-runner (chat **is** the testing story), no outbound dialling, no account
 > creation, and no code tools — `tool()` and webhooks need a running SDK process.
@@ -101,10 +109,14 @@ Fourteen tools, listed in journey order — the same order they appear in the se
 | `knowledge(action, kb?, …)` | knowledge bases (RAG): `list` the org's KBs, `query` one for ranked chunks, `push` `[{path, content}]` docs into one. Push is idempotent by path; re-training is automatic. The client supplies document content — the server never reads local files. |
 | `list_agents()` | every agent in the org with `online`, `dev`, `channels`, `phones`, plus `devOverrides`. Read it before touching anything: `online: true` means a live process owns that agent. |
 | `configure_agent(slug, prompt, llm?, voice?, language?, greeting?, phoneNumber?)` | create or hot-reload a **`dev-`** agent and hold it live for this session. A non-`dev-` slug is refused, with no override. A re-configure replaces the whole config — it does not merge. |
+| `run_agent(file, action?, lines?)` | run your project's agent entry file as a managed child — literally `node <pinecall-cli> run <file>`, so behaviour matches `pinecall run` exactly (boot banner, `PINECALL_CLI_RUN=1`, tsx for `.ts`). Needed the moment an agent has **code tools**. `action`: `start` (default) · `status` · `logs` (ring buffer, last 500 lines) · `stop` (SIGTERM → SIGKILL after 5s, whole process group). ONE process per session — a second `start` stops the first and reports it as `replaced` — and it is killed when the MCP server exits. Only files inside the server's working directory are accepted. **It executes your project's code locally with your API key in its env: the same trust as your IDE terminal.** |
 | `chat(agent, message, session?, timeoutSeconds?)` | say something to an agent, get its reply: `{ reply, session, toolCalls? }`. Pass `session` back to continue the conversation with its history. Works against dev **and** prod agents — it only talks, it never mutates. Turns are capped (30s default), so an offline agent or a stalled model comes back as an error, never a hang. |
 | `list_phones(free?)` | every number with its owner — `{ number, agent, live, dev_override?, country, inInventory }` plus `{ total, free, assigned }`. `agent: null` is the only free one. |
 | `list_calls(agent, live?, limit?)` | the agent's calls, newest first — `{ call, live, direction, from, startedAt, endedAt }`. Lifecycle only; the index into the log. |
 | `get_call(call_id, after?, agent?, limit?)` | one call reduced — `phase`, `messages` with seqs, `toolCalls` with args and results, `turns`, `summary`. Cursor-paged: `after` in, `nextAfter` out. |
+| `observe(call_id? \| agent?, after?, waitSeconds?)` | the **live** half: a long poll over the log. Holds one WS open and returns the moment entries past `after` arrive — same reduced shape as `get_call`. Nothing happening returns `{ timedOut: true }` with the cursor unmoved, never an error. With `agent` it returns when a call **starts**, handing back its id. |
+| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
+| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). Every row carries `usable` — managed, or the org has that provider's BYOK key. |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. Rows carry `usable` too. |
 | `play_voice(voice, text?, language?)` | plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
@@ -120,6 +132,17 @@ token minted per request with `scope: "observe"` (read-only, and narrowed to the
 for `get_call`) — the API key never reaches the log endpoints. The call reduction is
 `CallLogView` from `@pinecall/sdk/log`, the same one reducer the browser client uses, so
 ephemeral interim transcripts collapse exactly as they do in a live UI.
+
+`observe` is the same debugger pointed at the **future** instead of the past. An MCP tool
+call cannot be pushed to, so "live" is a long poll: it attaches to `WS /v1/attach`, answers
+as soon as the log says something, and **closes the socket before returning** — the cursor
+is the only state, so nothing is held between calls and an abandoned loop leaks nothing.
+Loop it while a human talks to the agent, feeding `nextAfter` back each time; `timedOut`
+means only that nothing happened, so call again with the same cursor. Start on `agent` when
+you do not have a call id yet — it returns the instant one starts. Then `get_call` for the
+finished transcript, which is why both answer in the same shape.
+| `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). |
+| `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. |
 | `list_models(kind)` | the models the server accepts for `llm` / `stt` / `tts`, each with the exact config shortcut (`deepgram/flux`) and notes (languages, managed vs BYOK, realtime). Every row carries `usable` — managed, or the org has that provider's BYOK key. |
 | `list_voices(provider?, language?, limit?)` | TTS voices with the exact `voice` string (`elevenlabs/sarah`), filtered by provider and language. Live from the server. Rows carry `usable` too. |
 | `play_voice(voice, text?, language?)` | Plays a sample of that voice **out of this machine's speakers** so you can choose by ear. Stdio only — see below. |
