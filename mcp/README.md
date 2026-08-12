@@ -5,8 +5,8 @@ working voice agent without leaving the editor: read the docs, discover the mode
 catalog, configure a **dev** agent, iterate on it by chatting with it, and debug real calls
 from the call log.
 
-> Status: foundation. Today it ships `whoami` and `set_api_key`; the rest of the journey
-> (`docs_search`, `list_models`, `list_voices`, `list_phones`, `list_agents`,
+> Status: foundation. Today it ships `whoami`, `set_api_key` and `docs_search`; the rest
+> of the journey (`list_models`, `list_voices`, `list_phones`, `list_agents`,
 > `configure_agent`, `chat`, `list_calls` / `get_call`, `knowledge`) lands tool by tool.
 
 ## Install
@@ -44,6 +44,7 @@ returned by a tool — every outbound error string is scrubbed (`Session.redact`
 |---|---|
 | `whoami` | the org this key belongs to — name, slug, plan, credits. The auth probe: call it first. |
 | `set_api_key(key)` | store a key for this session, in memory. Returns `{ ok, verified, org }` — never the key. |
+| `docs_search(query, limit?)` | semantic search over the Pinecall docs KB — the same call `pinecall knowledge query` makes. Returns `[{ title, path, snippet, score }]`. Search before guessing an API shape, and cite the `path`. |
 
 Every tool also ships its own **manual**, and the server's `instructions` field is assembled
 from the journey playbook plus those manuals — so a tool cannot drift from its documentation.

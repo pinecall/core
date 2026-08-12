@@ -12,10 +12,12 @@
 import type { ToolModule } from "./types.js";
 import whoami from "./whoami.js";
 import setApiKey from "./set-api-key.js";
+import docsSearch from "./docs-search.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
     setApiKey,
+    docsSearch,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";
