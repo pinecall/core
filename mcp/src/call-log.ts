@@ -19,6 +19,7 @@
  */
 
 import { createToken } from "../../src/api/tokens.js";
+import { CallLogView } from "../../src/log/view.js";
 import type { AnyLogEntry, CallDirection } from "../../src/log/types.js";
 import type { Session } from "./session.js";
 
@@ -110,6 +111,72 @@ export function maxSeq(entries: readonly AnyLogEntry[], fallback: number): numbe
     let out = fallback;
     for (const e of entries) if (typeof e.seq === "number" && e.seq > out) out = e.seq;
     return out;
+}
+
+/**
+ * Fold CALL-log entries into the reduced object BOTH call tools answer with.
+ *
+ * `get_call` (history, HTTP) and `observe` (live tail, WS) read the same log
+ * and must answer in the same shape — a debugger that switched vocabulary
+ * halfway through a loop would be unusable. So the reduction lives here once,
+ * through `CallLogView` (the ONE reducer, shipped by `@pinecall/sdk/log`), and
+ * each tool adds only what is genuinely its own: `truncated`/`entryCount` for
+ * the paged read, `timedOut` for the long poll.
+ */
+export function reduceCallEntries(
+    entries: readonly AnyLogEntry[],
+    fallbackCall: string,
+    liveOverride?: boolean,
+) {
+    const view = new CallLogView();
+    view.applyAll(entries as AnyLogEntry[]);
+    const s = view.state;
+
+    const summary = s.metrics.summary
+        ? {
+            metrics: s.metrics.summary,
+            ...(s.metrics.cost !== undefined ? { cost: s.metrics.cost } : {}),
+            ...(s.metrics.recordingUrl ? { recordingUrl: s.metrics.recordingUrl } : {}),
+            ...(s.endedReason ? { reason: s.endedReason } : {}),
+        }
+        : undefined;
+
+    return {
+        call: s.call ?? fallbackCall,
+        agent: s.agent,
+        phase: s.phase,
+        live: liveOverride ?? s.live,
+        durationSec: round(s.duration),
+        // An empty-text message is a transcript that has not resolved yet —
+        // noise in a debugger, and the next page carries it filled in.
+        messages: s.messages
+            .filter((m) => m.text.trim().length > 0)
+            .map((m) => ({
+                seq: m.seq,
+                role: m.role,
+                text: m.text,
+                ...(m.interim ? { interim: true } : {}),
+                ...(m.interrupted ? { interrupted: true } : {}),
+            })),
+        toolCalls: s.toolCalls.map((t) => ({
+            seq: t.seq,
+            name: t.name,
+            args: t.args,
+            ...(t.done ? { result: t.result } : { pending: true }),
+            ...(t.error ? { error: t.error } : {}),
+            ...(t.ms !== undefined ? { ms: round(t.ms) } : {}),
+        })),
+        turns: s.turns.map((t) => ({
+            turn: t.turn,
+            ...(t.latency ? { latency: t.latency } : {}),
+        })),
+        ...(summary ? { summary } : {}),
+        ...(s.endedReason && !summary ? { endedReason: s.endedReason } : {}),
+        ...(s.gaps.length ? { gaps: s.gaps } : {}),
+        ...(s.handoff !== "none" ? { handoff: s.handoff } : {}),
+        lastSeq: s.lastSeq,
+        caughtUp: s.caughtUp,
+    };
 }
 
 /**

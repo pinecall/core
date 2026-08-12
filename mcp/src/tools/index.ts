@@ -22,6 +22,7 @@ import chat from "./chat.js";
 import listPhones from "./list-phones.js";
 import listCalls from "./list-calls.js";
 import getCall from "./get-call.js";
+import observe from "./observe.js";
 import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
 import playVoice from "./play-voice.js";
@@ -43,6 +44,7 @@ export const tools: ToolModule<any>[] = [
     // debug — the call log, last leg of the journey
     listCalls,
     getCall,
+    observe,
     listModels,
     listVoices,
     playVoice,
