@@ -17,20 +17,45 @@ from the call log.
 
 ## Install
 
-```jsonc
-// Claude Code / Cursor / any MCP client
-{
-  "mcpServers": {
-    "pinecall": {
-      "command": "npx",
-      "args": ["-y", "@pinecall/mcp"],
-      "env": { "PINECALL_API_KEY": "pk_..." }
-    }
-  }
-}
+```bash
+pinecall mcp install
 ```
 
-Or run the binary directly: `pinecall-mcp` (stdio transport — stdout is the protocol,
+One command, every IDE. It detects the AI coding assistants on the machine and writes the
+`pinecall` entry into each one's own config, in that host's own format:
+
+| platform | config | format |
+|---|---|---|
+| `claude` | `~/.claude.json` | JSON (`mcpServers`) |
+| `codex` | `~/.codex/config.toml` | TOML (`mcp_servers`) |
+| `antigravity` | `~/.gemini/antigravity/mcp_config.json` | JSON |
+| `cursor` | `~/.cursor/mcp.json` | JSON |
+| `windsurf` | `~/.codeium/windsurf/mcp_config.json` | JSON |
+| `gemini` | `~/.gemini/settings.json` | JSON |
+
+```bash
+pinecall mcp install                # everything detected on this machine
+pinecall mcp install cursor codex   # only the ones you name (written even if undetected)
+pinecall mcp install --list         # what is detected, changing nothing
+pinecall mcp install --remove       # take the pinecall entry back out
+```
+
+Three properties worth knowing:
+
+- **It only ever touches its own key.** Your other MCP servers, your unrelated settings and
+  (in the TOML case) your comments come out the other side untouched. `--remove` deletes
+  exactly the `pinecall` entry.
+- **Re-running repairs, never duplicates.** The entry is replaced, so a config that drifted
+  to an older command is cured by running the same command again. Each file is backed up to
+  `<file>.bak` before it is written.
+- **No API key is written to any config.** The entry is just
+  `{"command": "npx", "args": ["-y", "@pinecall/mcp"]}`; the server reads `PINECALL_API_KEY`
+  from the environment its host launches it in (or you call the `set_api_key` tool).
+
+Restart the assistant afterwards — it read its config at startup.
+
+Prefer to wire it by hand? The entry above is the whole thing. To run the server directly:
+`pinecall mcp`, or the binary `pinecall-mcp` (stdio transport — stdout is the protocol,
 diagnostics go to stderr).
 
 ### Environment

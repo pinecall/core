@@ -45,6 +45,10 @@ const HELP = `
     conversations          ${c.dim("List saved transcripts (chat + voice)")}
     conversations get <id> ${c.dim("View a full transcript")}
 
+  ${c.bold("MCP")}
+    mcp install            ${c.dim("Wire the MCP server into every IDE found here")}
+    mcp                    ${c.dim("Run the stdio MCP server")}
+
   ${c.bold("Development")}
     run <file>             ${c.dim("Run an agent file with live output")}
     chat [agent]           ${c.dim("Chat with a connected agent")}
@@ -80,7 +84,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
+const SELF_HELP_COMMANDS = new Set(["mcp", "account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -140,6 +144,15 @@ async function main(): Promise<void> {
         const config = { apiKey: "", server: "", playground: "https://playground.pinecall.io", json: false };
         const { signupCommand } = await import("./cli/commands/signup.js");
         await signupCommand(config, args);
+        return;
+    }
+
+    // mcp never needs an API key at CLI level: `install` only writes config
+    // files (and deliberately writes no key), and the server itself reads
+    // PINECALL_API_KEY from the environment its host gives it.
+    if (command === "mcp") {
+        const { mcpCommand } = await import("./cli/commands/mcp.js");
+        await mcpCommand(args);
         return;
     }
 
