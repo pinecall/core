@@ -36,6 +36,7 @@
       {
         "group": "Guides",
         "pages": [
+          "guides/project-structure",
           "guides/inbound-voice",
           "guides/outbound-calls",
           "guides/events",
