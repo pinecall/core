@@ -129,11 +129,9 @@ values are already in place when it arrives. And `promptVars` in the agent
 config seeds every variable at registration, so nothing can ever render as a
 literal `{{VAR}}`.
 
-<Warning>
-Per-turn values set with `call.setPromptVars()` **always win** over the
-agent-level `promptVars`, and they stay until you overwrite them. That is what
-makes a long-lived WhatsApp session keep the values it computed.
-</Warning>
+> ⚠️ Per-turn values set with `call.setPromptVars()` **always win** over the
+> agent-level `promptVars`, and they stay until you overwrite them. That is
+> what makes a long-lived WhatsApp session keep the values it computed.
 
 ### `call.preparingTimeout`
 
