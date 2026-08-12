@@ -17,6 +17,7 @@ import knowledge from "./knowledge.js";
 import listAgents from "./list-agents.js";
 import configureAgent from "./configure-agent.js";
 import chat from "./chat.js";
+import listPhones from "./list-phones.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
@@ -26,6 +27,7 @@ export const tools: ToolModule<any>[] = [
     listAgents,
     configureAgent,
     chat,
+    listPhones,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";
