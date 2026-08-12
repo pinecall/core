@@ -10,7 +10,7 @@ import listVoices from "../src/tools/list-voices.js";
 import { CATALOG } from "../src/catalog.generated.js";
 import { Session } from "../src/session.js";
 
-const ctx = { session: new Session({} as NodeJS.ProcessEnv) };
+const ctx = { session: new Session({} as NodeJS.ProcessEnv, "/pinecall-tests-no-home") };
 
 const call = <T = any>(tool: any, args: any = {}) => tool.handler(args, ctx) as Promise<T>;
 
@@ -79,7 +79,7 @@ describe("list_models", () => {
 
     it("survives an unreachable rate table by falling back to the docs snapshot", async () => {
         const offline = {
-            session: new Session({ PINECALL_PLAYGROUND_URL: "http://127.0.0.1:1" } as NodeJS.ProcessEnv),
+            session: new Session({ PINECALL_PLAYGROUND_URL: "http://127.0.0.1:1" } as NodeJS.ProcessEnv, "/pinecall-tests-no-home"),
         };
         const res: any = await listModels.handler({ kind: "stt" }, offline as any);
         expect(res.liveRates.ok).toBe(false);

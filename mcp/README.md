@@ -62,19 +62,40 @@ diagnostics go to stderr).
 
 | var | default | what |
 |---|---|---|
-| `PINECALL_API_KEY` | — | your key. Missing? call the `set_api_key` tool instead. |
+| `PINECALL_API_KEY` | — | your key. Missing? see key discovery below, or call `set_api_key`. |
 | `PINECALL_URL` | `https://voice.pinecall.io` | the voice server |
 | `PINECALL_PLAYGROUND_URL` | `https://playground.pinecall.io` | the Playground API (org/plan/credits) |
 
-The key is held **in memory only**. It is never written to a file, never logged, and never
-returned by a tool — every outbound error string is scrubbed (`Session.redact`).
+### Key discovery — "it works in my terminal but not in my editor"
+
+An IDE spawns this server as a plain child process. On macOS a GUI app is not a login
+shell and **never sources `~/.zshrc`**, so a key you exported in a terminal does not exist
+in the server's environment. So the key is looked for in three places, in order:
+
+1. **`PINECALL_API_KEY` in the server's env** — an `env` block in your `mcp.json`, a
+   launchd/systemd unit, or on **Windows** a user variable set with `setx`, which *does*
+   reach a GUI-launched child. Always wins.
+2. **`~/.pinecall/credentials`** — the canonical store: JSON `{"api_key": "pk_…"}`, mode
+   `0600`. Shared with the `pinecall` CLI (which reads it right after env), so both agree.
+3. **A read-only scan of `~/.zshenv`, `~/.zshrc`, `~/.bash_profile`, `~/.bashrc`,
+   `~/.profile`** for `export PINECALL_API_KEY=…`. The files are parsed with a regex and
+   are **never executed or sourced**. A hit is used *and* copied into
+   `~/.pinecall/credentials` (0600), so this fragile path runs exactly once — `whoami`
+   reports `keySource: "shell-rc"` with a one-line notice when that happens.
+
+`whoami` always reports `keySource`: `env` · `credentials` · `shell-rc` · `session`.
+
+The key is held **in memory**, never logged, and never returned by a tool — every outbound
+error string is scrubbed (`Session.redact`). The single exception to "never written" is
+`~/.pinecall/credentials`, written at mode `0600`, and only by an rc-scan hit or an
+explicit `set_api_key(persist: true)`.
 
 ## Tools
 
 | tool | what it does |
 |---|---|
-| `whoami` | the org this key belongs to — name, slug, plan, credits. The auth probe: call it first. |
-| `set_api_key(key)` | store a key for this session, in memory. Returns `{ ok, verified, org }` — never the key. |
+| `whoami` | the org this key belongs to — name, slug, plan, credits, plus `keySource` (where the key was found). The auth probe: call it first. |
+| `set_api_key(key, persist?)` | store a key for this session, in memory. With `persist: true` also writes `~/.pinecall/credentials` (0600) so it survives a restart and the CLI sees it. Returns `{ ok, verified, persisted, org }` — never the key. |
 | `docs_search(query, limit?)` | semantic search over the Pinecall docs KB — retriever only, no LLM. Returns `[{ title, path, snippet, score }]`. Search before guessing an API shape, and cite the `path`. |
 | `get_doc(path)` | the WHOLE docs page behind a `docs_search` hit, as markdown: `{ path, title, markdown, truncated }`. The `.md` is optional (`guides/call-log`). Same KB `docs_search` queries, so the two cannot disagree. An unknown path returns `{ error, path, suggestions }`, never a crash. |
 | `knowledge(action, kb?, …)` | knowledge bases (RAG): `list` the org's KBs, `query` one for ranked chunks, `push` `[{path, content}]` docs into one. Push is idempotent by path; re-training is automatic. The client supplies document content — the server never reads local files. |

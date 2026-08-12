@@ -10,7 +10,7 @@ import { tools } from "../src/tools/index.js";
 
 describe("Session", () => {
     it("has no key when the env has none, and says how to fix it", () => {
-        const s = new Session({} as NodeJS.ProcessEnv);
+        const s = new Session({} as NodeJS.ProcessEnv, "/pinecall-tests-no-home");
         expect(s.hasApiKey()).toBe(false);
         expect(() => s.apiKey()).toThrow(MissingApiKeyError);
         expect(() => s.apiKey()).toThrow(/set_api_key/);
@@ -36,7 +36,7 @@ describe("Session", () => {
     });
 
     it("defaults to the same endpoints the CLI uses", () => {
-        const s = new Session({} as NodeJS.ProcessEnv);
+        const s = new Session({} as NodeJS.ProcessEnv, "/pinecall-tests-no-home");
         expect(s.serverUrl).toBe("https://voice.pinecall.io");
         expect(s.playgroundUrl).toBe("https://playground.pinecall.io");
     });
