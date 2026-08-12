@@ -9,11 +9,16 @@
  *   · `managed` is refreshed LIVE from the rate table, which is authoritative
  *     about what needs your own key. The join is provider-level, an exact match
  *     on both sides — no fuzzy model-id matching.
+ *
+ * And `managed` alone is not an answer: it describes the MODEL, not this org.
+ * A third join — ONE GET /api/credentials for the whole call — turns it into
+ * `usable`, the field a caller should actually filter on.
  */
 
 import { z } from "zod";
 import { defineTool } from "./types.js";
 import { CATALOG } from "../catalog.generated.js";
+import { fetchByokStatus, usability } from "../byok-status.js";
 
 const KINDS = ["llm", "stt", "tts"] as const;
 type Kind = (typeof KINDS)[number];
@@ -53,11 +58,15 @@ export default defineTool({
     schema: {
         kind: z.enum(KINDS).describe("llm, stt or tts — which agent-config field you are filling."),
     },
-    manual: "Paste `shortcut` verbatim (`provider/model`; bare = OpenAI). Pick STT by language: `deepgram/flux` is the default but ~20 languages (no Arabic, Hindi, Thai, Urdu) — else `nova-3`/`soniox/realtime`. `managed: false` = BYOK.",
+    manual: "Paste `shortcut` verbatim (`provider/model`; bare = OpenAI). Pick STT by language: `deepgram/flux` is the default but ~20 languages (no Arabic, Hindi, Thai, Urdu) — else `nova-3`/`soniox/realtime`. Pick only `usable: true`: `managed: false` = BYOK, and a `usable: false` row needs `byok('set', provider, key)` before it will run.",
     async handler(args: { kind: Kind }, { session }) {
         const kind = args.kind;
         const entry = CATALOG.kinds[kind];
-        const live = await fetchLiveRates(session.playgroundUrl, kind);
+        // Two independent lookups, one round-trip each, in parallel — never per row.
+        const [live, byok] = await Promise.all([
+            fetchLiveRates(session.playgroundUrl, kind),
+            fetchByokStatus(session),
+        ]);
 
         const models = entry.models.map((m) => {
             const managed = live.managed.has(m.provider) ? live.managed.get(m.provider)! : m.managed;
@@ -67,6 +76,7 @@ export default defineTool({
                 model: m.model,
                 managed,
                 byokKeyRequired: managed === null ? null : !managed,
+                ...usability(m.provider, managed, byok),
                 ...(m.aliasForms.length ? { aliasForms: m.aliasForms } : {}),
                 ...(m.examples.length ? { exampleVoices: m.examples } : {}),
                 notes: m.notes,
@@ -78,10 +88,18 @@ export default defineTool({
             configField: entry.field,
             count: models.length,
             models,
-            providers: entry.providers.map((p) => ({
-                ...p,
-                managed: live.managed.has(p.name) ? live.managed.get(p.name)! : p.managed,
-            })),
+            providers: entry.providers.map((p) => {
+                const managed = live.managed.has(p.name) ? live.managed.get(p.name)! : p.managed;
+                return { ...p, managed, ...usability(p.name, managed, byok) };
+            }),
+            byok: {
+                known: byok.ok,
+                configuredProviders: [...byok.configured].sort(),
+                ...(byok.error ? { error: byok.error } : {}),
+                note: byok.ok
+                    ? "`usable: false` means this org has no key for that provider — call byok('set', provider, key) first."
+                    : "The credentials lookup failed, so `usable` is `managed` alone and rows carry `byokUnknown: true`.",
+            },
             managedSource: live.ok ? "live rate table" : "docs snapshot (live rate table unreachable)",
             liveRates: live.ok
                 ? { ok: true, url: `${session.playgroundUrl}/api/rates/models` }

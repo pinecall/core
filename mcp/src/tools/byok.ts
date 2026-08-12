@@ -25,47 +25,18 @@
 import { z } from "zod";
 import { defineTool } from "./types.js";
 import type { Session } from "../session.js";
+import { BYOK_PROVIDERS, fetchCredentials, toEntries, type ByokProvider } from "../byok-status.js";
 
-/**
- * The providers the server's `upsertCredentialSchema` accepts, verbatim.
- * Kept here only so a typo is answered locally with the list instead of a
- * zod validation dump from the API. Note what is absent: `twilio`, `polly`
- * and `transcribe` are NOT provider-key providers — telephony is configured
- * per-number, and the AWS services run on Pinecall's own account.
- */
-export const BYOK_PROVIDERS = [
-    "deepgram", "gladia", "cartesia", "elevenlabs", "assemblyai",
-    "rime", "soniox",
-    "openai", "anthropic", "google", "mistral",
-    "xai", "groq", "cerebras", "deepseek", "openrouter",
-] as const;
-
-export type ByokProvider = (typeof BYOK_PROVIDERS)[number];
-
-interface CredentialRow {
-    provider: string;
-    /** The server's leading-8 preview. Read, never forwarded. */
-    apiKeyPreview?: string;
-    createdAt?: string;
-}
-
-export interface ByokEntry {
-    provider: string;
-    configured: boolean;
-    addedAt?: string;
-}
-
-/** The server's rows → key-free rows. The preview never survives this function. */
-export function toEntries(credentials: CredentialRow[]): ByokEntry[] {
-    return credentials
-        .filter((c) => !!c.provider)
-        .map((c) => ({
-            provider: c.provider,
-            configured: true,
-            ...(c.createdAt ? { addedAt: c.createdAt } : {}),
-        }))
-        .sort((a, b) => a.provider.localeCompare(b.provider));
-}
+// The credentials client, the provider list and the key-free row mapping live
+// in ../byok-status.ts — `list_models` / `list_voices` join against the SAME
+// fetch to decide `usable`, so one module knows this endpoint, not three.
+export {
+    BYOK_PROVIDERS,
+    toEntries,
+    type ByokProvider,
+    type ByokEntry,
+    type CredentialRow,
+} from "../byok-status.js";
 
 /** Normalize + validate a provider name, answering with the list on a miss. */
 export function requireProvider(provider: string | undefined): ByokProvider {
@@ -114,8 +85,7 @@ export default defineTool({
         const action = args.action ?? "list";
 
         if (action === "list") {
-            const res = await session.playground<{ credentials?: CredentialRow[] }>("/credentials");
-            const providers = toEntries(res.credentials ?? []);
+            const providers = toEntries(await fetchCredentials(session));
             return {
                 providers,
                 total: providers.length,
