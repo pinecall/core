@@ -15,6 +15,7 @@ import setApiKey from "./set-api-key.js";
 import docsSearch from "./docs-search.js";
 import knowledge from "./knowledge.js";
 import listAgents from "./list-agents.js";
+import configureAgent from "./configure-agent.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
@@ -22,6 +23,7 @@ export const tools: ToolModule<any>[] = [
     docsSearch,
     knowledge,
     listAgents,
+    configureAgent,
 ];
 
 export type { ToolModule, ToolContext } from "./types.js";
