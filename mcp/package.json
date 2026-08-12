@@ -38,13 +38,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "^25.4.0",
     "tsup": "^8.5.0",
     "tsx": "^4.20.6",
     "typescript": "^5.4.0",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "@types/ws": "^8.18.1"
   }
 }

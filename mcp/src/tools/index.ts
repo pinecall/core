@@ -12,12 +12,29 @@
 import type { ToolModule } from "./types.js";
 import whoami from "./whoami.js";
 import setApiKey from "./set-api-key.js";
+import docsSearch from "./docs-search.js";
+import knowledge from "./knowledge.js";
+import listAgents from "./list-agents.js";
+import configureAgent from "./configure-agent.js";
+import chat from "./chat.js";
+import listPhones from "./list-phones.js";
+import listCalls from "./list-calls.js";
+import getCall from "./get-call.js";
 import listModels from "./list-models.js";
 import listVoices from "./list-voices.js";
 
 export const tools: ToolModule<any>[] = [
     whoami,
     setApiKey,
+    docsSearch,
+    knowledge,
+    listAgents,
+    configureAgent,
+    chat,
+    listPhones,
+    // debug — the call log, last leg of the journey
+    listCalls,
+    getCall,
     listModels,
     listVoices,
 ];
