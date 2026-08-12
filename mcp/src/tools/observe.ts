@@ -133,6 +133,12 @@ async function observeAgent(
     args: { after?: number; call_after?: number },
     waitMs: number,
 ): Promise<Record<string, unknown>> {
+    // ⚠️ ONE token for the whole call, threaded through both logs. A stream
+    // token covers a call iff the call's agent is in its set (verified against
+    // voice.pinecall.io: an agent-scoped token reads that agent's
+    // `/v1/calls/{id}/events` fine), so narrowing per call buys nothing — and
+    // minting per log cost three tokens a round, which the server rate-limits
+    // with "Too many token requests" and kills the very loop this tool is.
     const { token, server } = await mintStreamToken(session, agent);
     const memo = getFollow(agent, args.after);
 
@@ -151,13 +157,13 @@ async function observeAgent(
         // rather than waiting for a call that has already begun.
         const running = rows.find((r) => r.live);
         if (running) {
-            return followCall(session, server, agent, running.call, 0, agentAfter, rows, waitMs);
+            return followCall(session, server, token, agent, running.call, 0, agentAfter, rows, waitMs);
         }
     }
 
     if (memo?.call) {
         const callAfter = args.call_after ?? memo.callAfter;
-        return followCall(session, server, agent, memo.call, callAfter, agentAfter, undefined, waitMs);
+        return followCall(session, server, token, agent, memo.call, callAfter, agentAfter, undefined, waitMs);
     }
 
     // Waiting for a call. This is the socket that used to die with 1006 on a
@@ -176,7 +182,7 @@ async function observeAgent(
     // A call just started: do not make the caller ask again for its content —
     // read its first entries now and answer with both in one go.
     if (started?.live) {
-        return followCall(session, server, agent, started.call, 0, nextAfter, calls, waitMs, { immediate: true });
+        return followCall(session, server, token, agent, started.call, 0, nextAfter, calls, waitMs, { immediate: true });
     }
 
     setFollow(agent, { agentAfter: nextAfter, callAfter: 0 });
@@ -207,6 +213,8 @@ async function observeAgent(
 async function followCall(
     session: Session,
     server: string,
+    /** The one token minted for this handler call — see observeAgent. */
+    token: string,
     agent: string,
     call: string,
     callAfter: number,
@@ -215,10 +223,6 @@ async function followCall(
     waitMs: number,
     opts: { immediate?: boolean } = {},
 ): Promise<Record<string, unknown>> {
-    // The call-scoped token: a token covers a call iff the call's agent is in
-    // its set, and we know the agent here, so no org-wide fan-out is needed.
-    const { token } = await mintStreamToken(session, agent, call);
-
     let entries: AnyLogEntry[];
     let live: boolean | undefined;
     let timedOut = false;
@@ -246,12 +250,11 @@ async function followCall(
     // otherwise make the loop deaf to every phone call after it. Seen for real
     // on dev-bistro. Only on a timeout, so a talking call costs nothing.
     if (timedOut && !opts.immediate) {
-        const { token: agentToken } = await mintStreamToken(session, agent);
-        const log = await readAgentLog(session, server, agentToken, agent);
+        const log = await readAgentLog(session, server, token, agent);
         const rows = reduceAgentLog(log.entries);
         const newer = rows.find((r) => r.live && r.call !== call);
         if (newer) {
-            return followCall(session, server, agent, newer.call, 0, log.head, rows, waitMs, { immediate: true });
+            return followCall(session, server, token, agent, newer.call, 0, log.head, rows, waitMs, { immediate: true });
         }
     }
 
