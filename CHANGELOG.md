@@ -9,7 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-08-12
+## [0.5.1] — 2026-08-13
+
+### Fixed
+- **Tools defined with Zod 4 reached the LLM with no parameters at all.** Zod 4
+  renamed the discriminant the schema converter switches on — `_def.typeName`
+  (`"ZodString"`) became `_def.type` (`"string"`) — so every v4 schema fell
+  through the switch and `_toWire()` emitted `parameters: {}`. The model then
+  called the tool with no arguments, exactly as instructed, and the SDK's own
+  Zod validation rejected what the model was never told about. Found in a
+  production voice agent whose five tools all failed this way: a receptionist
+  that could not receive the visitor's name, and a door that could not receive
+  its access code. Anything on Zod 4 was affected; nothing on Zod 3 was.
+- `convertNode` now handles both formats. The Zod 4 branch maps
+  `object · string · number · int · boolean · enum · array · optional ·
+  nullable · default · literal · pipe`, reads `.describe()` from the schema's
+  `.description` getter (v4 no longer writes `_def.description`), and converts
+  the **input** side of a `.transform()`, since that is what the model has to
+  produce.
+
+### Added
+- `tests/tool-wire.test.ts` — asserts the generated **wire schema** against
+  **real Zod, both majors**. The existing tool tests duck-typed Zod's v3
+  internals and stayed green through the entire outage; the bytes that travel
+  to the LLM had no test at all.
 
 ### Added
 - **Docs: `guides/project-structure.md`** — the recommended layout for a Pinecall
