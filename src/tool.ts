@@ -111,6 +111,16 @@ function zodToJsonSchema(schema: ZodLike): Record<string, unknown> {
 
 function convertNode(node: ZodLike): Record<string, unknown> {
     const def = node._def;
+    // Zod 4 renamed the discriminant: `_def.typeName` ("ZodString") became
+    // `_def.type` ("string"). A v4 schema fed to the v3 switch matched NOTHING,
+    // fell through to the default, and every tool went to the LLM as
+    // `parameters: {}` — the model then "correctly" called it with no args and
+    // the SDK-side Zod validation rejected what the model was never told about.
+    // Silent, because tests asserted on `.schema` (the Zod object), never on
+    // the generated wire schema. Both formats are handled from here on.
+    if (typeof def.type === "string" && def.typeName === undefined) {
+        return convertNodeV4(node);
+    }
     const typeName: string = def.typeName ?? "";
     let result: Record<string, unknown> = {};
 
@@ -196,8 +206,113 @@ function convertNode(node: ZodLike): Record<string, unknown> {
     return result;
 }
 
+/**
+ * Zod 4 branch. Same JSON Schema output as the v3 switch, from v4's internals:
+ * `_def.type` is lowercase ("object"), object shape is a plain object (not a
+ * thunk), enums live in `_def.entries`, array element in `_def.element`, and
+ * `.transform()/.refine()` compose through "pipe" (`_def.in`). `.describe()`
+ * no longer writes `_def.description` — it registers metadata that surfaces on
+ * the schema's own `.description` getter, which v3 also has, so the caller
+ * reads `node.description` first for both.
+ */
+function convertNodeV4(node: ZodLike): Record<string, unknown> {
+    const def = node._def;
+    let result: Record<string, unknown> = {};
+
+    switch (def.type) {
+        case "object": {
+            result.type = "object";
+            const shape = typeof def.shape === "function" ? def.shape() : (def.shape ?? {});
+            const properties: Record<string, unknown> = {};
+            const required: string[] = [];
+
+            for (const [key, value] of Object.entries(shape)) {
+                properties[key] = convertNode(value as ZodLike);
+                if (!isOptional(value as ZodLike)) {
+                    required.push(key);
+                }
+            }
+
+            result.properties = properties;
+            if (required.length > 0) result.required = required;
+            break;
+        }
+
+        case "string":
+            result.type = "string";
+            break;
+
+        case "number":
+        case "int":
+            result.type = "number";
+            break;
+
+        case "boolean":
+            result.type = "boolean";
+            break;
+
+        case "enum":
+            result.type = "string";
+            result.enum = def.entries ? Object.values(def.entries) : def.values;
+            break;
+
+        case "array":
+            result.type = "array";
+            if (def.element) {
+                result.items = convertNode(def.element);
+            }
+            break;
+
+        case "optional":
+        case "nullable":
+            result = convertNode(def.innerType);
+            break;
+
+        case "default":
+            result = convertNode(def.innerType);
+            if (def.defaultValue !== undefined) {
+                result.default = typeof def.defaultValue === "function"
+                    ? def.defaultValue()
+                    : def.defaultValue;
+            }
+            break;
+
+        case "literal": {
+            // v4 literals hold an ARRAY of values (z.literal(["a", "b"]) is legal).
+            const values: unknown[] = def.values ?? [];
+            if (values.length === 1) result.const = values[0];
+            else if (values.length > 1) result.enum = values;
+            break;
+        }
+
+        case "pipe":
+            // .transform() / piped refinements — the LLM's contract is the INPUT
+            result = convertNode(def.in);
+            break;
+
+        default:
+            // Unknown Zod type — pass through as empty object
+            break;
+    }
+
+    const description = node.description ?? def.description;
+    if (description) {
+        result.description = description;
+    }
+
+    return result;
+}
+
 function isOptional(node: ZodLike): boolean {
-    const typeName: string = node._def?.typeName ?? "";
+    const def = node._def ?? {};
+    // Zod 4 (lowercase `type` discriminant)
+    if (typeof def.type === "string" && def.typeName === undefined) {
+        if (def.type === "optional") return true;
+        if (def.type === "default") return true;
+        if (def.type === "pipe") return isOptional(def.in);
+        return false;
+    }
+    const typeName: string = def.typeName ?? "";
     if (typeName === "ZodOptional") return true;
     if (typeName === "ZodDefault") return true;
     // Unwrap effects

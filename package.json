@@ -78,7 +78,9 @@
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.6",
-    "vitest-websocket-mock": "^0.5.0"
+    "vitest-websocket-mock": "^0.5.0",
+    "zod": "^4.4.3",
+    "zod-v3": "npm:zod@^3.25.76"
   },
   "dependencies": {
     "ws": "^8.19.0"
