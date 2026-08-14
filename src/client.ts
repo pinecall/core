@@ -334,8 +334,14 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             return this.#agents.get(id)!;
         }
 
-        // Extract channel/greeting fields before passing to Agent
-        const { phoneNumber, phoneNumbers, whatsapp, greeting, ...agentConfig } = config;
+        // Extract channel fields before passing to Agent. `greeting` STAYS in
+        // the config when it is a string/object: it goes on the wire and the
+        // SERVER delivers it on every channel — one text, one owner. Only a
+        // FUNCTION greeting is extracted: it cannot serialize, so it keeps the
+        // legacy client-side call.say on voice events.
+        const { phoneNumber, phoneNumbers, whatsapp, ...agentConfig } = config;
+        const greeting = typeof config.greeting === "function" ? config.greeting : undefined;
+        if (greeting) delete (agentConfig as any).greeting;
 
         const agent = new Agent(
             id,
@@ -378,22 +384,14 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             }
         }
 
-        // Auto-register greeting handler
+        // Function greetings only — string/object ones rode the wire above and
+        // the server delivers them itself (voice speaks, chat emits when
+        // greetingInChat is set). A per-call computed greeting cannot
+        // serialize, so it keeps the legacy client-side say on voice events.
         if (greeting) {
             agent.on("call.started", async (call) => {
-                let text: string;
-                let addToHistory = true;
-
-                if (typeof greeting === "function") {
-                    text = await greeting(call);
-                } else if (typeof greeting === "object") {
-                    text = greeting.text;
-                    addToHistory = greeting.addToHistory ?? true;
-                } else {
-                    text = greeting;
-                }
-
-                call.say(text, { addToHistory });
+                const text = await greeting(call);
+                call.say(text, { addToHistory: true });
             });
         }
 

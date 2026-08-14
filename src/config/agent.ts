@@ -179,6 +179,17 @@ export interface AgentConfig {
         | { text: string; addToHistory?: boolean }
         | ((call: import("../domain/call.js").Call) => string | Promise<string>);
     /**
+     * Deliver the greeting on CHAT sessions too, as the first bot message —
+     * rendered by the widget, recorded in the transcript, and in the LLM
+     * history so the model never introduces itself again. String/object
+     * greetings only (a function greeting stays client-side and voice-only).
+     *
+     * Opt-in on purpose: most existing chat clients paint their own welcome
+     * client-side, and flipping the default would greet those visitors twice.
+     * Set it when the agent's greeting is the single source for every channel.
+     */
+    greetingInChat?: boolean;
+    /**
      * Phone number to register (Twilio E.164 or SIP URI).
      *
      * @example "+14155551234"

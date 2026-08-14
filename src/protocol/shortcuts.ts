@@ -30,6 +30,17 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     // Default prompt {{vars}} seeded server-side at registration, so they resolve
     // on the FIRST turn (chat especially) without the per-call setPromptVars round-trip.
     if ((opts as any).promptVars !== undefined) payload.vars = (opts as any).promptVars;
+    // THE greeting travels on the wire: the SERVER owns delivery on every
+    // channel (voice speaks it via _send_greeting; chat emits it as the first
+    // bot message when `greetingInChat` is set). client.ts strips function
+    // greetings before this runs — they cannot serialize and keep the legacy
+    // client-side call.say. An object greeting sends its text; per-call
+    // addToHistory is not a wire concept (the server always records it).
+    if ((opts as any).greeting !== undefined) {
+        const g = (opts as any).greeting;
+        payload.greeting = typeof g === "object" && g !== null ? g.text : g;
+    }
+    if ((opts as any).greetingInChat !== undefined) payload.greetingInChat = (opts as any).greetingInChat;
     // IANA timezone → server resolves built-in {{date}}/{{time}}/{{day}}/{{date_block}}
     // in this zone (all transports), so an agent "in Madrid" reports the right hour.
     if ((opts as any).timezone !== undefined) payload.timezone = (opts as any).timezone;
