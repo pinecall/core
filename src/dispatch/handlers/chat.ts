@@ -154,7 +154,20 @@ export class ChatHandler implements EventHandler {
                 if (call) {
                     const text = (wire.text ?? "") as string;
                     call._pushMessage({ role: "user", content: text });
-                    call._emitWire("user.message", { event: "user.message", callId, text });
+                    // A chat message carries no STT metadata — there is no
+                    // recogniser and no turn timer — so the numeric fields the
+                    // voice path fills are neutral here rather than absent:
+                    // the event's TYPE is the contract every listener reads,
+                    // and a handler that logs `confidence` should not crash on
+                    // a channel that has none.
+                    call._emitWire("user.message", {
+                        event: "user.message",
+                        callId,
+                        messageId: (wire.message_id ?? "") as string,
+                        text,
+                        confidence: 1,
+                        turnId: 0,
+                    });
                 }
                 return true;
             }
