@@ -50,6 +50,7 @@ export class LifecycleHandler implements EventHandler {
                         direction: (wire.direction ?? "inbound") as "inbound" | "outbound",
                         transport,
                         metadata: wire.metadata as Record<string, unknown> | undefined,
+                        language: typeof wire.language === "string" ? wire.language : undefined,
                     },
                     (data) => agent.send(data),
                 );
@@ -118,6 +119,7 @@ export class LifecycleHandler implements EventHandler {
                                 direction,
                                 transport: "phone",
                                 metadata: wire.metadata as Record<string, unknown> | undefined,
+                                language: typeof wire.language === "string" ? wire.language : undefined,
                             },
                             (data) => agent.send(data),
                         );

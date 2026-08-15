@@ -131,6 +131,15 @@ export class Call extends TypedEventBus<CallEvents> {
     readonly direction: "inbound" | "outbound";
     readonly transport: "webrtc" | "phone" | "chat" | "whatsapp" | "unknown";
     readonly metadata: Record<string, unknown>;
+    /**
+     * The SESSION's language, as the server resolved it: the browser's pick on
+     * webrtc (`config.language` in the offer, e.g. a language toggle in the
+     * page), the dialled number's channel config on phone, the agent's default
+     * otherwise. BCP-47 base ("en", "es"). Empty when the server predates it.
+     * Read this — not `metadata` — to localise a session's prompt: it is the
+     * same fact the server used to pick STT/TTS language and the greeting.
+     */
+    readonly language: string;
 
     /** Auto-tracked from the latest user.message. Used as default `in_reply_to`. */
     lastMessageId: string | null = null;
@@ -210,6 +219,7 @@ export class Call extends TypedEventBus<CallEvents> {
             direction: "inbound" | "outbound";
             transport?: "webrtc" | "phone" | "chat" | "whatsapp" | "unknown";
             metadata?: Record<string, unknown>;
+            language?: string;
         },
         send: (data: Record<string, unknown>) => void,
     ) {
@@ -220,6 +230,7 @@ export class Call extends TypedEventBus<CallEvents> {
         this.direction = data.direction;
         this.transport = data.transport ?? "unknown";
         this.metadata = data.metadata ?? {};
+        this.language = data.language ?? "";
         this.#send = send;
     }
 
