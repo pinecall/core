@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-15 — the session's language, and one owner for the greeting
+
 ### Added
 - **`call.language`** — the session's language as the server resolved it: the
   browser's `config.language` on WebRTC, the dialled number's channel language
@@ -28,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `call.started → call.say`. One text, one owner — the shape that was producing
   double greetings when a page or an agent also said hello. A **function**
   greeting still runs client-side (it cannot serialize) and stays voice-only.
+
+### Fixed
+- **`typecheck` was red before this release.** The chat path emitted
+  `user.message` without the `messageId`, `confidence` and `turnId` its own
+  event type requires. A chat message has no STT metadata, so those fields are
+  now neutral rather than missing.
 
 ### Security
 - Requires a server that **allowlists browser-sent session config** (`voice`,
