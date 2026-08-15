@@ -47,9 +47,37 @@ const agent = pc.agent("my-agent", {
 | `sessionLimits` | `SessionLimits` | Duration / idle timeout config |
 | `interruption` | `InterruptionConfig` | Barge-in gates: min duration/volume/words, backchannel filter |
 | `analysis` | `AnalysisConfig` | Audio metrics streaming |
+| `greeting` | `string \| { text, addToHistory? } \| { [lang]: string } \| (call) => string` | First thing the agent says — see [Greeting](#greeting) |
+| `greetingInChat` | `boolean` | Deliver the greeting on chat sessions too (default `false`) |
 | `allowedOrigins` | `string[]` | Public token access (see [Security](/security)) |
 
 See [Reference → Providers](/reference/stt-providers) for full provider configs.
+
+## Greeting
+
+The first thing the agent says. **The server delivers it** — you do not send it yourself — so it is one text with one owner, and it lands in the LLM history: the model knows it already greeted and does not introduce itself again.
+
+```typescript
+pc.agent("front-desk", { greeting: "Thanks for calling Studio Bella, this is Lucía. How can I help?" });
+```
+
+| Shape | Use |
+|---|---|
+| `"Hi! How can I help?"` | one language, every channel |
+| `{ text, addToHistory? }` | same, with explicit history control |
+| `{ en: "Hi!…", es: "¡Hola!…" }` | **one text per language** — the server picks the entry matching the session's [`call.language`](/api/call#language) |
+| `(call) => string` | computed per call (a name from your CRM). Runs in **your** process on `call.started`, voice only |
+
+**Channels.** Voice (phone and WebRTC) is greeted by default. Chat is not, because most chat UIs paint their own opening line — set `greetingInChat: true` to have the server send it there too, as the session's first bot message:
+
+```typescript
+pc.agent("front-desk", {
+  greeting: { en: "Hi, this is Lucía. How can I help?", es: "Hola, habla Lucía. ¿En qué te ayudo?" },
+  greetingInChat: true,
+});
+```
+
+> **Do not greet twice.** Declaring `greeting` *and* saying hello yourself from `call.started`, or painting a welcome line in the browser, produces two greetings back to back. Pick one owner: the `greeting` field (the server) or your own `call.say` — not both.
 
 ## Registration
 

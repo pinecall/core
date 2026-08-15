@@ -34,7 +34,7 @@ Interruption   →  bot.interrupted
 agent.on("call.started", (call: Call) => { });
 ```
 
-A new **voice** call connected (phone or WebRTC). The `Call` object is partially populated — `id`, `from`, `to`, `direction`, `transport`, `metadata` are available. `duration`, `endedAt`, `reason` are not yet.
+A new **voice** call connected (phone or WebRTC). The `Call` object is partially populated — `id`, `from`, `to`, `direction`, `transport`, `metadata` and [`language`](/api/call#language) are available. `duration`, `endedAt`, `reason` are not yet.
 
 > **Note:** `call.started` fires only for voice transports (`phone`, `webrtc`). For chat and WhatsApp, use `chat.started` and `whatsapp.started` instead.
 
@@ -45,6 +45,8 @@ agent.on("chat.started", (call: Call) => { });
 ```
 
 A new chat session started. Receives the same `Call` object, with `call.transport === "chat"`. Use `setPromptVars()`, `addContext()`, and all other Call methods as usual.
+
+> Chat never fires `call.preparing` unless the agent opts into it. If you localise a session from [`call.language`](/api/call#language) or set per-session `{{vars}}`, handle **both** `chat.started` and `call.preparing` — an agent that only handles `preparing` leaves every chat session on its registered defaults.
 
 ### `whatsapp.started`
 

@@ -109,6 +109,12 @@ promise your handler returns before telling the server to go ahead, so
 everything you pushed lands on *this* generation. A synchronous handler works
 too — it just finishes sooner.
 
+**A chat session only fires it when the agent opted in** (`preparing: true`).
+Vars that must be set **once per session** — a language block picked from
+[`call.language`](/api/call#language), the tenant's name — belong on
+`chat.started` **and** `call.preparing`, or every chat session runs on the
+agent's registered defaults while voice gets the right ones.
+
 #### The budget
 
 | `preparing` | Budget | Behaviour |

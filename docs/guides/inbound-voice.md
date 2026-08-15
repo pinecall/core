@@ -78,6 +78,15 @@ greeting: async (call) => {
 }
 ```
 
+One line per language, when the agent answers in more than one — the server picks the entry matching the session's [`call.language`](/api/call#language), which on the phone is the dialled number's language:
+
+```typescript
+greeting: {
+  en: "Thanks for calling Acme. How can I help?",
+  es: "Gracias por llamar a Acme. ¿En qué puedo ayudarte?",
+}
+```
+
 ### Option 2: `call.say()` in `call.started` (programmatic)
 
 If you use `pc.agent()`, handle the greeting yourself:
@@ -89,6 +98,8 @@ agent.on("call.started", (call) => {
 ```
 
 Use this when you need logic beyond what `greeting` supports — multiple says, conditional behavior, loading data before speaking, etc.
+
+> **Pick one.** Doing both — declaring `greeting` *and* saying hello from `call.started` — greets the caller twice. Same if a browser page paints its own welcome line for a WebRTC session while the agent declares `greeting`.
 
 > **Outbound calls** use a different mechanism: pass `greeting` in `agent.dial()`. The server speaks it as soon as the callee picks up. See [Outbound Calls](/guides/outbound-calls).
 

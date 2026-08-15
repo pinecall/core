@@ -17,8 +17,8 @@ new VoiceSession(options)
 |---|---|---|---|
 | `agent` | `string` | ✅ | Agent ID to connect to |
 | `server` | `string` | — | API base URL (default: `https://voice.pinecall.io`) |
-| `config` | `Record<string, unknown>` | — | Session config overrides (voice, STT, language, greeting) |
-| `metadata` | `Record<string, unknown>` | — | Metadata passed to the agent (visible as `call.metadata` server-side) |
+| `config` | `Record<string, unknown>` | — | Session config overrides — see [What `config` may set](#what-config-may-set) |
+| `metadata` | `Record<string, unknown>` | — | Per-session context (visible as `call.metadata` server-side). **Browser-set, therefore forgeable** — a key of the same name sealed into the token always wins. Use the token for anything you authorize on ([sealed metadata](/web/chat/chat-session#passing-metadata-to-the-token-sealed-session)) |
 
 The constructor does **not** open a connection. Call `connect()` when you want the call to start.
 
@@ -35,6 +35,41 @@ const session = new VoiceSession({
 ```
 
 The `config` object uses Pinecall's shortcut syntax — same format the server SDK accepts. See [STT Providers](/reference/stt-providers) and [TTS Providers](/reference/tts-providers).
+
+### What `config` may set
+
+`config` reaches the server from the **browser**, so it is treated as untrusted: the server keeps the keys that decide how a session *sounds and hears*, and refuses the rest.
+
+| Accepted | Refused |
+|---|---|
+| `voice` · `language` · `stt` · `tts` · `greeting` · `flash` | `prompt` · `llm` · `tools` · `knowledge_base` · `skills` · `raw_prompt` |
+
+The refused keys are what an agent **is** — its instructions, its model, what it can do — and they belong to the process that registered it. Without this, any visitor of a public (`allowedOrigins`) agent could rewrite the system prompt from the browser console, or pick a model billed to your organization. Refused keys are dropped and logged server-side; the rest of the config still applies.
+
+The same rule applies to [`configure()`](#configureconfig) mid-call.
+
+### Choosing the language of a session
+
+`config.language` is how a page opens a session in the visitor's language — a selector in your UI, the browser locale, a user preference:
+
+```typescript
+const session = new VoiceSession({
+  agent: "front-desk",
+  config: { language: "es", voice: "elevenlabs/sofia-2" },
+});
+```
+
+It is the **one** language fact of the session. The server uses it to pick the STT and TTS language, to choose the entry of a [per-language greeting](/api/agent#creation), and it stamps it on `call.language` so your agent localises its prompt from the same value the caller is hearing:
+
+```typescript
+agent.on("call.preparing", (call) => {
+  call.setPromptVars({ lang: call.language === "es" ? SPANISH_BLOCK : ENGLISH_BLOCK });
+});
+```
+
+Send the voice **with** the language, as above. Registering one voice and swapping it from `call.started` works, but the first utterance — the greeting — is synthesised while that round-trip is still in flight, so the call opens in the wrong voice.
+
+> The `<VoiceWidget />` React component wraps this in a ready-made picker: see [`languages`](/web/widget/props#languages--language-presets).
 
 ## Methods
 
@@ -119,6 +154,10 @@ session.configure({
 ```
 
 > Only works on a connected session. For pre-connect config updates use `updateOptions()`.
+>
+> The same [allowlist](#what-config-may-set) applies: presentation keys only.
+
+Switching `language` mid-call reconnects STT and TTS; it does **not** re-run the greeting, and prompt variables your agent set for the previous language stay until it sets them again (`call.preparing` fires before every generation, so reading `call.language` there keeps them in step).
 
 ### `updateOptions(patch)`
 

@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`call.language`** — the session's language as the server resolved it: the
+  browser's `config.language` on WebRTC, the dialled number's channel language
+  on phone, the `lang` sealed into the token on chat. It is the same value the
+  server used to pick the STT/TTS language and the greeting, so an agent that
+  localises its prompt from it can never disagree with what the caller hears.
+- **Per-language `greeting`** — `{ en: "Hi…", es: "Hola…" }` alongside the
+  existing string / `{ text }` / function forms. The server picks the entry for
+  the session's language.
+- **`greetingInChat`** — deliver the greeting on chat sessions too, as the
+  session's first bot message (in the LLM history, so the model does not
+  introduce itself again). Opt-in: most chat UIs paint their own opening line.
+
+### Changed
+- **A string or object `greeting` now travels on the wire** and the SERVER
+  delivers it on every channel, instead of the SDK registering a client-side
+  `call.started → call.say`. One text, one owner — the shape that was producing
+  double greetings when a page or an agent also said hello. A **function**
+  greeting still runs client-side (it cannot serialize) and stays voice-only.
+
+### Security
+- Requires a server that **allowlists browser-sent session config** (`voice`,
+  `language`, `stt`, `tts`, `greeting`, `flash`) and refuses `prompt`, `llm`,
+  `tools`, `knowledge_base`, `skills` and `raw_prompt` from the browser — on the
+  WebRTC offer and on mid-call `configure()`. Public (`allowedOrigins`) agents
+  were otherwise one console line away from a replaced system prompt.
+
 ## [0.5.1] — 2026-08-13
 
 ### Fixed

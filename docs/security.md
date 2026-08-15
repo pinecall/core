@@ -105,6 +105,19 @@ When `allowedOrigins` is set, the token endpoint accepts browser requests from m
 | `allowedOrigins` (public) | ⚠️ Origin-based only | Demos, prototypes |
 | Neither (default) | ❌ Rejected | — |
 
+## What a browser may change about a session
+
+A page can shape how a session **sounds and hears** — this is how a language picker or a voice selector works — but not what the agent *is*.
+
+| From the browser (`config` on `VoiceSession` / `VoiceWidget`, or `configure()` mid-call) | |
+|---|---|
+| **Accepted** | `voice` · `language` · `stt` · `tts` · `greeting` · `flash` |
+| **Refused** | `prompt` · `llm` · `tools` · `knowledge_base` · `skills` · `raw_prompt` |
+
+The refused keys are enforced server-side, on both the pre-call offer and mid-call updates, and dropped keys are logged. This matters most for a **public agent** (`allowedOrigins`), where anyone who can open the page can send whatever they like: without the allowlist, a visitor could replace the system prompt from the console or select a model billed to your organization.
+
+The same split applies to context: `metadata` sent from the browser is **forgeable** and is overwritten by any key of the same name sealed into the token. Authorize on the sealed values only — see [sealed token metadata](/guides/multi-tenant).
+
 ## API key handling
 
 Your `PINECALL_API_KEY` is the master credential. Treat it like a database password:
