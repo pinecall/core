@@ -20,7 +20,7 @@ import type { CallStartedEvent, CallEndedEvent } from "../../protocol/events.js"
 
 
 export class LifecycleHandler implements EventHandler {
-    readonly events = ["call.started", "call.ended", "call.dialing", "call.error", "call.forwarded", "call.dtmf_sent", "call.ringing", "call.rejected"] as const;
+    readonly events = ["call.started", "call.ended", "call.updated", "call.dialing", "call.error", "call.forwarded", "call.dtmf_sent", "call.ringing", "call.rejected"] as const;
 
     handle(wire: WireEvent, ctx: DispatchContext): boolean {
         const agentId = wire.agent_id;
@@ -30,6 +30,18 @@ export class LifecycleHandler implements EventHandler {
         if (!agent) return false;
 
         switch (wire.event) {
+            // The session changed under the call — today only its language,
+            // when a browser switches it mid-call. Silent by design: there is
+            // no event for an app to handle, the Call object simply tells the
+            // truth from the next turn on.
+            case "call.updated": {
+                const callId = wire.call_id;
+                const call = callId ? agent._getCall(callId) : undefined;
+                if (call && typeof wire.language === "string" && wire.language) {
+                    call._setLanguage(wire.language);
+                }
+                return true;
+            }
             case "call.started": {
                 const callId = wire.call_id;
                 if (!callId) return false;

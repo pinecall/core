@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-08-15 — a language switch mid-call reaches the agent
+
+### Fixed
+- **`call.language` now follows a mid-call switch.** When a browser changes
+  the session's language (`VoiceSession.configure({ language })`) the server
+  moves STT and TTS and emits `call.updated`; the SDK folds it into
+  `call.language` before the next `call.preparing`, so a prompt localised in
+  that hook stays in step with what the caller is hearing. It was fixed at the
+  value the call started with.
+
 ## [0.6.0] — 2026-08-15 — the session's language, and one owner for the greeting
 
 ### Added

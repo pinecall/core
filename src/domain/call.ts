@@ -138,8 +138,22 @@ export class Call extends TypedEventBus<CallEvents> {
      * otherwise. BCP-47 base ("en", "es"). Empty when the server predates it.
      * Read this — not `metadata` — to localise a session's prompt: it is the
      * same fact the server used to pick STT/TTS language and the greeting.
+     *
+     * It FOLLOWS a mid-call switch: when a browser changes the session's
+     * language (`VoiceSession.configure({ language })`), the server moves STT
+     * and TTS and tells the SDK, which updates this before the next
+     * `call.preparing`. So a prompt localised in that hook stays in step with
+     * what the caller is hearing — read it per turn, do not cache it.
      */
-    readonly language: string;
+    get language(): string {
+        return this.#language;
+    }
+    #language: string;
+
+    /** @internal The server reported a new session language (mid-call switch). */
+    _setLanguage(lang: string): void {
+        this.#language = lang;
+    }
 
     /** Auto-tracked from the latest user.message. Used as default `in_reply_to`. */
     lastMessageId: string | null = null;
@@ -230,7 +244,7 @@ export class Call extends TypedEventBus<CallEvents> {
         this.direction = data.direction;
         this.transport = data.transport ?? "unknown";
         this.metadata = data.metadata ?? {};
-        this.language = data.language ?? "";
+        this.#language = data.language ?? "";
         this.#send = send;
     }
 
