@@ -20,6 +20,7 @@ import type { ServerResponse } from "node:http";
 import type { Turn } from "./turn.js";
 import type { AgentConfig, ChannelConfig, WhatsAppChannelConfig } from "../config/agent.js";
 import type { Tool } from "../tool.js";
+import { memorySearch, memoryGet, memoryForget, type MemoryHit, type MemoryContact, type MemoryFact } from "../api/memory.js";
 import type { Skill, SkillConfig } from "../skill.js";
 import { skill as makeSkill } from "../skill.js";
 import type { TokenResponse, TokenScopeOptions } from "../api/tokens.js";
@@ -47,12 +48,48 @@ import type {
 
 // ─── Agent events ────────────────────────────────────────────────────────
 
+/** One applied memory op, as emitted on `memory.ops`. */
+export type MemoryOp =
+    | { op: "add"; id: string; kind: string; text: string; confidence: number; valid_from: string; evidence?: string }
+    | { op: "update"; id: string; supersedes: string; kind: string; text: string; confidence: number; valid_from: string; evidence?: string }
+    | { op: "delete"; id: string; kind?: string; text?: string; reason?: string };
+
+/** The `memory.ops` payload — the same JSON the call log and the DataChannel carry. */
+export interface MemoryOpsEvent {
+    contact: string;
+    call_id: string;
+    turn: number;
+    /** True on the end-of-call consolidation pass. */
+    final: boolean;
+    ops: MemoryOp[];
+    memory: { revision: number; path: string };
+    model: string;
+    latency_ms: number;
+}
+
+/** `agent.memory` — read what the server remembers. */
+export interface AgentMemory {
+    /** Semantic + lexical search. With `contact`, only that contact; without, across every contact of the agent. */
+    search(query: string, opts?: { contact?: string | null; k?: number }): Promise<MemoryHit[]>;
+    /** Every fact held about a contact, plus the regenerated memory.md. */
+    get(contact: string): Promise<MemoryContact>;
+    /** The right to be forgotten: facts, view and index entries, gone. */
+    forget(contact: string): Promise<boolean>;
+}
+export type { MemoryHit, MemoryContact, MemoryFact };
+
 export interface AgentEvents {
     [key: string]: (...args: any[]) => void;
 
     // Lifecycle
     ready: () => void;
     "call.started": (call: Call) => void;
+    /**
+     * Memory learned or revised something about the contact of a session —
+     * see `AgentConfig.memory`. `ops` is what was APPLIED (final ids, validity),
+     * not what was asked; `final` marks the end-of-call pass.
+     */
+    "memory.ops": (ops: MemoryOpsEvent, call: Call | undefined) => void;
     "call.ended": (call: Call, reason: string) => void;
     "call.ringing": (call: RingingCall) => void;
 
@@ -139,6 +176,7 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** @internal Reference to parent Pinecall client (for createToken). */
     #client: {
         createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>, opts?: TokenScopeOptions) => Promise<TokenResponse>;
+        memoryApi?: { apiKey: string; apiUrl: string };
     } | null = null;
     /** True once the SERVER acknowledged this agent (`agent.created`/`agent.resumed`). */
     #registered = false;
@@ -457,8 +495,29 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** @internal Set the parent Pinecall client reference. */
     _setClient(client: {
         createToken: (channel: "webrtc" | "chat" | "stream", agentId: string, metadata?: Record<string, unknown>, opts?: TokenScopeOptions) => Promise<TokenResponse>;
+        memoryApi?: { apiKey: string; apiUrl: string };
     }): void {
         this.#client = client;
+    }
+
+    // ── Memory ────────────────────────────────────────────────────────────
+
+    /**
+     * What this agent remembers about its contacts. Reads go to the server's
+     * store over REST with the org's key — the agent need not be online.
+     * See `AgentConfig.memory` for how facts get there.
+     */
+    get memory(): AgentMemory {
+        const api = () => {
+            const m = this.#client?.memoryApi;
+            if (!m?.apiKey) throw new Error("agent.memory needs an API key (PINECALL_API_KEY / new Pinecall({ apiKey }))");
+            return { ...m, agent: this.id };
+        };
+        return {
+            search: (query, opts) => memorySearch(api(), query, opts),
+            get: (contact) => memoryGet(api(), contact),
+            forget: (contact) => memoryForget(api(), contact),
+        };
     }
 
     // ── Dial ──────────────────────────────────────────────────────────────

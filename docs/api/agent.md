@@ -49,6 +49,7 @@ const agent = pc.agent("my-agent", {
 | `analysis` | `AnalysisConfig` | Audio metrics streaming |
 | `greeting` | `string \| { text, addToHistory? } \| { [lang]: string } \| (call) => string` | First thing the agent says — see [Greeting](#greeting) |
 | `greetingInChat` | `boolean` | Deliver the greeting on chat sessions too (default `false`) |
+| `memory` | `MemoryConfig` | Long-term memory per contact — see [Memory](/guides/memory) |
 | `allowedOrigins` | `string[]` | Public token access (see [Security](/security)) |
 
 See [Reference → Providers](/reference/stt-providers) for full provider configs.
@@ -78,6 +79,10 @@ pc.agent("front-desk", {
 ```
 
 > **Do not greet twice.** Declaring `greeting` *and* saying hello yourself from `call.started`, or painting a welcome line in the browser, produces two greetings back to back. Pick one owner: the `greeting` field (the server) or your own `call.say` — not both.
+
+## Memory
+
+`agent.memory` reads what the server remembers about this agent's contacts — `get(contact)`, `search(query, { contact?, k? })`, `forget(contact)` — over REST with your API key; the agent need not be online. Facts arrive live on `agent.on("memory.ops", (m, call) => …)`. The whole story: [Memory](/guides/memory).
 
 ## Registration
 

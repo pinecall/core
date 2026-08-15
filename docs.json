@@ -45,6 +45,7 @@
           "guides/live-listening",
           "guides/whatsapp",
           "guides/conversation-history",
+          "guides/memory",
           "guides/human-takeover",
           "guides/webrtc-browser",
           "guides/token-metadata",
@@ -86,7 +87,7 @@
         "group": "@pinecall/web (Browser)",
         "pages": [
           {
-            "group": "Voice — core",
+            "group": "Voice \u2014 core",
             "pages": [
               "web/core/overview",
               "web/core/voice-session",

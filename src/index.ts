@@ -47,6 +47,8 @@ export type { Skill, SkillConfig, SkillActivation } from "./skill.js";
 // History persistence
 export { JsonFileHistory } from "./history.js";
 export type { HistoryStore, ConversationRecord } from "./history.js";
+export type { MemoryConfig } from "./config/agent.js";
+export type { MemoryOp, MemoryOpsEvent, AgentMemory, MemoryHit, MemoryContact, MemoryFact } from "./domain/agent.js";
 
 // WhatsApp session
 export { WhatsAppSession } from "./domain/wa-session.js";

@@ -38,6 +38,14 @@ A new **voice** call connected (phone or WebRTC). The `Call` object is partially
 
 > **Note:** `call.started` fires only for voice transports (`phone`, `webrtc`). For chat and WhatsApp, use `chat.started` and `whatsapp.started` instead.
 
+### `memory.ops`
+
+```typescript
+agent.on("memory.ops", (m: MemoryOpsEvent, call?: Call) => { });
+```
+
+Memory learned or revised something about the session's contact — `add` / `update` (with `supersedes`) / `delete` ops, applied. Fires after a reply completes (or once per call, per `memory.consolidate`), never on the turn's path. The same JSON is a `memory.ops` entry in the [call log](/guides/call-log). See [Memory](/guides/memory).
+
 ### `chat.started`
 
 ```typescript

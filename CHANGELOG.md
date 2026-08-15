@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-15 — memory: facts per contact, on the semantic index, out through the observer
+
+### Added
+- **`memory` on `AgentConfig`** — long-term memory per contact. After each
+  reply a nano model (default `openrouter/qwen/qwen3-8b`, your OpenRouter key)
+  reads the last exchange against the facts already held and returns ops —
+  `add` / `update` (with `supersedes`) / `delete` — which the server applies to
+  a per-contact `memory.md` on its semantic index, puts back into the prompt
+  as `{{MEMORY}}`, and emits as ONE `memory.ops` event: to `agent.on(...)`, to
+  the call log (cursor-replayable) and to the browser's DataChannel. Never on
+  the turn's own path. `remember` / `forget` brief the extractor; `consolidate`
+  picks per-turn or per-call; `contactKey` names the identity on WebRTC/chat.
+- **`agent.memory`** — `get(contact)`, `search(query, { contact?, k? })`
+  (per contact or across every contact of the agent), `forget(contact)`; REST
+  with your API key, so a back office reads it without the agent online.
+  Mirrored as `GET/DELETE /api/memory/...`.
+- **`memory.ops` event** on agent and call, and the `MemoryConfig`,
+  `MemoryOp`, `MemoryOpsEvent`, `MemoryFact`, `MemoryHit`, `MemoryContact`
+  types.
+- Guide: [Memory](/guides/memory).
+
 ## [0.6.1] — 2026-08-15 — a language switch mid-call reaches the agent
 
 ### Fixed

@@ -5,6 +5,8 @@ description: "Save and restore conversations across calls so your agent remember
 
 # Conversation History
 
+> History remembers **conversations**. To remember **facts** across them — consolidated, put back into the prompt, and handed to you as they are learned — see [Memory](/guides/memory). Use both.
+
 Every call's conversation (transcript + LLM messages) is available when the call ends. The `HistoryStore` interface lets you **persist** conversations automatically and **restore** them on subsequent calls — so your agent remembers what was discussed before.
 
 ## Quick start

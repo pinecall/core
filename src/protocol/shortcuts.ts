@@ -48,6 +48,8 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
                 : g;
     }
     if ((opts as any).greetingInChat !== undefined) payload.greetingInChat = (opts as any).greetingInChat;
+    // Long-term memory declaration — the server owns extraction and storage.
+    if ((opts as any).memory !== undefined) payload.memory = (opts as any).memory;
     // IANA timezone → server resolves built-in {{date}}/{{time}}/{{day}}/{{date_block}}
     // in this zone (all transports), so an agent "in Madrid" reports the right hour.
     if ((opts as any).timezone !== undefined) payload.timezone = (opts as any).timezone;

@@ -32,6 +32,22 @@ export type STTShortcut = string | Record<string, unknown>;
 /** Interruption shortcut: false (disable) or config object. */
 export type InterruptionShortcut = boolean | Record<string, unknown>;
 
+/** See `AgentConfig.memory`. */
+export interface MemoryConfig {
+    /** What is worth remembering, in the business's words. Drives the extractor. */
+    remember?: string[];
+    /** What must never be stored. */
+    forget?: string[];
+    /** `"turn"` (default): after every exchange. `"call.ended"`: one pass per call. */
+    consolidate?: "turn" | "call.ended";
+    /** Extractor model — small and fixed. Default `openrouter/qwen/qwen3-8b`, on the org's OpenRouter key. */
+    model?: string;
+    /** Metadata key(s) that identify the contact on WebRTC/chat. Default `["contactId","userId","phone"]`. */
+    contactKey?: string | string[];
+    /** `false` switches memory off without removing the block. */
+    enabled?: boolean;
+}
+
 // ─── Agent config ────────────────────────────────────────────────────────
 
 export interface AgentConfig {
@@ -193,6 +209,38 @@ export interface AgentConfig {
      * Set it when the agent's greeting is the single source for every channel.
      */
     greetingInChat?: boolean;
+    /**
+     * Long-term memory per contact — facts the agent keeps ACROSS conversations
+     * and hands you as they are learned.
+     *
+     * After each reply (or once per call, see `consolidate`) a small model reads
+     * the last exchange against the facts already held about the contact and
+     * returns ops — add / update / delete — which the server applies to a
+     * per-contact `memory.md` on its semantic index, puts back into the prompt
+     * as `{{MEMORY}}`, and emits as ONE `memory.ops` event: to `agent.on(...)`,
+     * to the call log (the observer, cursor-replayable) and to the browser's
+     * DataChannel. Never on the turn's own path — it runs after the bot spoke.
+     *
+     * Identity is the precondition: the caller's number on phone/WhatsApp; on
+     * WebRTC/chat a key your backend sealed into the token (`contactKey`,
+     * default `contactId` → `userId` → `phone`). No identity → inert.
+     *
+     * ```ts
+     * pc.agent("front-desk", {
+     *   prompt: "…\n## About this caller\n{{MEMORY}}",
+     *   memory: {
+     *     remember: ["name and preferred address", "services + preferred professional",
+     *                "allergies staff must know", "contact preferences and opt-outs"],
+     *     forget: ["payment details", "health beyond treatment sensitivities"],
+     *     consolidate: "turn",                    // or "call.ended"
+     *     model: "openrouter/qwen/qwen3-8b",       // the default; nano on purpose
+     *   },
+     * });
+     * agent.on("memory.ops", (m) => db.upsertMany(m.ops));
+     * const hits = await agent.memory.search("asked not to be called", { k: 20 });
+     * ```
+     */
+    memory?: MemoryConfig;
     /**
      * Phone number to register (Twilio E.164 or SIP URI).
      *
