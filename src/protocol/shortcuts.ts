@@ -38,7 +38,14 @@ export function buildShortcutPayload(opts?: ShortcutInput): Record<string, unkno
     // addToHistory is not a wire concept (the server always records it).
     if ((opts as any).greeting !== undefined) {
         const g = (opts as any).greeting;
-        payload.greeting = typeof g === "object" && g !== null ? g.text : g;
+        // Three shapes reach the wire: a string; `{ text, addToHistory? }`
+        // (its text — the server always records a greeting); and a
+        // per-language map `{ en: "…", es: "…" }`, which travels whole so the
+        // server can pick by the SESSION's language.
+        payload.greeting =
+            typeof g === "object" && g !== null && typeof (g as any).text === "string"
+                ? (g as any).text
+                : g;
     }
     if ((opts as any).greetingInChat !== undefined) payload.greetingInChat = (opts as any).greetingInChat;
     // IANA timezone → server resolves built-in {{date}}/{{time}}/{{day}}/{{date_block}}

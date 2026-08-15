@@ -168,6 +168,9 @@ export interface AgentConfig {
      *
      * - **String**: static greeting, `addToHistory` defaults to `true`.
      * - **Object**: `{ text, addToHistory? }` for explicit control.
+     * - **Per-language map**: `{ en: "Hi…", es: "Hola…" }` — the server picks the
+     *   entry for the SESSION's language (the browser's `config.language` on
+     *   webrtc, the number's channel language on phone, the sealed lang on chat).
      * - **Function**: `(call) => string` for dynamic greetings, `addToHistory` defaults to `true`.
      *
      * @example "Hi! How can I help?"
@@ -177,6 +180,7 @@ export interface AgentConfig {
     greeting?:
         | string
         | { text: string; addToHistory?: boolean }
+        | Record<string, string>
         | ((call: import("../domain/call.js").Call) => string | Promise<string>);
     /**
      * Deliver the greeting on CHAT sessions too, as the first bot message —
