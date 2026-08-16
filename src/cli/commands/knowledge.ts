@@ -477,7 +477,7 @@ async function sync(config: CliConfig, argv: string[], kbId: string): Promise<vo
     if (json) { console.log(JSON.stringify(report, null, 2)); return; }
     const delta = report.pushed + report.updated + report.deleted;
     if (!delta) {
-        info(`${c.green("✓")} up to date — reindex skipped ${c.dim(`(${report.skipped} pages unchanged)`)}`);
+        info(`${c.green("✓")} up to date — reindex skipped ${c.dim(`(${report.skipped} ${report.skipped === 1 ? "page" : "pages"} unchanged)`)}`);
         return;
     }
     printReport(report);
