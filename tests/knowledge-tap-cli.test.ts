@@ -294,6 +294,19 @@ describe("knowledge tap --yes", () => {
         expect(calls.filter((u) => u === `${SITE}/about`)).toHaveLength(1);
     });
 
+    it("writes the crawl options it tapped with into the manifest", async () => {
+        await knowledgeCommand(config, ["knowledge", "tap", SITE, "--yes", "--limit=2", "--exclude=/blog/"]);
+        const id = [...kb.kbs.keys()][0]!;
+        const manifest = kb.docs.get(id)!.find((d) => d.path === "_tap-manifest.json")!;
+        const parsed = JSON.parse(manifest.text);
+        // Without this the sync re-plans with the defaults and pours in the
+        // pages the tap deliberately left out.
+        expect(parsed.options.limit).toBe(2);
+        // Serialized as regex sources — the CLI escapes the literal it was given.
+        expect(parsed.options.exclude).toHaveLength(1);
+        expect(new RegExp(parsed.options.exclude[0]).test("/blog/one")).toBe(true);
+    });
+
     it("--no-reindex pushes without rebuilding the index", async () => {
         await knowledgeCommand(config, ["knowledge", "tap", SITE, "--yes", "--no-reindex"]);
         expect(kb.reindexed).toBe(0);
