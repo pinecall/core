@@ -83,6 +83,8 @@
     "zod-v3": "npm:zod@^3.25.76"
   },
   "dependencies": {
+    "defuddle": "^0.19.2",
+    "linkedom": "^0.18.13",
     "ws": "^8.19.0"
   },
   "optionalDependencies": {
