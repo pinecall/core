@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tapping a pine — Pinecall</title>
+  <meta name="description" content="How a knowledge tap turns a website into answers.">
+  <meta name="author" content="Bernardo Castro">
+</head>
+<body>
+  <nav><a href="/">Home</a> <a href="/docs">Docs</a> <a href="/pricing">Pricing</a></nav>
+  <article>
+    <h1>Tapping a pine</h1>
+    <p>A knowledge tap takes a website and turns it into something an agent can
+    answer from. The crawler starts at a single URL, reads robots.txt for the
+    sitemap pointers, and walks whatever it finds there. When there is no
+    sitemap at all it falls back to one hop of links off the entry page, which
+    is enough to prove the shape of a site without spending a minute on it.</p>
+
+    <h2>Why markdown</h2>
+    <p>Raw HTML is mostly not content. Navigation, cookie banners, footers and
+    analytics shims outweigh the prose on almost every page, and an embedding
+    built over that noise retrieves the footer for every question. Extracting
+    to markdown first throws the furniture away and keeps the headings, which
+    are the strongest structural signal a retriever has to work with.</p>
+
+    <h2>Why the hash</h2>
+    <p>Most pages do not change between one tap and the next. Hashing the
+    extracted markdown rather than the HTML means a rotating build identifier
+    or a fresh nonce in a script tag does not look like an edit, so a sync run
+    over an unchanged site pushes nothing and skips the reindex entirely.</p>
+
+    <h2>What it refuses to do</h2>
+    <p>It does not render JavaScript. A page whose visible text is a rounding
+    error against its markup is flagged rather than rendered, and the caller
+    decides whether to include it anyway. It also respects the disallow rules
+    it reads, keeps four requests in flight at most, and gives every page
+    fifteen seconds before moving on to the next one.</p>
+  </article>
+  <footer><p>Copyright Pinecall.</p></footer>
+  <script>window.__DATA__ = { hydrate: true };</script>
+</body>
+</html>
