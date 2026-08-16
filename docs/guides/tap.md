@@ -239,15 +239,25 @@ them.
 ## CLI equivalents
 
 ```bash
-# preview + confirm + tap, with a progress bar
-pinecall knowledge tap kb_1a2b3c https://acme.com
+# preview only — writes nothing
+pinecall knowledge tap https://acme.com --dry-run
 
-# skip the confirmation (CI)
-pinecall knowledge tap kb_1a2b3c https://acme.com --yes
+# no kbId: the CLI creates a KB named "site: acme.com" and prints its id
+pinecall knowledge tap https://acme.com
+
+# into an existing KB, with URL filters
+pinecall knowledge tap https://acme.com kb_1a2b3c --exclude='/blog/'
+
+# skip the confirmation (CI), cap the crawl
+pinecall knowledge tap https://acme.com kb_1a2b3c --limit=50 --yes
 
 # incremental re-tap from the manifest
 pinecall knowledge sync kb_1a2b3c
 ```
+
+The signature is `pinecall knowledge tap <url> [kbId]` — the URL comes first and
+the knowledge base is optional. Flags: `--limit=N`, `--include=<re>`,
+`--exclude=<re>` (comma-separated regexes), `--dry-run`, `--yes`, `--no-reindex`.
 
 `tap` prints the same page table `planTap` returns, asks for confirmation
 (`--yes` skips it), then renders the `TapProgress` stream as a bar. `sync` is

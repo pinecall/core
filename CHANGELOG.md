@@ -28,8 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Client-rendered pages are **flagged, never rendered**: `needsJs` on the plan
   row when the text-to-HTML ratio falls below 0.012. There is no headless
   browser in the SDK.
-- CLI: `pinecall knowledge tap <kbId> <url>` (preview table, confirmation,
-  progress bar; `--yes` skips the prompt) and `pinecall knowledge sync <kbId>`.
+- CLI: `pinecall knowledge tap <url> [kbId]` (preview table, confirmation,
+  progress bar; omit the kbId and it creates a `site: <hostname>` knowledge base
+  and prints its id) with `--limit=N`, `--include=`, `--exclude=`, `--dry-run`,
+  `--yes` and `--no-reindex`; plus `pinecall knowledge sync <kbId>`.
 - New guide: [Tap a website](docs/guides/tap.md).
 
 `defuddle` and `linkedom` are runtime dependencies of the **subpath only** — the
