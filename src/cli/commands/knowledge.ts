@@ -430,6 +430,9 @@ async function tapSite(config: CliConfig, argv: string[], positional: string[]):
     const report = await run(config, () =>
         tapPlan(api(config), kbId!, plan, {
             reindex,
+            // The manifest records the options we actually tapped with, so the
+            // limit must travel too — otherwise sync re-plans with the default.
+            ...(limit ? { limit } : {}),
             ...(include ? { include } : {}),
             ...(exclude ? { exclude } : {}),
             onProgress: bar.on,

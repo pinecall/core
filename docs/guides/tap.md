@@ -101,9 +101,27 @@ Passing a **URL** instead of a plan is allowed — `tap` plans it itself — but
 nobody approved anything, so prefer the plan for anything user-facing.
 
 `tap` leaves a `_tap-manifest.json` document **inside the knowledge base**: the
-start URL, the discovery source, the timestamp and a hash per document path.
-That file is what makes step 4 cheap, and it lives in the KB rather than on your
-disk so any machine can pick the sync up.
+start URL, the discovery source, the timestamp, the crawl options the run used,
+and a hash per document path. That file is what makes step 4 cheap, and it lives
+in the KB rather than on your disk so any machine can pick the sync up.
+
+The options block is what keeps a sync honest:
+
+```json
+{
+  "version": 1,
+  "startUrl": "https://acme.com",
+  "source": "sitemap",
+  "tappedAt": "2026-08-16T10:00:00.000Z",
+  "options": { "limit": 8, "exclude": ["\\/blog\\/"] },
+  "pages": { "index.md": { "url": "https://acme.com/", "hash": "…" } }
+}
+```
+
+`include`/`exclude` are stored as **regex sources** (`re.source`) because a
+`RegExp` does not survive JSON, and are rebuilt with `new RegExp(s)` on read.
+The field is optional: a manifest written before it existed syncs with the
+defaults (limit 100, no filters), and the manifest version stays `1`.
 
 ---
 
@@ -128,7 +146,10 @@ pc.agent("acme-site", {
 ## Step 4 — `syncTap` on a schedule
 
 `syncTap` needs nothing but the knowledge base: the manifest already says which
-site this is and what was in it.
+site this is, what was in it, and **how it was crawled** — a tap run with
+`limit: 8` syncs with `limit: 8`, not with the default 100. Pass `limit`,
+`include` or `exclude` to override a stored one; the override wins and is
+written back to the manifest.
 
 ```ts
 import { syncTap, TapSyncError } from "@pinecall/sdk/tap";

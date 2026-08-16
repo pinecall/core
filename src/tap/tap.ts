@@ -44,11 +44,37 @@ export interface TapManifestEntry {
     hash: string;
 }
 
+/**
+ * The crawl options a tap ran with, in a shape that survives JSON.
+ *
+ * `include`/`exclude` are stored as **RegExp sources** (`re.source`) because a
+ * `RegExp` does not serialize — `JSON.stringify(/a/)` is `{}` — and they are
+ * rebuilt with `new RegExp(s)` on read. Flags are deliberately not kept: the
+ * filters are matched against URLs, where case matters.
+ */
+export interface TapCrawlOptions {
+    limit?: number;
+    /** RegExp sources, not patterns with delimiters: `\\/docs\\/`, not `/docs/`. */
+    include?: string[];
+    exclude?: string[];
+}
+
 export interface TapManifest {
     version: 1;
     startUrl: string;
     source: DiscoverySource;
     tappedAt: string;
+    /**
+     * The crawl options the tap that wrote this manifest actually used, so a
+     * later `syncTap` re-plans the same slice of the site instead of the whole
+     * of it.
+     *
+     * **Optional on read, and that is not a version bump.** A manifest written
+     * before this field existed simply has none, and syncs with the library
+     * defaults (limit 100, no include/exclude) — exactly the behaviour it had
+     * when it was written. Manifest `version` stays `1`.
+     */
+    options?: TapCrawlOptions;
     /** Keyed by knowledge-base document path. */
     pages: Record<string, TapManifestEntry>;
 }
@@ -72,6 +98,14 @@ export interface TapReport {
 }
 
 export interface TapOptions {
+    /**
+     * Maximum pages to consider. Politeness default: 100.
+     *
+     * Used when `tap` plans the site itself; when it is handed a prebuilt plan
+     * the plan already decided, and this is recorded in the manifest so the
+     * next `syncTap` re-plans with the same bound.
+     */
+    limit?: number;
     include?: RegExp[];
     exclude?: RegExp[];
     onProgress?: OnProgress;
@@ -80,6 +114,15 @@ export interface TapOptions {
 }
 
 export interface SyncTapOptions {
+    /**
+     * Override the limit stored in the manifest. Omitted, the stored one is
+     * used; given, it wins and is written back on the next manifest write.
+     */
+    limit?: number;
+    /** Override the manifest's stored `include`. Same rule as {@link SyncTapOptions.limit}. */
+    include?: RegExp[];
+    /** Override the manifest's stored `exclude`. Same rule as {@link SyncTapOptions.limit}. */
+    exclude?: RegExp[];
     onProgress?: OnProgress;
     reindex?: boolean;
 }
@@ -109,15 +152,70 @@ async function manifestDocId(
     return docs.find((d) => d.path === MANIFEST_PATH)?.id ?? null;
 }
 
+/** The live shape of {@link TapCrawlOptions}: sources compiled back to RegExp. */
+interface CrawlOptions {
+    limit?: number;
+    include?: RegExp[];
+    exclude?: RegExp[];
+}
+
+function compile(sources: unknown): RegExp[] | undefined {
+    if (!Array.isArray(sources)) return undefined;
+    const out: RegExp[] = [];
+    for (const s of sources) {
+        if (typeof s !== "string") continue;
+        try {
+            out.push(new RegExp(s));
+        } catch {
+            // A source that no longer compiles is dropped rather than fatal: a
+            // sync must not be bricked by one bad pattern in a stored manifest.
+        }
+    }
+    return out.length ? out : undefined;
+}
+
+/** Manifest options → the live options planTap takes. */
+function crawlOptionsOf(stored: TapCrawlOptions | undefined): CrawlOptions {
+    if (!stored) return {};
+    const out: CrawlOptions = {};
+    if (typeof stored.limit === "number" && Number.isFinite(stored.limit)) {
+        out.limit = stored.limit;
+    }
+    const include = compile(stored.include);
+    if (include) out.include = include;
+    const exclude = compile(stored.exclude);
+    if (exclude) out.exclude = exclude;
+    return out;
+}
+
+/**
+ * Live options → what goes in the manifest. Returns undefined when nothing was
+ * constrained, so a default tap does not grow an empty object in its manifest.
+ */
+function storedOptionsOf(opts: CrawlOptions): TapCrawlOptions | undefined {
+    const out: TapCrawlOptions = {};
+    if (typeof opts.limit === "number") out.limit = opts.limit;
+    if (opts.include?.length) out.include = opts.include.map((re) => re.source);
+    if (opts.exclude?.length) out.exclude = opts.exclude.map((re) => re.source);
+    return Object.keys(out).length ? out : undefined;
+}
+
+function parseOptions(raw: unknown): TapCrawlOptions | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    return storedOptionsOf(crawlOptionsOf(raw as TapCrawlOptions));
+}
+
 function parseManifest(text: string): TapManifest | null {
     try {
         const parsed = JSON.parse(text) as Partial<TapManifest>;
         if (!parsed || typeof parsed !== "object" || !parsed.pages) return null;
+        const options = parseOptions(parsed.options);
         return {
             version: 1,
             startUrl: String(parsed.startUrl ?? ""),
             source: (parsed.source ?? "sitemap") as DiscoverySource,
             tappedAt: String(parsed.tappedAt ?? ""),
+            ...(options ? { options } : {}),
             pages: parsed.pages as Record<string, TapManifestEntry>,
         };
     } catch {
@@ -344,12 +442,20 @@ export async function tap(
     plan: TapPlan | string,
     opts: TapOptions = {},
 ): Promise<TapReport> {
-    const { include, exclude, onProgress, reindex = true } = opts;
+    const { limit, include, exclude, onProgress, reindex = true } = opts;
+    // What this run actually crawled with — written into the manifest so the
+    // next syncTap re-plans the same slice instead of the whole site.
+    const used: CrawlOptions = {
+        ...(limit === undefined ? {} : { limit }),
+        ...(include ? { include } : {}),
+        ...(exclude ? { exclude } : {}),
+    };
 
     const resolved: TapPlan =
         typeof plan === "string"
             ? await planTap(plan, {
                   keepContent: true,
+                  ...(limit === undefined ? {} : { limit }),
                   ...(include ? { include } : {}),
                   ...(exclude ? { exclude } : {}),
                   ...(onProgress ? { onProgress } : {}),
@@ -384,11 +490,13 @@ export async function tap(
 
     await pushBatch(auth, kbId, entries, report, onProgress);
 
+    const storedOptions = storedOptionsOf(used);
     await writeManifest(auth, kbId, {
         version: 1,
         startUrl: resolved.startUrl,
         source: resolved.source,
         tappedAt,
+        ...(storedOptions ? { options: storedOptions } : {}),
         pages: manifestPages,
     });
 
@@ -414,6 +522,7 @@ export async function syncTap(
     const { onProgress, reindex = true } = opts;
 
     const { manifest } = await readManifest(auth, kbId);
+
     if (!manifest || !manifest.startUrl) {
         throw new TapSyncError(
             `Knowledge base ${kbId} has no ${MANIFEST_PATH}: it was never tapped. Run tap() first.`,
@@ -421,13 +530,30 @@ export async function syncTap(
         );
     }
 
+    // The manifest's own crawl options are the baseline — re-planning with the
+    // library defaults would pull in pages the original tap deliberately left
+    // out. An explicit option here overrides, per key, and is persisted below.
+    const stored = crawlOptionsOf(manifest.options);
+    const effective: CrawlOptions = {
+        ...stored,
+        ...(opts.limit === undefined ? {} : { limit: opts.limit }),
+        ...(opts.include ? { include: opts.include } : {}),
+        ...(opts.exclude ? { exclude: opts.exclude } : {}),
+    };
+
     const plan = await planTap(manifest.startUrl, {
         keepContent: true,
+        ...(effective.limit === undefined ? {} : { limit: effective.limit }),
+        ...(effective.include ? { include: effective.include } : {}),
+        ...(effective.exclude ? { exclude: effective.exclude } : {}),
         ...(onProgress ? { onProgress } : {}),
     });
 
     const report = emptyReport();
-    const pages = indexable(plan, {});
+    const pages = indexable(plan, {
+        ...(effective.include ? { include: effective.include } : {}),
+        ...(effective.exclude ? { exclude: effective.exclude } : {}),
+    });
     const content = await materialize(pages, onProgress);
     const tappedAt = new Date().toISOString();
 
@@ -492,12 +618,18 @@ export async function syncTap(
     }
 
     const delta = report.pushed + report.updated + report.deleted > 0;
-    if (delta) {
+    const storedOptions = storedOptionsOf(effective);
+    // An override that changed nothing on the site still has to be recorded,
+    // or the next sync would silently fall back to the old bounds.
+    const optionsMoved =
+        JSON.stringify(storedOptions ?? null) !== JSON.stringify(manifest.options ?? null);
+    if (delta || optionsMoved) {
         await writeManifest(auth, kbId, {
             version: 1,
             startUrl: manifest.startUrl,
             source: plan.source,
             tappedAt,
+            ...(storedOptions ? { options: storedOptions } : {}),
             pages: manifestPages,
         });
     }
