@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Public knowledge base (RAG) API.** The knowledge-base REST surface, which
+  until now only existed inside the CLI, is exported from the package root:
+  `listKnowledgeBases`, `createKnowledgeBase`, `getKnowledgeBase`,
+  `deleteKnowledgeBase`, `reindexKnowledge`, `pushDoc`, `pushDocs`, `getDoc`,
+  `deleteDoc` and `queryKnowledge`, plus the `KnowledgeBase`, `KnowledgeDoc`,
+  `KnowledgeDocWithText`, `KnowledgeDocInput`, `KnowledgeHit`,
+  `KnowledgeApiOptions` and `PushResult` types. A build script can now create a
+  knowledge base, push a folder of `.md` files (upsert by `path`, so re-running
+  is idempotent), attach it to an agent and debug retrieval without shelling out
+  to the CLI.
+- These calls go to the **Playground** management API — `playgroundUrl`, then
+  `PINECALL_PLAYGROUND_URL`, then `https://playground.pinecall.io` — with your
+  org API key, not to the voice server.
+- **`KnowledgeApiError`** — HTTP 402 on an org whose plan lacks knowledge bases
+  surfaces as a typed, catchable error with `code === "UPGRADE_REQUIRED"`
+  instead of a formatted string.
+- Guide: [Knowledge bases](/guides/knowledge-bases) gained a **Programmatic API**
+  section with a runnable end-to-end example.
+
 ## [0.7.0] — 2026-08-15 — memory: facts per contact, on the semantic index, out through the observer
 
 ### Added
