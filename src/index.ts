@@ -200,3 +200,27 @@ export type {
     FetchModelAccessOptions,
     ListModelAccessOptions,
 } from "./api/models.js";
+
+export {
+    listKnowledgeBases,
+    createKnowledgeBase,
+    getKnowledgeBase,
+    deleteKnowledgeBase,
+    reindexKnowledge,
+    pushDoc,
+    pushDocs,
+    getDoc,
+    deleteDoc,
+    queryKnowledge,
+    KnowledgeApiError,
+    DEFAULT_PLAYGROUND_URL,
+} from "./api/knowledge.js";
+export type {
+    KnowledgeBase,
+    KnowledgeDoc,
+    KnowledgeDocWithText,
+    KnowledgeDocInput,
+    KnowledgeHit,
+    KnowledgeApiOptions,
+    PushResult,
+} from "./api/knowledge.js";

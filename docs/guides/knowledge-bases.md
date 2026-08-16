@@ -136,6 +136,109 @@ pc.agent("support", {
 
 ---
 
+## Programmatic API
+
+Everything the dashboard and the CLI do is also a plain function on the package
+root, so a build script — or an app that lets *its* users bring their own
+documents — can create a knowledge base, keep it in sync and debug retrieval
+without shelling out to the CLI.
+
+These functions talk to the **Playground** (management) API, not to the voice
+server, and they authenticate with your **org API key**. The base URL comes from
+`playgroundUrl`, then `PINECALL_PLAYGROUND_URL`, then
+`https://playground.pinecall.io`.
+
+The whole path — create, push a folder of `.md` files, attach, query — end to end:
+
+```ts
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import {
+  Pinecall,
+  createKnowledgeBase,
+  pushDocs,
+  queryKnowledge,
+  KnowledgeApiError,
+  type KnowledgeDocInput,
+} from "@pinecall/sdk";
+
+const auth = { apiKey: process.env.PINECALL_API_KEY! };
+
+// 1. Create the knowledge base
+const kb = await createKnowledgeBase(auth, "Help docs", "Acme customer support");
+console.log("knowledge base:", kb.id);
+
+// 2. Push every .md file in ./help — `path` is the identity, so re-running
+//    this script updates documents in place instead of duplicating them.
+const dir = "./help";
+const docs: KnowledgeDocInput[] = [];
+for (const file of await readdir(dir)) {
+  if (!file.endsWith(".md")) continue;
+  docs.push({
+    path: file,
+    title: file.replace(/\.md$/, ""),
+    text: await readFile(path.join(dir, file), "utf8"),
+  });
+}
+
+const results = await pushDocs(auth, kb.id, docs);
+for (const r of results) {
+  console.log(r.ok ? `  ✓ ${r.path}` : `  ✗ ${r.path}: ${r.error?.message}`);
+}
+
+// 3. Attach it to an agent — same `knowledgeBase` field as Step 3
+const pc = new Pinecall();
+pc.agent("support", {
+  llm: "anthropic/claude-haiku-4-5",
+  knowledgeBase: kb.id,
+  prompt: "Answer from the docs below.\n\n{{RAG_CONTEXT}}",
+});
+
+// 4. Debug retrieval — no LLM in the loop, just the chunks the agent would see
+const hits = await queryKnowledge(auth, kb.id, "how do I reset my password", { k: 5 });
+for (const hit of hits) {
+  console.log(hit.score.toFixed(3), hit.doc_title, "—", hit.heading);
+}
+```
+
+A batch push never aborts on one bad document: `pushDocs` returns one
+`PushResult` per input, in order, each with its own `ok` / `error`.
+
+### The rest of the surface
+
+| function | does |
+| --- | --- |
+| `listKnowledgeBases(opts)` | every knowledge base in the org |
+| `createKnowledgeBase(opts, name, description?)` | create one |
+| `getKnowledgeBase(opts, kbId)` | the knowledge base plus its document listing |
+| `deleteKnowledgeBase(opts, kbId)` | delete it and its documents |
+| `reindexKnowledge(opts, kbId)` | force a rebuild of the index |
+| `pushDoc(opts, kbId, doc)` | upsert one document, keyed on `path` |
+| `pushDocs(opts, kbId, docs)` | upsert a batch, per-document results |
+| `getDoc(opts, kbId, docId)` | one document, with its text |
+| `deleteDoc(opts, kbId, docId)` | remove one document |
+| `queryKnowledge(opts, kbId, query, { k })` | retrieval only — the top `k` chunks |
+
+### Handling the paid-feature wall
+
+An org without knowledge bases on its plan gets HTTP 402, and that arrives as a
+typed `KnowledgeApiError` with `code === "UPGRADE_REQUIRED"` — catch it and offer
+the upgrade instead of parsing a message:
+
+```ts
+try {
+  await createKnowledgeBase(auth, "Help docs");
+} catch (err) {
+  if (err instanceof KnowledgeApiError && err.code === "UPGRADE_REQUIRED") {
+    console.error("Knowledge bases need a Starter plan or higher.");
+  } else {
+    throw err;
+  }
+}
+```
+
+---
+
 ## Step 4 — Run and test it
 
 ```bash
