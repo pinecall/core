@@ -11,10 +11,13 @@
  *   pinecall knowledge reindex <kbId>        Re-train (rebuild) the index
  *   pinecall knowledge rm <kbId> <docId>     Delete a document
  *   pinecall knowledge delete <kbId>         Delete a knowledge base
+ *   pinecall knowledge tap <url> [kbId]      Crawl a website into a KB
+ *   pinecall knowledge sync <kbId>           Re-tap a KB from its manifest
  */
 
 import { basename } from "node:path";
 import { readFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 import type { CliConfig } from "../config.js";
 import { c, table, info, error, section, kv } from "../ui.js";
 import {
@@ -30,6 +33,9 @@ import {
     reindexKnowledge,
     type KnowledgeApiOptions,
 } from "../../api/knowledge.js";
+import { planTap, type TapPlan, type TapPage, type TapPlanTotals } from "../../tap/plan.js";
+import { tap as tapPlan, syncTap, TapSyncError, type TapReport } from "../../tap/tap.js";
+import type { TapProgress } from "../../tap/types.js";
 
 // ── The public client, wired to this CLI invocation ──────────────────────
 
@@ -235,6 +241,248 @@ async function deleteKb(config: CliConfig, kbId: string): Promise<void> {
     info(`${c.green("✓")} Deleted knowledge base ${c.dim(kbId)}`);
 }
 
+// ── Tap: preview table ─────────────────────────────────────────────────────
+
+/**
+ * One table row per planned page.
+ *
+ * Badges are additive and deliberately terse: a page can be both thin and a
+ * client-rendered shell, and a preview a human scans must say so on one line.
+ * `✗` wins alone — a page that failed to fetch has no other property worth
+ * reporting.
+ */
+export function planRows(plan: TapPlan): string[][] {
+    return plan.pages.map((p: TapPage) => {
+        let badges: string;
+        if (p.error) badges = c.red("✗ " + p.error.slice(0, 40));
+        else if (p.excluded) badges = c.dim("EXCL");
+        else {
+            const parts: string[] = [];
+            if (p.thin) parts.push(c.yellow("THIN"));
+            if (p.needsJs) parts.push(c.yellow("JS!"));
+            badges = parts.join(" ");
+        }
+        return [c.dim(p.path), p.excluded || p.error ? c.dim("—") : String(p.words), badges];
+    });
+}
+
+/** The one-line summary under the preview table. */
+export function totalsLine(t: TapPlanTotals): string {
+    const bits = [
+        `${t.included} to index`,
+        `${t.words.toLocaleString("en-US")} words`,
+        `~${t.tokens.toLocaleString("en-US")} tokens`,
+    ];
+    if (t.thin) bits.push(`${t.thin} thin`);
+    if (t.needsJs) bits.push(`${t.needsJs} need JS`);
+    if (t.excluded) bits.push(`${t.excluded} excluded`);
+    if (t.failed) bits.push(c.red(`${t.failed} failed`));
+    return bits.join(c.dim(" · "));
+}
+
+// ── Tap: progress rendering ────────────────────────────────────────────────
+
+export interface ProgressSink {
+    write: (s: string) => void;
+    /** A whole line, for the non-TTY path. */
+    line: (s: string) => void;
+}
+
+/**
+ * Render TapProgress events.
+ *
+ * On a TTY the bar is one line rewritten with `\r`. Piped (or under --json) it
+ * degrades to one line per PHASE change, never per page: a hundred-page crawl
+ * redirected to a log must not write a hundred lines of bar.
+ */
+export function progressRenderer(tty: boolean, sink: ProgressSink): {
+    on: (ev: TapProgress) => void;
+    end: () => void;
+} {
+    let lastPhase = "";
+    let width = 0;
+    return {
+        on(ev: TapProgress) {
+            if (!tty) {
+                if (ev.phase !== lastPhase && ev.event !== "error") {
+                    lastPhase = ev.phase;
+                    sink.line(`  ${ev.phase}… ${ev.done}/${ev.total}`);
+                }
+                if (ev.event === "error") sink.line(`  ✗ ${ev.path ?? ev.url ?? ""} ${ev.message ?? ""}`);
+                return;
+            }
+            const total = ev.total || 0;
+            const done = Math.min(ev.done, total || ev.done);
+            const frac = total ? done / total : 0;
+            const cells = 24;
+            const filled = Math.round(frac * cells);
+            const bar = "█".repeat(filled) + "░".repeat(Math.max(0, cells - filled));
+            const where = (ev.path || ev.url || "").slice(-40);
+            const line = `  ${c.cyan(bar)} ${done}/${total || "?"} ${c.bold(ev.phase)} ${c.dim(where)}`;
+            width = Math.max(width, line.length);
+            sink.write("\r" + line.padEnd(width) );
+        },
+        end() {
+            if (tty) sink.write("\r" + " ".repeat(width) + "\r");
+            lastPhase = "";
+        },
+    };
+}
+
+function stdoutSink(): ProgressSink {
+    return {
+        write: (s) => process.stdout.write(s),
+        line: (s) => console.log(s),
+    };
+}
+
+// ── Tap: input ─────────────────────────────────────────────────────────────
+
+function regexes(raw?: string): RegExp[] | undefined {
+    if (!raw) return undefined;
+    return raw.split(",").map((r) => new RegExp(r.trim()));
+}
+
+/** Ask on stdin. Anything that is not y/yes is a no — the default is refuse. */
+export async function confirm(question: string): Promise<boolean> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+        const answer: string = await new Promise((resolve) => rl.question(`  ${question} `, resolve));
+        return /^y(es)?$/i.test(answer.trim());
+    } finally {
+        rl.close();
+    }
+}
+
+/** The report summary both verbs finish with. */
+function printReport(report: TapReport): void {
+    section("Result");
+    kv("pushed", String(report.pushed));
+    kv("updated", String(report.updated));
+    kv("skipped", String(report.skipped));
+    kv("deleted", String(report.deleted));
+    kv("failed", report.failed.length ? c.red(String(report.failed.length)) : "0");
+    kv("reindexed", report.reindexed ? c.green("yes") : c.dim("no"));
+    for (const f of report.failed) info(`${c.red("✗")} ${f.path} ${c.dim(f.error)}`);
+}
+
+// ── Tap ────────────────────────────────────────────────────────────────────
+
+async function tapSite(config: CliConfig, argv: string[], positional: string[]): Promise<void> {
+    const url = positional[1];
+    if (!url) error("Usage: pinecall knowledge tap <url> [kbId] [--limit=N] [--dry-run] [--yes]");
+    let kbId = positional[2];
+    const dryRun = argv.includes("--dry-run");
+    const json = config.json;
+    const yes = argv.includes("--yes") || argv.includes("-y") || json;
+    const reindex = !argv.includes("--no-reindex");
+    const limit = Number(flag(argv, "limit")) || undefined;
+    const include = regexes(flag(argv, "include"));
+    const exclude = regexes(flag(argv, "exclude"));
+
+    let hostname: string;
+    try {
+        hostname = new URL(url).hostname;
+    } catch {
+        error(`Not a URL: ${url}`);
+    }
+
+    if (!json) info(`${c.dim("⟳")} discovering ${c.bold(hostname)}…`);
+    const plan = await run(config, () =>
+        planTap(url, {
+            ...(limit ? { limit } : {}),
+            ...(include ? { include } : {}),
+            ...(exclude ? { exclude } : {}),
+            // Keep the prose when we are about to pour it: the plan the human
+            // approves IS the plan we tap, so the site is crawled once.
+            keepContent: !dryRun,
+        }),
+    );
+
+    if (json && dryRun) { console.log(JSON.stringify(planJson(plan), null, 2)); return; }
+    if (!json) {
+        section(`Plan · ${hostname}`, plan.totals.pages);
+        table(["PATH", "WORDS", ""], planRows(plan));
+        info(totalsLine(plan.totals));
+        info(c.dim(`discovered via ${plan.source}`));
+    }
+
+    if (dryRun) {
+        if (!json) info(c.dim("--dry-run: nothing was written."));
+        return;
+    }
+    if (!plan.totals.included) error("Nothing to index.");
+
+    if (!kbId) {
+        if (!yes && !(await confirm(`Create a knowledge base for ${hostname} and tap ${plan.totals.included} pages? [y/N]`))) {
+            info("Aborted.");
+            return;
+        }
+        const kb = await run(config, () => createKnowledgeBase(api(config), `site: ${hostname}`, url));
+        kbId = kb.id;
+        if (!json) { info(`${c.green("✓")} Created knowledge base ${c.bold(kb.name)}`); kv("id", kb.id); }
+    } else if (!yes && !(await confirm(`Tap ${plan.totals.included} pages into ${kbId}? [y/N]`))) {
+        info("Aborted.");
+        return;
+    }
+
+    const bar = progressRenderer(!!process.stdout.isTTY && !json, stdoutSink());
+    const report = await run(config, () =>
+        tapPlan(api(config), kbId!, plan, {
+            reindex,
+            ...(include ? { include } : {}),
+            ...(exclude ? { exclude } : {}),
+            onProgress: bar.on,
+        }),
+    ).finally(() => bar.end());
+
+    if (json) { console.log(JSON.stringify({ knowledgeBaseId: kbId, plan: planJson(plan), report }, null, 2)); return; }
+    printReport(report);
+}
+
+/** The plan, without the megabytes of markdown `keepContent` may have kept. */
+function planJson(plan: TapPlan) {
+    return {
+        startUrl: plan.startUrl,
+        source: plan.source,
+        totals: plan.totals,
+        pages: plan.pages.map(({ markdown: _markdown, ...rest }) => rest),
+    };
+}
+
+// ── Sync ───────────────────────────────────────────────────────────────────
+
+async function sync(config: CliConfig, argv: string[], kbId: string): Promise<void> {
+    if (!kbId) error("Usage: pinecall knowledge sync <kbId> [--yes] [--no-reindex]");
+    const json = config.json;
+    const reindex = !argv.includes("--no-reindex");
+
+    if (!json) info(`${c.dim("⟳")} re-crawling the site behind ${c.bold(kbId)}…`);
+    const bar = progressRenderer(!!process.stdout.isTTY && !json, stdoutSink());
+    let report: TapReport;
+    try {
+        report = await syncTap(api(config), kbId, { reindex, onProgress: bar.on });
+    } catch (err) {
+        bar.end();
+        if (err instanceof TapSyncError && err.code === "NEVER_TAPPED") {
+            error(
+                `This knowledge base was never tapped — there is no manifest to sync from.\n` +
+                `  Tap a site into it first: ${c.cyan(`pinecall knowledge tap <url> ${kbId}`)}`,
+            );
+        }
+        return fail(config, err);
+    }
+    bar.end();
+
+    if (json) { console.log(JSON.stringify(report, null, 2)); return; }
+    const delta = report.pushed + report.updated + report.deleted;
+    if (!delta) {
+        info(`${c.green("✓")} up to date — reindex skipped ${c.dim(`(${report.skipped} pages unchanged)`)}`);
+        return;
+    }
+    printReport(report);
+}
+
 // ── Help ───────────────────────────────────────────────────────────────────
 
 const HELP = `
@@ -251,11 +499,28 @@ const HELP = `
     reindex <kbId>                      Re-train (rebuild) the index
     rm <kbId> <docId>                   Delete a document
     delete <kbId>                       Delete a knowledge base
+    tap <url> [kbId]                    Crawl a website into a KB
+    sync <kbId>                         Re-tap a KB from its own manifest
+
+  ${c.bold("tap options:")}
+    --limit=N                           Max pages (default 100)
+    --include=<re>  --exclude=<re>      Comma-separated URL regexes
+    --dry-run                           Preview only — writes nothing
+    --yes                               Skip the confirmation
+    --no-reindex                        Push without rebuilding the index
 
   ${c.bold("Examples:")}
     ${c.dim("$")} pinecall knowledge create "Product docs"
     ${c.dim("$")} pinecall knowledge push kb_123 ./docs/*.md
     ${c.dim("$")} pinecall knowledge reindex kb_123
+    ${c.dim("$")} pinecall knowledge tap https://example.com --dry-run
+    ${c.dim("$")} pinecall knowledge tap https://example.com --limit=50 --yes
+    ${c.dim("$")} pinecall knowledge tap https://example.com kb_123 --exclude='/blog/'
+    ${c.dim("$")} pinecall knowledge sync kb_123
+
+  ${c.dim("tap")} discovers via robots.txt + sitemap (links as fallback), extracts each
+  page to markdown and stores a ${c.cyan("_tap-manifest.json")} inside the KB, so
+  ${c.dim("sync")} only pushes what changed and skips the reindex when nothing did.
 
   Attach a KB to an agent with ${c.cyan('knowledgeBase: "kb_…"')} and place
   ${c.cyan("{{RAG_CONTEXT}}")} in the prompt (or leave it out to auto-inject).
@@ -290,6 +555,10 @@ export async function knowledgeCommand(config: CliConfig, argv: string[]): Promi
             return rmDoc(config, positional[1], positional[2]);
         case "delete":
             return deleteKb(config, positional[1]);
+        case "tap":
+            return tapSite(config, argv, positional);
+        case "sync":
+            return sync(config, argv, positional[1]);
         default:
             error(`Unknown subcommand: ${sub}\nRun ${c.cyan("pinecall knowledge --help")}`);
     }
