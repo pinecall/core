@@ -29,6 +29,16 @@
         "types": "./dist/log/index.d.cts",
         "default": "./dist/log/index.cjs"
       }
+    },
+    "./tap": {
+      "import": {
+        "types": "./dist/tap.d.ts",
+        "default": "./dist/tap.js"
+      },
+      "require": {
+        "types": "./dist/tap.d.cts",
+        "default": "./dist/tap.cjs"
+      }
     }
   },
   "files": [
@@ -83,6 +93,8 @@
     "zod-v3": "npm:zod@^3.25.76"
   },
   "dependencies": {
+    "defuddle": "^0.19.2",
+    "linkedom": "^0.18.13",
     "ws": "^8.19.0"
   },
   "optionalDependencies": {
