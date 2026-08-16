@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-16 — knowledge bases stop being a CLI-only feature
+
 ### Added
 - **Public knowledge base (RAG) API.** The knowledge-base REST surface, which
   until now only existed inside the CLI, is exported from the package root:
