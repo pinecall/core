@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-16 — tap a website like tapping a pine
+
 ### Added
 - **Website tap — `@pinecall/sdk/tap`.** Point it at a URL and it crawls the
   site client-side (`robots.txt` → sitemap → one hop of same-site links),
