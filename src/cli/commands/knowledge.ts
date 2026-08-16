@@ -17,35 +17,56 @@ import { basename } from "node:path";
 import { readFileSync } from "node:fs";
 import type { CliConfig } from "../config.js";
 import { c, table, info, error, section, kv } from "../ui.js";
+import {
+    KnowledgeApiError,
+    createKnowledgeBase,
+    deleteDoc,
+    deleteKnowledgeBase,
+    getDoc,
+    getKnowledgeBase,
+    listKnowledgeBases,
+    pushDoc,
+    queryKnowledge,
+    reindexKnowledge,
+    type KnowledgeApiOptions,
+} from "../../api/knowledge.js";
 
-// ── Playground API helper (KB lives on the management API) ───────────────
+// ── The public client, wired to this CLI invocation ──────────────────────
 
-async function pg(config: CliConfig, path: string, init?: RequestInit): Promise<any> {
-    const url = `${config.playground}/api${path}`;
-    let res: Response;
+function api(config: CliConfig): KnowledgeApiOptions {
+    return { apiKey: config.apiKey, playgroundUrl: config.playground };
+}
+
+/**
+ * Turn a thrown KnowledgeApiError back into the exact message this command
+ * has always printed. The client is typed so a library consumer can branch on
+ * `code`; the CLI is the layer that formats — including the 402 upgrade text.
+ */
+function fail(config: CliConfig, err: unknown): never {
+    if (err instanceof KnowledgeApiError) {
+        if (err.code === "UPGRADE_REQUIRED") {
+            error(
+                `Knowledge bases are a paid feature.\n` +
+                `  Upgrade to Starter or higher at ${c.cyan("https://platform.pinecall.io/billing")}`
+            );
+        }
+        if (err.code === "NETWORK_ERROR") {
+            error(`Cannot reach Playground at ${config.playground}`);
+        }
+        // "knowledge GET /kb: 404 <body>" → the body the old helper printed.
+        const body = err.message.replace(/^.*?: \d+ ?/, "");
+        error(`Playground ${err.status}: ${body}`);
+    }
+    throw err;
+}
+
+/** Run one client call, mapping any failure to the CLI's own exit path. */
+async function run<T>(config: CliConfig, fn: () => Promise<T>): Promise<T> {
     try {
-        res = await fetch(url, {
-            ...init,
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${config.apiKey}`,
-                ...(init?.headers || {}),
-            },
-        });
-    } catch {
-        error(`Cannot reach Playground at ${config.playground}`);
+        return await fn();
+    } catch (err) {
+        return fail(config, err);
     }
-    if (res!.status === 402) {
-        error(
-            `Knowledge bases are a paid feature.\n` +
-            `  Upgrade to Starter or higher at ${c.cyan("https://platform.pinecall.io/billing")}`
-        );
-    }
-    if (!res!.ok) {
-        const body = await res!.text();
-        error(`Playground ${res!.status}: ${body}`);
-    }
-    return res!.json();
 }
 
 function flag(args: string[], name: string): string | undefined {
@@ -57,8 +78,7 @@ function flag(args: string[], name: string): string | undefined {
 // ── List KBs ─────────────────────────────────────────────────────────────
 
 async function list(config: CliConfig): Promise<void> {
-    const data = await pg(config, "/knowledge");
-    const kbs = data.knowledgeBases ?? [];
+    const kbs = await run(config, () => listKnowledgeBases(api(config)));
     if (config.json) { console.log(JSON.stringify(kbs, null, 2)); return; }
     if (!kbs.length) {
         info("No knowledge bases yet. Create one: " + c.cyan('pinecall knowledge create "My docs"'));
@@ -81,11 +101,7 @@ function statusBadge(s?: string): string {
 
 async function create(config: CliConfig, name: string, description?: string): Promise<void> {
     if (!name) error('Usage: pinecall knowledge create "<name>" [--description="..."]');
-    const data = await pg(config, "/knowledge", {
-        method: "POST",
-        body: JSON.stringify({ name, description }),
-    });
-    const kb = data.knowledgeBase;
+    const kb = await run(config, () => createKnowledgeBase(api(config), name, description));
     if (config.json) { console.log(JSON.stringify(kb, null, 2)); return; }
     info(`${c.green("✓")} Created knowledge base ${c.bold(kb.name)}`);
     kv("id", kb.id);
@@ -96,8 +112,8 @@ async function create(config: CliConfig, name: string, description?: string): Pr
 
 async function docs(config: CliConfig, kbId: string): Promise<void> {
     if (!kbId) error("Usage: pinecall knowledge docs <kbId>");
-    const data = await pg(config, `/knowledge/${kbId}`);
-    const list = data.docs ?? [];
+    const data = await run(config, () => getKnowledgeBase(api(config), kbId));
+    const list = data.docs;
     if (config.json) { console.log(JSON.stringify(list, null, 2)); return; }
     section(`Documents · ${data.knowledgeBase?.name ?? kbId}`, list.length);
     if (!list.length) { info("No documents. Add some: " + c.cyan(`pinecall knowledge push ${kbId} ./docs/*.md`)); return; }
@@ -130,13 +146,14 @@ async function push(config: CliConfig, kbId: string, files: string[]): Promise<v
         const path = file.replace(/^\.\//, "");
         const title = basename(file).replace(/\.[^.]+$/, "");
         try {
-            await pg(config, `/knowledge/${kbId}/docs`, {
-                method: "POST",
-                body: JSON.stringify({ path, title, text }),
-            });
+            await pushDoc(api(config), kbId, { path, title, text });
             ok++;
             info(`${c.green("✓")} ${path} ${c.dim(fmtBytes(text.length))}`);
-        } catch {
+        } catch (err) {
+            // An API failure aborted the whole push before this refactor (the
+            // transport exited the process), so it still does — otherwise a 402
+            // would be reported once per file as a plain "upload failed".
+            if (err instanceof KnowledgeApiError) fail(config, err);
             info(`${c.red("✗")} ${path} ${c.dim("(upload failed)")}`);
         }
     }
@@ -148,9 +165,9 @@ async function push(config: CliConfig, kbId: string, files: string[]): Promise<v
 
 async function get(config: CliConfig, kbId: string, docId: string): Promise<void> {
     if (!kbId || !docId) error("Usage: pinecall knowledge get <kbId> <docId>");
-    const data = await pg(config, `/knowledge/${kbId}/docs/${docId}`);
-    if (config.json) { console.log(JSON.stringify(data.doc, null, 2)); return; }
-    console.log(data.doc?.text ?? "");
+    const doc = await run(config, () => getDoc(api(config), kbId, docId));
+    if (config.json) { console.log(JSON.stringify(doc, null, 2)); return; }
+    console.log(doc?.text ?? "");
 }
 
 // ── Query (retrieval-only, no LLM) ─────────────────────────────────────────
@@ -163,9 +180,8 @@ function looksLikeKbId(s?: string): boolean {
 
 // Resolve the kbId to operate on: when omitted, auto-pick the org's only KB.
 async function resolveSingleKb(config: CliConfig): Promise<string> {
-    const data = await pg(config, "/knowledge");
-    const kbs = data.knowledgeBases ?? [];
-    if (kbs.length === 1) return kbs[0].id;
+    const kbs = await run(config, () => listKnowledgeBases(api(config)));
+    if (kbs.length === 1) return kbs[0]!.id;
     if (!kbs.length) error("No knowledge bases yet. Create one: " + c.cyan('pinecall knowledge create "<name>"'));
     error(
         `You have ${kbs.length} knowledge bases — specify one by id:\n` +
@@ -183,18 +199,14 @@ async function query(config: CliConfig, args: string[]): Promise<void> {
     const q = terms.join(" ").trim();
     if (!q) error('Usage: pinecall knowledge query [kbId] "<question>"');
     const k = Number(flag(process.argv.slice(2), "k")) || 6;
-    const data = await pg(config, `/knowledge/${kbId}/query`, {
-        method: "POST",
-        body: JSON.stringify({ query: q, k }),
-    });
-    const hits = data.hits ?? [];
+    const hits = await run(config, () => queryKnowledge(api(config), kbId, q, { k }));
     if (config.json) { console.log(JSON.stringify(hits, null, 2)); return; }
     section(`Matches for "${q}"`, hits.length);
     if (!hits.length) { info("No matches."); return; }
     for (const h of hits) {
         const score = c.dim(`${(h.score ?? 0).toFixed(3)}`);
         const where = [h.doc_title, h.heading].filter(Boolean).join(" › ");
-        console.log(`  ${score}  ${c.bold(where || h.doc_path)}`);
+        console.log(`  ${score}  ${c.bold(where || String(h.doc_path))}`);
         const snippet = String(h.text || "").replace(/\s+/g, " ").trim().slice(0, 160);
         if (snippet) console.log(`         ${c.dim(snippet)}…`);
     }
@@ -205,7 +217,7 @@ async function query(config: CliConfig, args: string[]): Promise<void> {
 async function reindex(config: CliConfig, kbId: string): Promise<void> {
     if (!kbId) error("Usage: pinecall knowledge reindex <kbId>");
     info(`${c.dim("⟳")} Re-training the index…`);
-    await pg(config, `/knowledge/${kbId}/reindex`, { method: "POST" });
+    await run(config, () => reindexKnowledge(api(config), kbId));
     info(`${c.green("✓")} Re-index triggered. The voice server rebuilds embeddings in the background.`);
 }
 
@@ -213,13 +225,13 @@ async function reindex(config: CliConfig, kbId: string): Promise<void> {
 
 async function rmDoc(config: CliConfig, kbId: string, docId: string): Promise<void> {
     if (!kbId || !docId) error("Usage: pinecall knowledge rm <kbId> <docId>");
-    await pg(config, `/knowledge/${kbId}/docs/${docId}`, { method: "DELETE" });
+    await run(config, () => deleteDoc(api(config), kbId, docId));
     info(`${c.green("✓")} Removed document ${c.dim(docId)}`);
 }
 
 async function deleteKb(config: CliConfig, kbId: string): Promise<void> {
     if (!kbId) error("Usage: pinecall knowledge delete <kbId>");
-    await pg(config, `/knowledge/${kbId}`, { method: "DELETE" });
+    await run(config, () => deleteKnowledgeBase(api(config), kbId));
     info(`${c.green("✓")} Deleted knowledge base ${c.dim(kbId)}`);
 }
 
