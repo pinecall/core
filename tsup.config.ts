@@ -57,4 +57,43 @@ export default defineConfig([
             return { js: format === "cjs" ? ".cjs" : ".js" };
         },
     },
+    // ── Website tap (@pinecall/sdk/tap), ESM ─────────────────────────────
+    // Its own bundle so `defuddle` and `linkedom` never reach the "." entry —
+    // a caller who only places calls must not pay for the crawler. Both are
+    // external here: they are normal runtime deps of this subpath.
+    {
+        entry: { tap: "src/tap/index.ts" },
+        format: ["esm"],
+        dts: true,
+        splitting: false,
+        sourcemap: true,
+        clean: false,
+        treeshake: true,
+        target: "es2020",
+        minify: false,
+        external: ["ws", "defuddle", "linkedom"],
+    },
+    // ── Website tap, CJS ─────────────────────────────────────────────────
+    // `defuddle/node` publishes an "import" condition and no "require" one, so
+    // a CJS consumer cannot require it — it is bundled in here instead of
+    // externalised. `linkedom` requires fine and stays external.
+    {
+        entry: { tap: "src/tap/index.ts" },
+        format: ["cjs"],
+        dts: true,
+        splitting: false,
+        sourcemap: true,
+        clean: false,
+        treeshake: true,
+        target: "es2020",
+        minify: false,
+        external: ["ws", "linkedom"],
+        noExternal: [/^defuddle(\/|$)/],
+        esbuildOptions(options) {
+            // Resolve `defuddle/node` through its "import" condition — it has
+            // no "require" one, and without this esbuild gives up and leaves a
+            // require() the CJS consumer cannot follow.
+            options.conditions = ["import", "module", "node", "default"];
+        },
+    },
 ]);
