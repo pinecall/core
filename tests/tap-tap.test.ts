@@ -314,6 +314,90 @@ describe("syncTap", () => {
         expect(del[1]!.path).toBe(docPath(`${SITE}/news`));
     });
 
+    it("re-plans with the limit the first tap used, not the default", async () => {
+        // Eight pages on the site, tapped with --limit=2: the sync must stay at
+        // two, or it pushes the six the human deliberately left out.
+        const big: Record<string, string> = { [`${SITE}/`]: "a" };
+        for (let i = 1; i < 8; i++) big[`${SITE}/p${i}`] = `s${i}`;
+        vi.stubGlobal("fetch", serve(big));
+
+        const kb = fakeKb();
+        const first = await tap(auth, KB, SITE, { limit: 2 });
+        expect(first.pushed).toBe(2);
+        expect(kb.manifest().options).toEqual({ limit: 2 });
+
+        vi.mocked(pushDocs).mockClear();
+        const report = await syncTap(auth, KB);
+
+        expect(report.pushed).toBe(0);
+        expect(report.updated).toBe(0);
+        expect(report.deleted).toBe(0);
+        expect(report.skipped).toBe(2);
+        expect(pushDocs).not.toHaveBeenCalled();
+        expect(kb.docs.size).toBe(3); // two pages + the manifest
+    });
+
+    it("round-trips include/exclude through the manifest as regex sources", async () => {
+        const kb = fakeKb();
+        await tap(auth, KB, SITE, { exclude: [/\/news/], include: [/ex\.com/] });
+        expect(kb.manifest().options).toEqual({
+            include: ["ex\\.com"],
+            exclude: ["\\/news"],
+        });
+
+        vi.mocked(pushDocs).mockClear();
+        const report = await syncTap(auth, KB);
+
+        expect(report.skipped).toBe(2);
+        expect(report.pushed + report.updated + report.deleted).toBe(0);
+        expect(pushDocs).not.toHaveBeenCalled();
+        expect(kb.docs.has("news.md")).toBe(false);
+    });
+
+    it("lets an explicit option override the stored one, and persists it", async () => {
+        const kb = fakeKb();
+        await tap(auth, KB, SITE, { exclude: [/\/news/] });
+        expect(kb.docs.has("news.md")).toBe(false);
+
+        const report = await syncTap(auth, KB, { exclude: [/\/about/] });
+
+        expect(report.pushed).toBe(1); // /news, now allowed in
+        expect(report.deleted).toBe(1); // /about, now excluded
+        expect(kb.docs.has("news.md")).toBe(true);
+        expect(kb.docs.has("about.md")).toBe(false);
+        expect(kb.manifest().options).toEqual({ exclude: ["\\/about"] });
+    });
+
+    it("persists an override even when the site did not move", async () => {
+        const kb = fakeKb();
+        await tap(auth, KB, SITE);
+        expect(kb.manifest().options).toBeUndefined();
+
+        const report = await syncTap(auth, KB, { limit: 50 });
+        expect(report.pushed + report.updated + report.deleted).toBe(0);
+        expect(kb.manifest().options).toEqual({ limit: 50 });
+    });
+
+    it("syncs a pre-fix manifest with no options at all, using the defaults", async () => {
+        const kb = fakeKb();
+        await tap(auth, KB, SITE, { limit: 2 });
+
+        // Rewrite the manifest the way the version before this fix wrote it.
+        const old = kb.manifest();
+        delete old.options;
+        const doc = kb.docs.get(MANIFEST_PATH)!;
+        kb.docs.set(MANIFEST_PATH, { ...doc, text: JSON.stringify(old, null, 2) });
+
+        const report = await syncTap(auth, KB);
+
+        // Defaults ⇒ the whole three-page site, so the page the limit had cut
+        // comes in now rather than the sync throwing or skipping everything.
+        expect(report.pushed).toBe(1);
+        expect(report.skipped).toBe(2);
+        expect(report.failed).toEqual([]);
+        expect(kb.manifest().options).toBeUndefined();
+    });
+
     it("pushes a page the site added since the last tap", async () => {
         fakeKb();
         await tap(auth, KB, SITE);

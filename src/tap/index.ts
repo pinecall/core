@@ -55,6 +55,7 @@ export type {
     TapFailure,
     TapManifest,
     TapManifestEntry,
+    TapCrawlOptions,
 } from "./tap.js";
 
 // ── Politeness defaults ──────────────────────────────────────────────────

@@ -17,7 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `planTap` previews and writes nothing anywhere, `tap` executes a plan against
   a KB, and `syncTap` re-taps incrementally from a `_tap-manifest.json` stored
   inside the KB itself — unchanged pages are skipped, vanished pages deleted,
-  and the index rebuilt only when something moved.
+  and the index rebuilt only when something moved. The manifest also records the
+  crawl options the tap ran with (`limit`, and `include`/`exclude` as regex
+  sources), so `syncTap` re-plans the same slice of the site instead of the
+  library defaults — a site tapped with `--limit=8` syncs with 8. `syncTap`
+  takes `limit`/`include`/`exclude` to override a stored one, and persists the
+  override. Manifest version stays `1`: the field is optional on read, and a
+  manifest written without it syncs with the defaults.
 - Every long operation takes `onProgress?: (ev: TapProgress) => void`, and
   `done`/`total` are present on **every** event so a consumer can draw a
   progress bar that does not stutter.
