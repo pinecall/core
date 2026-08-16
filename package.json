@@ -29,6 +29,16 @@
         "types": "./dist/log/index.d.cts",
         "default": "./dist/log/index.cjs"
       }
+    },
+    "./tap": {
+      "import": {
+        "types": "./dist/tap.d.ts",
+        "default": "./dist/tap.js"
+      },
+      "require": {
+        "types": "./dist/tap.d.cts",
+        "default": "./dist/tap.cjs"
+      }
     }
   },
   "files": [

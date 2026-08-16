@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Website tap — `@pinecall/sdk/tap`.** Point it at a URL and it crawls the
+  site client-side (`robots.txt` → sitemap → one hop of same-site links),
+  extracts each page to clean markdown with `defuddle` over `linkedom`, and
+  pours it into a knowledge base through the public knowledge API. Three verbs:
+  `planTap` previews and writes nothing anywhere, `tap` executes a plan against
+  a KB, and `syncTap` re-taps incrementally from a `_tap-manifest.json` stored
+  inside the KB itself — unchanged pages are skipped, vanished pages deleted,
+  and the index rebuilt only when something moved.
+- Every long operation takes `onProgress?: (ev: TapProgress) => void`, and
+  `done`/`total` are present on **every** event so a consumer can draw a
+  progress bar that does not stutter.
+- Politeness is the default, not an option: an identifying user agent, `robots`
+  disallow honoured (a blanket `Disallow: /` yields an empty plan rather than an
+  exception), 4 concurrent requests, a 15 s per-page timeout and a 100-page
+  limit. Constants are exported so a UI can display the numbers.
+- Client-rendered pages are **flagged, never rendered**: `needsJs` on the plan
+  row when the text-to-HTML ratio falls below 0.012. There is no headless
+  browser in the SDK.
+- CLI: `pinecall knowledge tap <url> [kbId]` (preview table, confirmation,
+  progress bar; omit the kbId and it creates a `site: <hostname>` knowledge base
+  and prints its id) with `--limit=N`, `--include=`, `--exclude=`, `--dry-run`,
+  `--yes` and `--no-reindex`; plus `pinecall knowledge sync <kbId>`.
+- New guide: [Tap a website](docs/guides/tap.md).
+
+`defuddle` and `linkedom` are runtime dependencies of the **subpath only** — the
+package root bundle imports neither, so a caller who does not tap does not pay
+for them.
+
 ## [0.8.0] — 2026-08-16 — knowledge bases stop being a CLI-only feature
 
 ### Added

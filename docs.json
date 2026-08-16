@@ -53,6 +53,7 @@
           "guides/realtime-speech",
           "guides/skills",
           "guides/knowledge-bases",
+          "guides/tap",
           "guides/multi-tenant",
           "guides/sse-streaming",
           "guides/ws-streaming",
