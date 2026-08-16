@@ -137,8 +137,9 @@ describe("allowedByRobots", () => {
         expect(allowedByRobots("https://ex.com/anything", [])).toBe(true);
     });
 
-    it("ignores a blanket disallow, which would lock the owner out of their own site", () => {
-        expect(allowedByRobots("https://ex.com/a", ["/"])).toBe(true);
+    it("honours a blanket disallow like any other rule", () => {
+        expect(allowedByRobots("https://ex.com/a", ["/"])).toBe(false);
+        expect(allowedByRobots("https://ex.com/", ["/"])).toBe(false);
     });
 });
 
@@ -287,6 +288,29 @@ describe("discover", () => {
         const result = await discover("https://ex.com/start");
         expect(result.urls).toEqual(["https://ex.com/start"]);
         expect(result.source).toBe("links");
+    });
+
+    it("returns nothing when robots refuses crawlers outright", async () => {
+        fetchMock.mockImplementation(
+            routes({
+                "https://ex.com/robots.txt": text("User-agent: *\nDisallow: /"),
+                "https://ex.com/sitemap.xml": xml(
+                    `<urlset><url><loc>https://ex.com/a</loc></url></urlset>`,
+                ),
+                "https://ex.com/": html(`<a href="/docs">docs</a>`),
+            }),
+        );
+
+        const events: TapProgress[] = [];
+        const result = await discover("https://ex.com/", {
+            onProgress: (ev) => events.push(ev),
+        });
+        expect(result.urls).toEqual([]);
+        expect(result.source).toBe("links");
+        expect(result.disallow).toEqual(["/"]);
+        expect(events.at(-1)).toMatchObject({ event: "done", done: 0, total: 0 });
+        // The entry page is never fetched: robots said no before we knocked.
+        expect(fetchMock.mock.calls.map((c) => String(c[0]))).not.toContain("https://ex.com/");
     });
 
     it("caps the list at the limit", async () => {

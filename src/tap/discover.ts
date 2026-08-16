@@ -103,9 +103,11 @@ export async function readRobots(
 
 /**
  * A prefix match, which is what the robots.txt convention actually specifies.
- * `Disallow: /` is ignored on purpose: a site that blocks everything for `*`
- * would otherwise make its OWN owner unable to tap it, and tap is run by the
- * site's owner against a URL they typed.
+ * A blanket `Disallow: /` is honoured like any other rule: tap is not
+ * necessarily run by the site's owner — the first consumer lets any visitor
+ * tap any third-party site — so a stranger's crawl must not enter a site that
+ * refuses crawlers. Discovery then yields nothing and the caller can report
+ * "this site refuses crawlers" honestly.
  */
 export function allowedByRobots(url: string, disallow: readonly string[]): boolean {
     if (!disallow.length) return true;
@@ -115,7 +117,7 @@ export function allowedByRobots(url: string, disallow: readonly string[]): boole
     } catch {
         return false;
     }
-    return !disallow.some((rule) => rule !== "/" && path.startsWith(rule));
+    return !disallow.some((rule) => path.startsWith(rule));
 }
 
 function decodeEntities(s: string): string {
@@ -256,8 +258,25 @@ export async function discover(
     }
 
     // Fallback: one hop off the entry page. The start URL stays in the list
-    // whatever happens — a site of one page is still a site.
+    // whatever happens — a site of one page is still a site — UNLESS robots
+    // forbids it, in which case discovery returns nothing and the caller can
+    // say the site refuses crawlers.
     const start = normalizeUrl(startUrl, origin) ?? startUrl;
+    if (!allowedByRobots(start, robots.disallow)) {
+        emit(onProgress, {
+            phase: "discover",
+            event: "done",
+            done: 0,
+            total: 0,
+            message: "robots",
+        });
+        return {
+            source: "links",
+            urls: [],
+            disallow: robots.disallow,
+            sitemaps: robots.sitemaps,
+        };
+    }
     const urls = new Set<string>([start]);
     try {
         const { body, finalUrl } = await fetchPage(start, {
