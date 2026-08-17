@@ -136,11 +136,54 @@ export interface ReadSitemapOptions {
     timeoutMs?: number;
 }
 
-/** Follow sitemap indexes recursively, bounded in both depth and count. */
-export async function readSitemap(
+/**
+ * One `<url>` element's worth of sitemap: the location, plus the `<priority>`
+ * the site declared for it when it declared one. Priority is optional in the
+ * protocol and most sitemaps omit it, so it stays `undefined` rather than
+ * defaulting to the spec's 0.5 — "no opinion" and "middling" rank differently.
+ */
+export interface SitemapEntry {
+    url: string;
+    priority?: number;
+}
+
+const LOC_RE = /<loc>\s*([^<\s]+)\s*<\/loc>/i;
+const PRIORITY_RE = /<priority>\s*([0-9.]+)\s*<\/priority>/i;
+
+/**
+ * Locations with their priorities, read from the SAME `<url>` element so a
+ * priority can never be attributed to a neighbouring loc. Falls back to a flat
+ * scan of `<loc>` for documents that carry no `<url>` wrappers (a sitemapindex,
+ * or a hand-written file).
+ */
+function parseSitemapEntries(body: string): SitemapEntry[] {
+    const blocks = [...body.matchAll(/<url\b[^>]*>([\s\S]*?)<\/url>/gi)];
+    const out: SitemapEntry[] = [];
+    for (const block of blocks) {
+        const inner = block[1]!;
+        const loc = LOC_RE.exec(inner);
+        if (!loc) continue;
+        const prio = PRIORITY_RE.exec(inner);
+        const value = prio ? Number.parseFloat(prio[1]!) : Number.NaN;
+        out.push({
+            url: decodeEntities(loc[1]!),
+            ...(Number.isFinite(value) ? { priority: value } : {}),
+        });
+    }
+    if (out.length) return out;
+    return [...body.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => ({
+        url: decodeEntities(m[1]!),
+    }));
+}
+
+/**
+ * Follow sitemap indexes recursively, bounded in both depth and count, keeping
+ * each location's declared priority.
+ */
+export async function readSitemapEntries(
     sitemapUrl: string,
     opts: ReadSitemapOptions = {},
-): Promise<string[]> {
+): Promise<SitemapEntry[]> {
     const { limit = 500, depth = 0, seen = new Set<string>(), timeoutMs } = opts;
     if (depth > MAX_SITEMAP_DEPTH || seen.has(sitemapUrl) || limit <= 0) return [];
     seen.add(sitemapUrl);
@@ -155,16 +198,14 @@ export async function readSitemap(
         return [];
     }
 
-    const locs = [...body.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) =>
-        decodeEntities(m[1]!),
-    );
-    if (!/<sitemapindex/i.test(body)) return locs.slice(0, limit);
+    const entries = parseSitemapEntries(body);
+    if (!/<sitemapindex/i.test(body)) return entries.slice(0, limit);
 
-    const urls: string[] = [];
-    for (const child of locs) {
+    const urls: SitemapEntry[] = [];
+    for (const child of entries) {
         if (urls.length >= limit) break;
         urls.push(
-            ...(await readSitemap(child, {
+            ...(await readSitemapEntries(child.url, {
                 limit: limit - urls.length,
                 depth: depth + 1,
                 seen,
@@ -173,6 +214,50 @@ export async function readSitemap(
         );
     }
     return urls;
+}
+
+/** The locations alone, for callers that do not care about priority. */
+export async function readSitemap(
+    sitemapUrl: string,
+    opts: ReadSitemapOptions = {},
+): Promise<string[]> {
+    return (await readSitemapEntries(sitemapUrl, opts)).map((e) => e.url);
+}
+
+/** Path segments below the root: `/` is 0, `/docs` is 1, `/docs/a/b` is 3. */
+function pathDepth(url: string): number {
+    try {
+        return new URL(url).pathname.split("/").filter(Boolean).length;
+    } catch {
+        return Number.MAX_SAFE_INTEGER;
+    }
+}
+
+/**
+ * The order pages are offered to the limit, and the whole point of it: a
+ * sitemap's own order is EXPORT order, not a ranking — linear.app's puts a few
+ * hundred changelog posts ahead of the homepage, so a `limit=40` tap used to
+ * index the changelog and miss what the site IS. So, before the cut:
+ *
+ *   1. path depth ascending — the homepage first, then `/docs`, `/pricing`,
+ *      then their children. Shallow paths are the pages that explain the site.
+ *   2. `<priority>` descending when the sitemap declares it — the site's own
+ *      opinion, used to break depth ties. A page without one sorts after any
+ *      page with one at the same depth: silence is not a claim.
+ *   3. the original document index — a stable tiebreak, so the same sitemap
+ *      always yields the same list.
+ */
+function rankBySitemapShape(entries: readonly SitemapEntry[]): SitemapEntry[] {
+    return entries
+        .map((entry, index) => ({ entry, index, depth: pathDepth(entry.url) }))
+        .sort((a, b) => {
+            if (a.depth !== b.depth) return a.depth - b.depth;
+            const ap = a.entry.priority ?? -1;
+            const bp = b.entry.priority ?? -1;
+            if (ap !== bp) return bp - ap;
+            return a.index - b.index;
+        })
+        .map((r) => r.entry);
 }
 
 /** Every same-document link on a page, normalized and deduped. */
@@ -220,33 +305,47 @@ export async function discover(
         ? robots.sitemaps
         : [new URL("/sitemap.xml", origin).toString()];
 
-    const found = new Set<string>();
+    // Collect the whole readable sitemap first — the same filters, the same
+    // internal read bound as before — because the cut can only pick well once
+    // it can see everything it is choosing between. The bound is at least
+    // `readSitemap`'s own default of 500: with a small limit, `limit * 4` alone
+    // would stop reading inside the changelog and never see the homepage the
+    // ranking exists to find.
+    const readBound = Math.max(limit * 4, 500);
+    const found = new Map<string, SitemapEntry>();
     for (const sitemap of candidates) {
-        const locs = await readSitemap(sitemap, {
-            limit: limit * 4,
+        const entries = await readSitemapEntries(sitemap, {
+            limit: readBound,
             ...(timeoutMs === undefined ? {} : { timeoutMs }),
         });
-        for (const loc of locs) {
-            const n = normalizeUrl(loc, origin);
+        for (const entry of entries) {
+            const n = normalizeUrl(entry.url, origin);
             if (!n) continue;
             if (!sameSite(n, origin)) continue;
             if (!isIndexable(n)) continue;
             if (!allowedByRobots(n, robots.disallow)) continue;
             if (found.has(n)) continue;
-            found.add(n);
-            emit(onProgress, {
-                phase: "discover",
-                event: "page",
+            found.set(n, {
                 url: n,
-                done: found.size,
-                total: Math.max(limit, found.size),
+                ...(entry.priority === undefined ? {} : { priority: entry.priority }),
             });
         }
-        if (found.size >= limit) break;
+        if (found.size >= readBound) break;
     }
 
     if (found.size > 0) {
-        const urls = [...found].slice(0, limit);
+        const urls = rankBySitemapShape([...found.values()])
+            .slice(0, limit)
+            .map((e) => e.url);
+        for (const [i, url] of urls.entries()) {
+            emit(onProgress, {
+                phase: "discover",
+                event: "page",
+                url,
+                done: i + 1,
+                total: Math.max(limit, urls.length),
+            });
+        }
         emit(onProgress, {
             phase: "discover",
             event: "done",

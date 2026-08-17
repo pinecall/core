@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one burst — measured live with a 39-page crawl. Each document now emits its
   `push` event as it lands; failure semantics are unchanged (one bad document
   never aborts the rest).
+- **`tap` picks the pages that explain the site, not the first ones the sitemap
+  exported.** A sitemap's order is export order, never a ranking: `limit=40` on
+  `linear.app` indexed the first 40 `<loc>`s — almost all changelog posts — and
+  left out the homepage, `/docs` and the Start Guide, so the assistant answered
+  thinly about a site it had "read". Discovery now collects the whole readable
+  sitemap and ranks it before the cut: path depth ascending (home first, then
+  the top-level sections, then their children), the sitemap's own `<priority>`
+  descending to break depth ties when it declares one, and the original
+  document order as a stable final tiebreak. `<priority>` is read off the same
+  `<url>` element as its `<loc>`, and `readSitemapEntries` exposes the pair. The
+  discovered set, the robots/normalization/extension rules and the limit are
+  unchanged — a site with fewer pages than the limit yields exactly the same
+  list as before, and the link-crawl fallback (home-first by construction) is
+  untouched.
 
 ## [0.9.0] — 2026-08-16 — tap a website like tapping a pine
 
