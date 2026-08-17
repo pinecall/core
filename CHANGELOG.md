@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`tap`'s push progress streams per document.** The push phase uploaded the
+  whole batch and only then emitted its progress events, so a consumer's bar
+  sat at `0/N` for the entire phase (~0.6 s × N pages) and jumped to done in
+  one burst — measured live with a 39-page crawl. Each document now emits its
+  `push` event as it lands; failure semantics are unchanged (one bad document
+  never aborts the rest).
+
 ## [0.9.0] — 2026-08-16 — tap a website like tapping a pine
 
 ### Added

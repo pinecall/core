@@ -285,7 +285,7 @@ describe("syncTap", () => {
             "fetch",
             serve({ [`${SITE}/`]: "a", [`${SITE}/about`]: "REWRITTEN" }),
         );
-        vi.mocked(pushDocs).mockClear();
+        vi.mocked(pushDoc).mockClear();
         vi.mocked(reindexKnowledge).mockClear();
 
         const events: TapProgress[] = [];
@@ -298,8 +298,15 @@ describe("syncTap", () => {
         expect(report.reindexed).toBe(true);
         expect(reindexKnowledge).toHaveBeenCalledTimes(1);
 
-        expect(vi.mocked(pushDocs).mock.calls[0]![2]).toHaveLength(1);
-        expect(vi.mocked(pushDocs).mock.calls[0]![2][0]!.path).toBe("about.md");
+        // Contract: exactly ONE changed page was pushed, and it was about.md.
+        // (Asserted by path over pushDoc calls, not by which transport helper
+        // carried it — the old pushDocs-batch assertion pinned implementation,
+        // and per-doc pushes are what lets progress stream during the phase.)
+        const pushedPaths = vi
+            .mocked(pushDoc)
+            .mock.calls.map((c) => c[2]!.path)
+            .filter((path) => path !== "_tap-manifest.json");
+        expect(pushedPaths).toEqual(["about.md"]);
         expect(deleteDoc).toHaveBeenCalledTimes(1);
         expect(kb.docs.has("news.md")).toBe(false);
 

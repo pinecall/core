@@ -19,7 +19,6 @@ import {
     getDoc,
     getKnowledgeBase,
     pushDoc,
-    pushDocs,
     deleteDoc,
     reindexKnowledge,
     KnowledgeApiError,
@@ -383,27 +382,33 @@ async function pushBatch(
         return;
     }
 
-    const results = await pushDocs(auth, kbId, entries.map((e) => e.doc));
+    // One doc at a time, EMITTING AS EACH ONE LANDS — not pushDocs and a loop
+    // over its results afterwards. The batch call answered only when all N
+    // uploads were done, so a consumer's progress bar sat at 0/N for the whole
+    // push phase (~0.6s x N against the playground) and then jumped to done in
+    // one burst — measured on the live site with a 39-page crawl. Failure
+    // semantics are pushDocs's own: one bad document never aborts the rest.
     let done = 0;
-    results.forEach((r, i) => {
+    for (const entry of entries) {
         done++;
-        const entry = entries[i]!;
-        if (r.ok) {
+        try {
+            await pushDoc(auth, kbId, entry.doc);
             if (entry.isNew) report.pushed++;
             else report.updated++;
-            emit(onProgress, { phase: "push", event: "page", path: r.path, done, total });
-        } else {
-            report.failed.push({ path: r.path, error: r.error?.message ?? "push failed" });
+            emit(onProgress, { phase: "push", event: "page", path: entry.doc.path, done, total });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "push failed";
+            report.failed.push({ path: entry.doc.path, error: message });
             emit(onProgress, {
                 phase: "push",
                 event: "error",
-                path: r.path,
+                path: entry.doc.path,
                 done,
                 total,
-                message: r.error?.message ?? "push failed",
+                message,
             });
         }
-    });
+    }
     emit(onProgress, { phase: "push", event: "done", done, total });
 }
 
