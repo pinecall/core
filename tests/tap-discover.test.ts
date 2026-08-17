@@ -13,6 +13,7 @@ import {
     discover,
     readRobots,
     readSitemap,
+    readSitemapEntries,
     normalizeUrl,
     sameSite,
     isIndexable,
@@ -228,6 +229,26 @@ describe("readSitemap", () => {
     it("returns nothing when the sitemap does not exist", async () => {
         expect(await readSitemap("https://ex.com/sitemap.xml")).toEqual([]);
     });
+
+    it("reads each priority off the same <url> element as its loc", async () => {
+        fetchMock.mockImplementation(
+            routes({
+                "https://ex.com/sitemap.xml": xml(`<urlset>
+                      <url><loc>https://ex.com/a</loc><lastmod>2026-01-01</lastmod><priority>0.8</priority></url>
+                      <url><priority>1.0</priority><loc>https://ex.com/b</loc></url>
+                      <url><loc>https://ex.com/c</loc></url>
+                      <url><loc>https://ex.com/d</loc><priority>oops</priority></url>
+                    </urlset>`),
+            }),
+        );
+
+        expect(await readSitemapEntries("https://ex.com/sitemap.xml")).toEqual([
+            { url: "https://ex.com/a", priority: 0.8 },
+            { url: "https://ex.com/b", priority: 1 },
+            { url: "https://ex.com/c" },
+            { url: "https://ex.com/d" },
+        ]);
+    });
 });
 
 describe("extractLinks", () => {
@@ -327,6 +348,115 @@ describe("discover", () => {
 
         const result = await discover("https://ex.com", { limit: 2 });
         expect(result.urls).toEqual(["https://ex.com/a", "https://ex.com/b"]);
+    });
+
+    it("admits the home and the top level first, whatever the sitemap's order", async () => {
+        // A linear.app-shaped sitemap: hundreds of deep changelog posts exported
+        // first, the homepage buried at ~200, the pages that explain the site
+        // scattered behind it. Export order is not a ranking.
+        const deep = Array.from(
+            { length: 400 },
+            (_, i) => `https://ex.com/changelog/2026/post-${i}`,
+        );
+        const locs = [
+            ...deep.slice(0, 200),
+            "https://ex.com/",
+            ...deep.slice(200, 260),
+            "https://ex.com/docs",
+            ...deep.slice(260, 330),
+            "https://ex.com/pricing",
+            "https://ex.com/docs/guides/start/deep/deeper",
+            ...deep.slice(330),
+            "https://ex.com/blog",
+        ];
+        fetchMock.mockImplementation(
+            routes({
+                "https://ex.com/robots.txt": text("Sitemap: https://ex.com/sitemap.xml"),
+                "https://ex.com/sitemap.xml": xml(
+                    `<urlset>${locs
+                        .map((l) => `<url><loc>${l}</loc></url>`)
+                        .join("")}</urlset>`,
+                ),
+            }),
+        );
+
+        const result = await discover("https://ex.com", { limit: 10 });
+        expect(result.urls.slice(0, 5)).toEqual([
+            "https://ex.com/",
+            "https://ex.com/docs",
+            "https://ex.com/pricing",
+            "https://ex.com/blog",
+            "https://ex.com/changelog/2026/post-0",
+        ]);
+        // No page three levels deep displaces a top-level section.
+        expect(result.urls).not.toContain("https://ex.com/docs/guides/start/deep/deeper");
+    });
+
+    it("breaks depth ties by the sitemap's own priority, highest first", async () => {
+        fetchMock.mockImplementation(
+            routes({
+                "https://ex.com/robots.txt": text("Sitemap: https://ex.com/sitemap.xml"),
+                "https://ex.com/sitemap.xml": xml(`<urlset>
+                      <url><loc>https://ex.com/low</loc><priority>0.1</priority></url>
+                      <url><loc>https://ex.com/silent</loc></url>
+                      <url><loc>https://ex.com/high</loc><priority>0.9</priority></url>
+                      <url><loc>https://ex.com/mid</loc><priority>0.5</priority></url>
+                    </urlset>`),
+            }),
+        );
+
+        const result = await discover("https://ex.com");
+        expect(result.urls).toEqual([
+            "https://ex.com/high",
+            "https://ex.com/mid",
+            "https://ex.com/low",
+            // No priority at all sorts last among equals: silence is not a claim.
+            "https://ex.com/silent",
+        ]);
+    });
+
+    it("keeps the sitemap's order among pages it ranks equally", async () => {
+        fetchMock.mockImplementation(
+            routes({
+                "https://ex.com/robots.txt": text("Sitemap: https://ex.com/sitemap.xml"),
+                "https://ex.com/sitemap.xml": xml(`<urlset>
+                      <url><loc>https://ex.com/d/one</loc><priority>0.5</priority></url>
+                      <url><loc>https://ex.com/z</loc><priority>0.5</priority></url>
+                      <url><loc>https://ex.com/a</loc><priority>0.5</priority></url>
+                      <url><loc>https://ex.com/d/two</loc><priority>0.5</priority></url>
+                      <url><loc>https://ex.com/m</loc><priority>0.5</priority></url>
+                    </urlset>`),
+            }),
+        );
+
+        const result = await discover("https://ex.com");
+        expect(result.urls).toEqual([
+            "https://ex.com/z",
+            "https://ex.com/a",
+            "https://ex.com/m",
+            "https://ex.com/d/one",
+            "https://ex.com/d/two",
+        ]);
+    });
+
+    it("leaves a site smaller than the limit exactly as it was", async () => {
+        fetchMock.mockImplementation(
+            routes({
+                "https://ex.com/robots.txt": text("Sitemap: https://ex.com/sitemap.xml"),
+                "https://ex.com/sitemap.xml": xml(`<urlset>
+                      <url><loc>https://ex.com/</loc></url>
+                      <url><loc>https://ex.com/about</loc></url>
+                      <url><loc>https://ex.com/contact</loc></url>
+                    </urlset>`),
+            }),
+        );
+
+        const result = await discover("https://ex.com");
+        expect(result.urls).toEqual([
+            "https://ex.com/",
+            "https://ex.com/about",
+            "https://ex.com/contact",
+        ]);
     });
 
     it("emits progress that starts, counts and finishes", async () => {
