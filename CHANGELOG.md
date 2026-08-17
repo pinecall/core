@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-08-17 — a tap that reads the right pages, and a bar that moves
+
 ### Fixed
 - **`tap`'s push progress streams per document.** The push phase uploaded the
   whole batch and only then emitted its progress events, so a consumer's bar
