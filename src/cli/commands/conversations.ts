@@ -12,6 +12,7 @@
  */
 
 import type { CliConfig } from "../config.js";
+import { pg } from "../playground.js";
 import { c, table, info, error, section, kv } from "../ui.js";
 
 const HELP = `
@@ -26,19 +27,6 @@ const HELP = `
   ${c.bold("See also:")}
     pinecall calls             ${c.dim("Call history with credits/cost")}
 `;
-
-async function pg(config: CliConfig, path: string): Promise<any> {
-    let res: Response;
-    try {
-        res = await fetch(`${config.playground}/api${path}`, {
-            headers: { Authorization: `Bearer ${config.apiKey}` },
-        });
-    } catch {
-        error(`Cannot reach Playground at ${config.playground}`);
-    }
-    if (!res!.ok) error(`Playground ${res!.status}: ${await res!.text()}`);
-    return res!.json();
-}
 
 function flag(args: string[], name: string): string | undefined {
     const pre = `--${name}=`;
@@ -67,7 +55,7 @@ async function list(config: CliConfig, args: string[]): Promise<void> {
     if (type) qs.set("type", type);
     if (agent) qs.set("agent", agent);
 
-    const data = await pg(config, `/conversations?${qs.toString()}`);
+    const data = await pg(config, `/conversations?${qs.toString()}`, { jsonContentType: false });
     const convos = data.conversations ?? [];
 
     if (config.json) { console.log(JSON.stringify(convos, null, 2)); return; }
@@ -93,11 +81,11 @@ async function get(config: CliConfig, idArg: string): Promise<void> {
     // Resolve a short/prefix id (e.g. copied from the truncated list) to the full id.
     let id = idArg;
     if (idArg.length < 24) {
-        const list = await pg(config, `/conversations?limit=200`);
+        const list = await pg(config, `/conversations?limit=200`, { jsonContentType: false });
         const match = (list.conversations ?? []).find((x: any) => String(x.id).startsWith(idArg));
         if (match) id = match.id;
     }
-    const convo = await pg(config, `/conversations/${id}`);
+    const convo = await pg(config, `/conversations/${id}`, { jsonContentType: false });
     if (config.json) { console.log(JSON.stringify(convo, null, 2)); return; }
 
     section(`Conversation · ${convo.agentId}`, convo.messageCount ?? 0);
