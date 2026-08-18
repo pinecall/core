@@ -10,31 +10,10 @@
  */
 
 import type { CliConfig } from "../config.js";
+import { pg } from "../playground.js";
 import { c, table, info, error, section, kv } from "../ui.js";
 
 // ── Playground API helper ───────────────────────────────────────────────
-
-async function pg(config: CliConfig, path: string, init?: RequestInit): Promise<any> {
-    const url = `${config.playground}/api${path}`;
-    let res: Response;
-    try {
-        res = await fetch(url, {
-            ...init,
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${config.apiKey}`,
-                ...(init?.headers || {}),
-            },
-        });
-    } catch {
-        error(`Cannot reach Playground at ${config.playground}`);
-    }
-    if (!res!.ok) {
-        const body = await res!.text();
-        error(`Playground ${res!.status}: ${body}`);
-    }
-    return res!.json();
-}
 
 // ── List phones ─────────────────────────────────────────────────────────
 
