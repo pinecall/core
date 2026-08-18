@@ -5,6 +5,8 @@
  * Keeps @pinecall/sdk bundle size small.
  */
 
+import { VERSION } from "../version.js";
+
 // ── Colors ───────────────────────────────────────────────────────────────
 
 const enabled = process.env.NO_COLOR === undefined && process.stdout.isTTY !== false;
@@ -82,8 +84,7 @@ export function info(msg: string): void {
 }
 
 export function banner(): void {
-    const version = "0.2.7";
-    console.log(`\n  ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${version}`)}\n`);
+    console.log(`\n  ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${VERSION}`)}\n`);
 }
 
 // ── Section headers ──────────────────────────────────────────────────────

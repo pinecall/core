@@ -8,12 +8,10 @@
  */
 
 import { emit, type FetchedPage, type OnProgress } from "./types.js";
+import { VERSION } from "../version.js";
 
-/**
- * Kept in step with package.json by hand — the SDK builds to a bundle with no
- * package.json alongside it, so importing the manifest is not an option.
- */
-export const TAP_VERSION = "0.8.0";
+/** The tap identifies itself with the SDK's own version — see src/version.ts. */
+export const TAP_VERSION = VERSION;
 
 export const USER_AGENT = `pinecall-tap/${TAP_VERSION} (+https://pinecall.io)`;
 

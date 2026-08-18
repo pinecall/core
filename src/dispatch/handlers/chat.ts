@@ -221,7 +221,7 @@ export class ChatHandler implements EventHandler {
                 // Auto-execute registered tools (chat does NOT go through ToolHandler).
                 // Without this, chat tool calls never get a result → server times out.
                 const tools = agent._getTools();
-                if (tools.length > 0) void autoExecuteTools(tools, toolEvent, call);
+                if (tools.length > 0) void autoExecuteTools(tools, toolEvent, call, ctx.logger);
 
                 return true;
             }

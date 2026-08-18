@@ -185,12 +185,10 @@ export type {
     TokenScopeOptions,
 } from "./api/tokens.js";
 
-export { fetchTwilioBalance, fetchBalance } from "./api/balance.js";
+export { fetchTwilioBalance } from "./api/balance.js";
 export type {
     TwilioBalance,
-    Balance,
     FetchTwilioBalanceOptions,
-    FetchBalanceOptions,
 } from "./api/balance.js";
 
 export { fetchModelAccess, hasModelAccess, fetchModelCatalog } from "./api/models.js";
