@@ -9,7 +9,7 @@
 
 import type { EventHandler, DispatchContext } from "../handler.js";
 import type { WireEvent } from "../../protocol/wire.js";
-import { ServerAtCapacityError } from "../../client.js";
+import { ServerAtCapacityError } from "../../kernel/errors.js";
 
 export class ErrorHandler implements EventHandler {
     readonly events = ["error"] as const;
@@ -55,7 +55,7 @@ export class ErrorHandler implements EventHandler {
                 `    Free slots (\x1b[96mpinecall agents\x1b[0m shows the holders) or raise the server cap.\n`,
             );
             if (agentId) ctx.agent(agentId)?._failRegistration(err);
-            ctx.client._emitWire("error", err);
+            ctx.emitClientEvent("error", err);
             return true;
         }
 
@@ -81,12 +81,13 @@ export class ErrorHandler implements EventHandler {
                     `    Run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m to disconnect the current holder,\n` +
                     `    or register this agent under a different id.\n`,
                 );
-                // The client hook emits the typed AgentConflictError itself;
-                // only fall back to a plain error when it isn't wired.
-                if (agentId && ctx.client._failRegisterRetry) {
-                    ctx.client._failRegisterRetry(agentId);
+                // The coordinator emits the typed AgentConflictError itself;
+                // without an agent id there is nothing to fail, so the plain
+                // error is all we can surface.
+                if (agentId) {
+                    ctx.registration.fail(agentId);
                 } else {
-                    ctx.client._emitWire("error", new Error(errorMsg));
+                    ctx.emitClientEvent("error", new Error(errorMsg));
                 }
                 return true;
             }
@@ -98,13 +99,11 @@ export class ErrorHandler implements EventHandler {
                 ? { retryAfterS, holderAlive }
                 : undefined;
 
-            let first: boolean | void = true;
-            if (agentId) {
-                first = ctx.client._scheduleRegisterRetry?.(agentId, hint);
-            }
+            // No agent id means no episode to track — banner it once and move on.
+            const first = agentId ? ctx.registration.scheduleRetry(agentId, hint) : true;
             // Log the human-facing banner ONCE per conflict episode — a name
             // actively held elsewhere used to spam this every attempt for hours.
-            if (first !== false) {
+            if (first) {
                 console.error(
                     `\n  \x1b[91m✗\x1b[0m Agent "${agentId || "?"}" is already connected` +
                     (holderAlive ? " (held by a LIVE process)" : "") + `.\n` +
@@ -113,7 +112,7 @@ export class ErrorHandler implements EventHandler {
                     `    If another live instance owns it, run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m.\n`,
                 );
             }
-            ctx.client._emitWire("error", new Error(errorMsg));
+            ctx.emitClientEvent("error", new Error(errorMsg));
             return true;
         }
 
@@ -127,7 +126,7 @@ export class ErrorHandler implements EventHandler {
         }
 
         // Generic error — emit on client
-        ctx.client._emitWire("error", new Error(errorMsg));
+        ctx.emitClientEvent("error", new Error(errorMsg));
         return true;
     }
 }

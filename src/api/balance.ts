@@ -14,16 +14,6 @@ export interface TwilioBalance {
     currency: string;
 }
 
-export interface FetchBalanceOptions {
-    apiKey: string;
-    apiUrl?: string;
-}
-
-export interface Balance {
-    balance: string;
-    currency: string;
-}
-
 export async function fetchTwilioBalance(opts: FetchTwilioBalanceOptions = {}): Promise<TwilioBalance | null> {
     const apiUrl = opts.apiUrl ?? DEFAULT_API_URL;
     const url = `${apiUrl}/api/sdk/twilio-balance`;
@@ -47,8 +37,4 @@ export async function fetchTwilioBalance(opts: FetchTwilioBalanceOptions = {}): 
         balance: data.balance,
         currency: data.currency,
     };
-}
-
-export async function fetchBalance(_opts: FetchBalanceOptions): Promise<Balance | null> {
-    throw new Error("fetchBalance is not yet implemented. Use fetchTwilioBalance() for now.");
 }

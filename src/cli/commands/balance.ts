@@ -5,7 +5,8 @@
  */
 
 import type { CliConfig } from "../config.js";
-import { c, info, error, kv } from "../ui.js";
+import { pg } from "../playground.js";
+import { c, kv } from "../ui.js";
 
 export async function balanceCommand(config: CliConfig, args?: string[]): Promise<void> {
     if (args && (args.includes("--help") || args.includes("-h"))) {
@@ -21,20 +22,10 @@ export async function balanceCommand(config: CliConfig, args?: string[]): Promis
         return;
     }
 
-    let res: Response;
-    try {
-        res = await fetch(`${config.playground}/api/orgs/me`, {
-            headers: { Authorization: `Bearer ${config.apiKey}` },
-        });
-    } catch {
-        error(`Cannot reach Playground at ${config.playground}`);
-    }
-
-    if (!res!.ok) {
-        error(`Failed to fetch balance: ${res!.status}`);
-    }
-
-    const org = await res!.json();
+    const org = await pg(config, "/orgs/me", {
+        jsonContentType: false,
+        httpErrorMessage: (err) => `Failed to fetch balance: ${err.status}`,
+    });
 
     if (config.json) {
         console.log(JSON.stringify({

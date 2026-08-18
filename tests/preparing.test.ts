@@ -42,11 +42,9 @@ function makeCtx(calls: Record<string, Call>, agentId = 'dev-berna-vars') {
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     send: (d: Record<string, unknown>) => { sent.push(d) },
     onConnected: vi.fn(),
-    client: {
-      _emitWire: vi.fn(),
-      _getAgent: () => agent,
-      _allAgents: () => [agent],
-    },
+    emitClientEvent: vi.fn(),
+    allAgents: () => [agent],
+    whatsappSession: () => undefined,
   } as any
   return { ctx, agent, sent }
 }

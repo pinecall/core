@@ -55,7 +55,7 @@ export class ConnectionHandler implements EventHandler {
                 const agent = ctx.agent(agentId);
                 if (agent) {
                     // Registration confirmed — cancel any pending conflict retry
-                    ctx.client._clearRegisterRetry?.(agent.id);
+                    ctx.registration.clear(agent.id);
                     // Re-register channels and flush pending messages
                     agent._flushPending();
                     // The agent exists server-side ONLY from here on — settle
