@@ -17,15 +17,11 @@
  */
 
 import WebSocket from "ws";
-import { writeFileSync, appendFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { Pinecall, tool } from "../../../index.js";
 import { c } from "../../ui.js";
 
-/** Debug trace to /tmp/debug.log (CLIENT side) to correlate with the server's. */
-function cdbg(msg: string): void {
-    try { appendFileSync("/tmp/debug.log", `${(Date.now() / 1000).toFixed(3)} CLIENT ${msg}\n`); } catch { /* ignore */ }
-}
 import { WavWriter } from "./wav.js";
 import type { Spec, SpecResult, JudgeConfig } from "./types.js";
 
@@ -132,15 +128,6 @@ export async function runVoiceBridge(opts: VoiceBridgeOptions): Promise<SpecResu
     // (the confirmed assistant message), NOT bot.word — so:
     //   🗣 judge  ← message.confirmed (what the judge said)
     //   🎧 <target> ← user.message  (what the judge heard the target say)
-
-    cdbg(`runVoiceBridge target=${opts.target} judgeModel=${judgeModel} voice=${opts.voice} stt=${opts.stt}`);
-    for (const ev of ["call.started", "bot.speaking", "bot.word", "bot.finished", "user.speaking", "user.message", "turn.end", "message.confirmed", "llm.toolCall", "call.ended"]) {
-        judge.on(ev as any, (a: any) => {
-            const t = typeof a?.text === "string" ? ` text=${JSON.stringify(a.text.slice(0, 50))}`
-                : typeof a?.word === "string" ? ` word=${a.word}` : "";
-            cdbg(`recv ${ev}${t}`);
-        });
-    }
 
     const transcript: Array<{ who: string; text: string }> = [];
     // Color the speakers and leave a blank line whenever the floor changes hands,

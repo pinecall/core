@@ -23,8 +23,7 @@
 
 import { resolveConfig } from "./cli/config.js";
 import { c, error } from "./cli/ui.js";
-
-const VERSION = "0.2.11";
+import { VERSION } from "./version.js";
 
 const HELP = `
   ${c.purple("⚡")} ${c.bold("pinecall")} ${c.dim(`v${VERSION}`)}

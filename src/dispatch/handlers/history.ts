@@ -30,7 +30,7 @@ export class HistoryHandler implements EventHandler {
         // Preferred: the agent the server named. Fallback: whichever agent on
         // this client owns the call.
         const named = wire.agent_id ? ctx.agent(wire.agent_id) : null;
-        const candidates = named ? [named] : ctx.client._allAgents();
+        const candidates = named ? [named] : ctx.allAgents();
 
         for (const agent of candidates) {
             const call = agent._getCall(callId);
@@ -39,7 +39,7 @@ export class HistoryHandler implements EventHandler {
 
         // WhatsApp sessions (call_id starts with "wa-")
         if (callId.startsWith("wa-")) {
-            const waSession = ctx.client._getWhatsAppHandler?.()?.getSession(callId);
+            const waSession = ctx.whatsappSession(callId);
             if (waSession) {
                 return waSession._applyHistoryResponse(wire.event, wire);
             }
