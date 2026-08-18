@@ -283,7 +283,7 @@ describe("auto-execution", () => {
             logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
             send: () => {},
             onConnected: () => {},
-            client: { _emitWire: () => {}, _getAgent: () => undefined },
+            emitClientEvent: () => {},
         } as any);
 
         // Wait for async auto-execution
@@ -325,7 +325,7 @@ describe("auto-execution", () => {
             logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
             send: () => {},
             onConnected: () => {},
-            client: { _emitWire: () => {}, _getAgent: () => undefined },
+            emitClientEvent: () => {},
         } as any);
 
         await new Promise((r) => setTimeout(r, 50));
@@ -369,7 +369,7 @@ describe("auto-execution", () => {
             logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
             send: () => {},
             onConnected: () => {},
-            client: { _emitWire: () => {}, _getAgent: () => undefined },
+            emitClientEvent: () => {},
         } as any);
 
         await new Promise((r) => setTimeout(r, 50));
@@ -411,7 +411,7 @@ describe("auto-execution", () => {
             logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
             send: () => {},
             onConnected: () => {},
-            client: { _emitWire: () => {}, _getAgent: () => undefined },
+            emitClientEvent: () => {},
         } as any);
 
         await new Promise((r) => setTimeout(r, 50));

@@ -22,7 +22,7 @@ export class SkillHandler implements EventHandler {
         // Resolve the owning agent — by agent_id, else by the call it belongs to.
         let agent: Agent | null = wire.agent_id ? ctx.agent(wire.agent_id) : null;
         if (!agent && callId) {
-            for (const a of ctx.client._allAgents()) {
+            for (const a of ctx.allAgents()) {
                 if (a._getCall(callId)) { agent = a; break; }
             }
         }

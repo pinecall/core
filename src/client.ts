@@ -8,7 +8,7 @@
  */
 
 import { TypedEventBus } from "./kernel/event-bus.js";
-import { PinecallError } from "./kernel/errors.js";
+import { PinecallError, AgentConflictError } from "./kernel/errors.js";
 import { noopLogger, fileLogger } from "./kernel/logger.js";
 import { planConflictRetry, CONFLICT_RETRY_BUDGET_MS } from "./kernel/backoff.js";
 import type { Logger } from "./kernel/logger.js";
@@ -21,6 +21,7 @@ import { Dispatcher } from "./dispatch/dispatcher.js";
 import { forwardAgentEvents } from "./dispatch/proxy.js";
 import type { WireEvent } from "./protocol/wire.js";
 import type { DispatchContext } from "./dispatch/handler.js";
+import type { RegistrationCoordinator } from "./dispatch/registration.js";
 
 
 // Handlers
@@ -101,54 +102,12 @@ export interface PinecallEvents {
     "session.timeout": (...args: any[]) => void;
 }
 
-export { PinecallError } from "./kernel/errors.js";
-
-/**
- * Terminal registration conflict — the agent id is held by another LIVE
- * process and retrying cannot change that.
- *
- * Emitted on the client's `error` event (so it is catchable programmatically,
- * not just a log line) when either:
- *   - the server answered `AGENT_CONFLICT_FATAL` (its liveness probe confirmed
- *     the holder alive), or
- *   - the retry budget (2× the server's stale-registration window) ran out.
- */
-export class AgentConflictError extends PinecallError {
-    constructor(
-        message: string,
-        /** The agent id that could not be registered. */
-        public readonly agentId: string,
-        /** How the terminal state was reached. */
-        public readonly reason: "server_fatal" | "retry_budget_exhausted",
-    ) {
-        super(message, "AGENT_CONFLICT_FATAL");
-        this.name = "AgentConflictError";
-    }
-}
-
-/**
- * The server ran out of client slots — it refused to register this agent.
- *
- * A distinct type because it is a distinct fact with a distinct remedy. The
- * server used to report the refusal as a nondescript REGISTRATION_ERROR, and
- * the token-mint endpoints — which only see that the agent never appeared —
- * answered `Agent 'x' is not online`. Nothing about the agent is wrong: the
- * SERVER is full. Surface the server's own words verbatim.
- */
-export class ServerAtCapacityError extends PinecallError {
-    constructor(
-        message: string,
-        /** The agent id that could not be registered. */
-        public readonly agentId: string,
-        /** Client slots in use, as reported by the server (if provided). */
-        public readonly used?: number,
-        /** The server's max_clients ceiling (if provided). */
-        public readonly limit?: number,
-    ) {
-        super(message, "SERVER_AT_CAPACITY");
-        this.name = "ServerAtCapacityError";
-    }
-}
+// The error types live in kernel/errors.ts so a dispatch handler can build one
+// without importing this module (a handler importing its own orchestrator is a
+// cycle waiting to happen). Re-exported here so both
+// `import { AgentConflictError } from "@pinecall/sdk"` and
+// `from "./client.js"` keep working exactly as before.
+export { PinecallError, AgentConflictError, ServerAtCapacityError } from "./kernel/errors.js";
 
 /**
  * How long `createToken` waits for a locally-owned agent's `agent.created`
@@ -171,6 +130,19 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     readonly #dispatcher: Dispatcher;
     readonly #logger: Logger;
     readonly #waHandler: WhatsAppHandler;
+    /**
+     * The registration state machine, handed to dispatch as a capability.
+     *
+     * Built once — the three methods below are the whole contract dispatch has
+     * with this class, and stating it as an object (instead of a bag of
+     * optional `_` methods on the context) is what lets handlers stop guessing
+     * whether a hook is wired.
+     */
+    readonly #registration: RegistrationCoordinator = {
+        scheduleRetry: (id, hint) => this.#scheduleRegisterRetry(id, hint),
+        fail: (id) => this.#failRegistration(id, "server_fatal"),
+        clear: (id) => this.#clearRegisterRetry(id),
+    };
     #runnerHook: ((agent: Agent) => void) | null = null;
 
     #transport: Transport | null = null;
@@ -683,14 +655,12 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
                 this.emit("connected");
                 this.#logger.info("Connected to Pinecall");
             },
-            client: {
-                _emitWire: (event, ...args) => (this as any).emit(event, ...args),
-                _getAgent: (id) => this.#agents.get(id),
-                _allAgents: () => [...this.#agents.values()],
-                _scheduleRegisterRetry: (id, hint) => this.#scheduleRegisterRetry(id, hint),
-                _failRegisterRetry: (id) => this.#failRegistration(id, "server_fatal"),
-                _clearRegisterRetry: (id) => this.#clearRegisterRetry(id),
-            },
+            registration: this.#registration,
+            // Routed through the friend methods below so each capability has
+            // exactly one implementation on this class.
+            emitClientEvent: (event, ...args) => this._emitWire(event, ...args),
+            allAgents: () => this._allAgents(),
+            whatsappSession: (id) => this._getWhatsAppHandler().getSession(id),
         };
 
         this.#dispatcher.dispatch(wire, ctx);
@@ -743,9 +713,9 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         }
     }
 
-    // ── Friend methods (for dispatch handlers) ───────────────────────────
+    // ── Friend methods (the client half of the DispatchContext) ──────────
 
-    /** @internal Emit a typed event (used by dispatch handlers). */
+    /** @internal Emit a typed event (the context's `emitClientEvent`). */
     _emitWire(event: string, ...args: unknown[]): void {
         (this as any).emit(event, ...args);
     }
@@ -755,12 +725,12 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         return this.#agents.get(id);
     }
 
-    /** @internal Get all registered agents. Used by ToolHandler when agent_id is missing. */
+    /** @internal Get all registered agents (the context's `allAgents`). Used when agent_id is missing. */
     _allAgents(): Agent[] {
         return [...this.#agents.values()];
     }
 
-    /** @internal Get the WhatsApp handler. Used by HistoryHandler for wa- session routing. */
+    /** @internal Get the WhatsApp handler (backs the context's `whatsappSession`). */
     _getWhatsAppHandler(): WhatsAppHandler {
         return this.#waHandler;
     }
