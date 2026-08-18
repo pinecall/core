@@ -14,6 +14,7 @@ import type { EventHandler, DispatchContext } from "../handler.js";
 import type { WireEvent } from "../../protocol/wire.js";
 import type { ToolCallEvent, ToolCallItem } from "../../protocol/events.js";
 import type { Agent } from "../../domain/agent.js";
+import { noopLogger, type Logger } from "../../kernel/logger.js";
 
 export class ToolHandler implements EventHandler {
     readonly events = ["llm.tool_call"] as const;
@@ -95,7 +96,7 @@ export class ToolHandler implements EventHandler {
         const tools = agent._getTools();
         if (tools.length > 0) {
             if (call) {
-                void autoExecuteTools(tools, event, call);
+                void autoExecuteTools(tools, event, call, ctx.logger);
             } else {
                 // WhatsApp: build a lightweight proxy with toolResult
                 void autoExecuteTools(tools, event, {
@@ -111,7 +112,7 @@ export class ToolHandler implements EventHandler {
                             })),
                         });
                     },
-                } as any);
+                } as any, ctx.logger);
             }
         }
 
@@ -141,21 +142,26 @@ export class ToolHandler implements EventHandler {
  * Auto-execute registered Tool objects for a tool-call event and send the
  * results back via `call.toolResult`. Shared by the voice/WhatsApp ToolHandler
  * and the ChatHandler (chat tool calls auto-execute the same way).
+ *
+ * `log` is where the per-call trace goes. This is LIBRARY code running inside
+ * every consumer's process, so it must never write to console on its own — the
+ * caller passes ctx.logger and decides whether debug lines are visible.
  */
 export async function autoExecuteTools(
     tools: Array<{ name: string; schema: { parse: (input: unknown) => any }; execute: (args: any, call: any) => unknown | Promise<unknown>; ephemeral?: boolean; noFollowup?: boolean }>,
     event: ToolCallEvent,
     call: { toolResult: (msgId: string, results: Array<{ toolCallId: string; result: unknown; ephemeral?: boolean; noFollowup?: boolean }>) => void },
+    log: Logger = noopLogger,
 ): Promise<void> {
     const toolMap = new Map(tools.map(t => [t.name, t]));
     const names = event.toolCalls.map(tc => tc.name);
-    console.log(`🔧 tool_call [${names.join(", ")}] msgId=${event.msgId.slice(0, 12)}`);
+    log.debug(`tool_call [${names.join(", ")}] msgId=${event.msgId.slice(0, 12)}`);
 
     const results = await Promise.all(
         event.toolCalls.map(async (tc) => {
             const t = toolMap.get(tc.name);
             if (!t) {
-                console.log(`  ❌ ${tc.name} → unknown tool`);
+                log.debug(`  ${tc.name} → unknown tool`);
                 return { toolCallId: tc.id, result: { error: `Unknown tool: ${tc.name}` }, ephemeral: false, noFollowup: false };
             }
 
@@ -163,13 +169,13 @@ export async function autoExecuteTools(
             const noFollowup = t.noFollowup ?? false;
             try {
                 const args = t.schema.parse(JSON.parse(tc.arguments));
-                console.log(`  ⚙️  ${tc.name}(${JSON.stringify(args).slice(0, 120)})`);
+                log.debug(`  ${tc.name}(${JSON.stringify(args).slice(0, 120)})`);
                 const result = await t.execute(args, call as any);
                 const preview = JSON.stringify(result).slice(0, 200);
-                console.log(`  ✅ ${tc.name} → ${preview}${ephemeral ? " (ephemeral)" : ""}${noFollowup ? " (noFollowup)" : ""}`);
+                log.debug(`  ${tc.name} → ${preview}${ephemeral ? " (ephemeral)" : ""}${noFollowup ? " (noFollowup)" : ""}`);
                 return { toolCallId: tc.id, result, ephemeral, noFollowup };
             } catch (err: any) {
-                console.log(`  ❌ ${tc.name} → error: ${err.message ?? err}`);
+                log.debug(`  ${tc.name} → error: ${err.message ?? err}`);
                 return { toolCallId: tc.id, result: { error: err.message ?? String(err) }, ephemeral, noFollowup };
             }
         }),

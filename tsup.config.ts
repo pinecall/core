@@ -1,4 +1,15 @@
+import { readFileSync } from "node:fs";
+
 import { defineConfig } from "tsup";
+
+// ── One version, injected ────────────────────────────────────────────────
+// src/version.ts reads `__PKG_VERSION__`; esbuild substitutes the literal from
+// package.json here, so a shipped bundle can never disagree with the manifest.
+// Read with fs rather than a JSON import: import attributes are still gated by
+// the Node version that runs this config. Applied to EVERY entry — the CLI,
+// the tap and the library all print it.
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
+const define = { __PKG_VERSION__: JSON.stringify(pkg.version) };
 
 export default defineConfig([
     // ── SDK library ──────────────────────────────────────────────────────
@@ -10,6 +21,7 @@ export default defineConfig([
         sourcemap: true,
         clean: true,
         target: "es2020",
+        define,
         minify: false,
         external: ["ws", "./runner.js", "./runner.cjs"],
     },
@@ -23,6 +35,7 @@ export default defineConfig([
         sourcemap: false,
         clean: false,
         target: "es2020",
+        define,
         minify: false,
         external: ["ws", "speaker"],
     },
@@ -35,6 +48,7 @@ export default defineConfig([
         sourcemap: false,
         clean: false,
         target: "es2020",
+        define,
         minify: false,
         external: ["ws"],
     },
@@ -52,6 +66,7 @@ export default defineConfig([
         clean: false,
         treeshake: true,
         target: "es2020",
+        define,
         minify: false,
         outExtension({ format }) {
             return { js: format === "cjs" ? ".cjs" : ".js" };
@@ -70,6 +85,7 @@ export default defineConfig([
         clean: false,
         treeshake: true,
         target: "es2020",
+        define,
         minify: false,
         external: ["ws", "defuddle", "linkedom"],
     },
@@ -86,6 +102,7 @@ export default defineConfig([
         clean: false,
         treeshake: true,
         target: "es2020",
+        define,
         minify: false,
         external: ["ws", "linkedom"],
         noExternal: [/^defuddle(\/|$)/],
