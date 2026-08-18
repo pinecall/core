@@ -55,7 +55,7 @@ export class WhatsAppHandler implements EventHandler {
 
         // Server may omit agent_id for WhatsApp events — find the agent
         if (!agent) {
-            const agents = ctx.client._allAgents();
+            const agents = ctx.allAgents();
             for (const a of agents) {
                 const channels = a._getChannels();
                 for (const [, ch] of channels) {

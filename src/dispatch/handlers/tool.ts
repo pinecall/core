@@ -121,7 +121,7 @@ export class ToolHandler implements EventHandler {
 
     /** Find the agent that owns the given call, or the first agent with tools. */
     #findAgentByCall(callId: string, ctx: DispatchContext): Agent | null {
-        const agents = ctx.client._allAgents();
+        const agents = ctx.allAgents();
 
         // First pass: find agent that owns the call
         for (const a of agents) {

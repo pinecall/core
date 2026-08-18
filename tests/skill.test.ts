@@ -177,7 +177,7 @@ describe("call skills", () => {
         const handler = new SkillHandler();
         const handled = handler.handle(
             { event: "skill.loaded", agent_id: "test-agent", call_id: "call-1", skill: "booking", by: "model" } as any,
-            { agent: () => agent, client: { _allAgents: () => [agent] } } as any,
+            { agent: () => agent, allAgents: () => [agent] } as any,
         );
 
         expect(handled).toBe(true);
@@ -188,7 +188,7 @@ describe("call skills", () => {
         // unload clears it
         handler.handle(
             { event: "skill.unloaded", agent_id: "test-agent", call_id: "call-1", skill: "booking", by: "manual" } as any,
-            { agent: () => agent, client: { _allAgents: () => [agent] } } as any,
+            { agent: () => agent, allAgents: () => [agent] } as any,
         );
         expect(call.activeSkills).toEqual([]);
     });

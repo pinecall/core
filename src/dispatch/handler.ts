@@ -6,18 +6,23 @@
 
 import type { Agent } from "../domain/agent.js";
 import type { Call } from "../domain/call.js";
+import type { WhatsAppSession } from "../domain/wa-session.js";
 import type { WireEvent } from "../protocol/wire.js";
 import type { Logger } from "../kernel/logger.js";
+import type { RegistrationCoordinator } from "./registration.js";
 
-/** Server guidance attached to an AGENT_CONFLICT/AGENT_IN_USE rejection. */
-export interface RegisterRetryHint {
-    /** Server-suggested delay before the next attempt (escalates server-side). */
-    retryAfterS?: number;
-    /** true = the name is held by a LIVE process (back off hard);
-     *  false = the holder is known dead (retry fast). */
-    holderAlive?: boolean;
-}
+// Re-exported so importers of `RegisterRetryHint` from this module keep
+// working; the type itself belongs next to the coordinator that takes it.
+export type { RegistrationCoordinator, RegisterRetryHint } from "./registration.js";
 
+/**
+ * Everything a handler is allowed to know about the world.
+ *
+ * Every member is REQUIRED and named for what it does, not for the private
+ * client method it happens to call. Handlers get capabilities, never the
+ * client object itself — that direction of the dependency is what kept
+ * `error.ts` importing the orchestrator that dispatches it.
+ */
 export interface DispatchContext {
     /** Resolve an agent by wire ID. Returns null if no match. */
     agent(wireId: string): Agent | null;
@@ -29,29 +34,14 @@ export interface DispatchContext {
     send(data: Record<string, unknown>): void;
     /** Called when server confirms authentication. */
     onConnected(): void;
-    /** The Pinecall client instance (for emitting client-level events). */
-    client: {
-        _emitWire(event: string, ...args: unknown[]): void;
-        _getAgent(id: string): Agent | undefined;
-        _allAgents(): Agent[];
-        _getWhatsAppHandler?(): { getSession(id: string): any };
-        /**
-         * Schedule a registration retry after AGENT_CONFLICT/AGENT_IN_USE.
-         * `hint` carries the server's structured guidance (retry_after_s,
-         * holder_alive) when present. Returns true when this was the FIRST
-         * conflict for the agent (callers use it to log the banner once);
-         * older implementations return void — treat that as "first".
-         */
-        _scheduleRegisterRetry?(agentId: string, hint?: RegisterRetryHint): boolean | void;
-        /**
-         * Terminal conflict: the server proved the name is held by a LIVE
-         * process (AGENT_CONFLICT_FATAL). Stop retrying and surface a typed
-         * error the developer can catch.
-         */
-        _failRegisterRetry?(agentId: string): void;
-        /** Clear retry state once the server confirms the registration. */
-        _clearRegisterRetry?(agentId: string): void;
-    };
+    /** Registration retry/conflict state machine (owned by the client). */
+    registration: RegistrationCoordinator;
+    /** Emit a client-level event (the `Pinecall` instance's own emitter). */
+    emitClientEvent(event: string, ...args: unknown[]): void;
+    /** Every agent registered on this client — the fallback when the server omits `agent_id`. */
+    allAgents(): Agent[];
+    /** A live WhatsApp session by id, for `wa-` prefixed call ids. */
+    whatsappSession(sessionId: string): WhatsAppSession | undefined;
 }
 
 export interface EventHandler {
