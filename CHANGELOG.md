@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **`fetchBalance`** (and its `Balance` / `FetchBalanceOptions` types) is gone
+  from the public API. It was never implemented — every call threw
+  `"fetchBalance is not yet implemented"` and pointed at `fetchTwilioBalance`,
+  so nothing can have depended on it. `fetchTwilioBalance` is unchanged.
+
+### Changed
+- **The SDK no longer writes to `console.log` from library code.** Auto-executed
+  tool calls (`🔧 tool_call …`, `⚙️`, `✅`, `❌`) and the WhatsApp session lines
+  (`[wa] …`) printed on every consumer's stdout in production; they now go
+  through the client's logger at `debug` level. `pinecall run` still shows tool
+  calls and results — it wraps `execute` itself and never depended on those
+  prints. The `/tmp/debug.log` trace in the `pinecall test` voice client is
+  deleted.
+- **One version constant.** `src/version.ts` is now the only place a version
+  string lives; the CLI, its banner and the tap user-agent all read it, and
+  tsup injects package.json's version into the shipped bundles. `npm run
+  check:version` (run by `prepublishOnly`) fails if the source fallback drifts.
+
 ## [0.9.1] — 2026-08-17 — a tap that reads the right pages, and a bar that moves
 
 ### Fixed

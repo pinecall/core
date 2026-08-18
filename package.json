@@ -48,7 +48,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build",
+    "check:version": "node scripts/check-version.mjs",
+    "prepublishOnly": "npm run check:version && npm run build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
