@@ -14,8 +14,8 @@
  */
 
 import type { Agent } from "../domain/agent.js";
-import type { Call } from "../domain/call.js";
 import { STREAM_EVENTS } from "../sse/format.js";
+import { buildEventData } from "./event-data.js";
 
 /** Minimal WebSocket interface — works with `ws`, native, or any compatible lib. */
 export interface WSLike {
@@ -109,35 +109,4 @@ export function createAgentWS(agent: Agent, ws: WSLike, opts?: WSStreamOptions):
 
     // Cleanup on close
     ws.on("close", cleanup);
-}
-
-// ── Helpers ──
-
-function buildEventData(event: string, args: unknown[]): Record<string, unknown> {
-    const data: Record<string, unknown> = {};
-
-    for (const arg of args) {
-        if (!arg || typeof arg !== "object") continue;
-
-        // Call object — extract key fields
-        if ("id" in arg && "from" in arg && "to" in arg && "transport" in arg) {
-            const call = arg as Call;
-            data.callId = call.id;
-            data.from = call.from;
-            data.to = call.to;
-            data.direction = call.direction;
-            data.transport = call.transport;
-            if (call.duration) data.duration = call.duration;
-            if (call.reason) data.reason = call.reason;
-            continue;
-        }
-
-        // Event data — copy safe fields
-        for (const [k, v] of Object.entries(arg as Record<string, unknown>)) {
-            if (typeof v === "function" || k.startsWith("_")) continue;
-            data[k] = v;
-        }
-    }
-
-    return data;
 }

@@ -19,23 +19,26 @@ const noopLogger = {
     error: () => {},
 } as any;
 
-function makeCtx(overrides: Partial<DispatchContext["client"]> = {}, agent: any = null): DispatchContext {
+function makeCtx(
+    overrides: Partial<DispatchContext["registration"]> = {},
+    agent: any = null,
+): DispatchContext {
     return {
         agent: () => agent,
         call: () => undefined,
         logger: noopLogger,
         send: () => {},
         onConnected: () => {},
-        client: {
-            _emitWire: vi.fn(),
-            _getAgent: () => undefined,
-            _allAgents: () => [],
-            _scheduleRegisterRetry: vi.fn(),
-            _clearRegisterRetry: vi.fn(),
-            _failRegisterRetry: vi.fn(),
+        registration: {
+            scheduleRetry: vi.fn(() => false),
+            clear: vi.fn(),
+            fail: vi.fn(),
             ...overrides,
         },
-    };
+        emitClientEvent: vi.fn(),
+        allAgents: () => [],
+        whatsappSession: () => undefined,
+    } as unknown as DispatchContext;
 }
 
 describe("ErrorHandler — registration conflicts", () => {
@@ -46,8 +49,8 @@ describe("ErrorHandler — registration conflicts", () => {
             ctx,
         );
         expect(handled).toBe(true);
-        expect(ctx.client._scheduleRegisterRetry).toHaveBeenCalledWith("pines", undefined);
-        expect(ctx.client._emitWire).toHaveBeenCalled(); // still surfaces the error
+        expect(ctx.registration.scheduleRetry).toHaveBeenCalledWith("pines", undefined);
+        expect(ctx.emitClientEvent).toHaveBeenCalled(); // still surfaces the error
     });
 
     it("schedules a retry on AGENT_IN_USE", () => {
@@ -56,7 +59,7 @@ describe("ErrorHandler — registration conflicts", () => {
             { event: "error", code: "AGENT_IN_USE", error: "already connected", agent_id: "docs" } as any,
             ctx,
         );
-        expect(ctx.client._scheduleRegisterRetry).toHaveBeenCalledWith("docs", undefined);
+        expect(ctx.registration.scheduleRetry).toHaveBeenCalledWith("docs", undefined);
     });
 
     it("forwards the server's structured backoff hint", () => {
@@ -68,7 +71,7 @@ describe("ErrorHandler — registration conflicts", () => {
             } as any,
             ctx,
         );
-        expect(ctx.client._scheduleRegisterRetry).toHaveBeenCalledWith(
+        expect(ctx.registration.scheduleRetry).toHaveBeenCalledWith(
             "pines", { retryAfterS: 120, holderAlive: true },
         );
     });
@@ -77,7 +80,7 @@ describe("ErrorHandler — registration conflicts", () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         try {
             // New client: returns true on the first conflict, false after.
-            const ctx = makeCtx({ _scheduleRegisterRetry: vi.fn()
+            const ctx = makeCtx({ scheduleRetry: vi.fn()
                 .mockReturnValueOnce(true)
                 .mockReturnValue(false) });
             const wire = { event: "error", code: "AGENT_CONFLICT", error: "held", agent_id: "pines" } as any;
@@ -91,10 +94,11 @@ describe("ErrorHandler — registration conflicts", () => {
         }
     });
 
-    it("keeps the banner for an old client returning void (no worse than today)", () => {
+    it("banners every rejection the coordinator calls a first one", () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         try {
-            const ctx = makeCtx({ _scheduleRegisterRetry: vi.fn() }); // returns undefined
+            // Two separate episodes (a clear in between) each earn a banner.
+            const ctx = makeCtx({ scheduleRetry: vi.fn().mockReturnValue(true) });
             const wire = { event: "error", code: "AGENT_CONFLICT", error: "held", agent_id: "pines" } as any;
             new ErrorHandler().handle(wire, ctx);
             new ErrorHandler().handle(wire, ctx);
@@ -110,17 +114,19 @@ describe("ErrorHandler — registration conflicts", () => {
             { event: "error", code: "INVALID_KEY", error: "Invalid API key" } as any,
             ctx,
         );
-        expect(ctx.client._scheduleRegisterRetry).not.toHaveBeenCalled();
+        expect(ctx.registration.scheduleRetry).not.toHaveBeenCalled();
     });
 
-    it("survives a client facade without the retry hook (older ctx)", () => {
-        const ctx = makeCtx({ _scheduleRegisterRetry: undefined });
+    it("survives a conflict the server did not attach an agent_id to", () => {
+        const ctx = makeCtx();
         expect(() =>
             new ErrorHandler().handle(
-                { event: "error", code: "AGENT_CONFLICT", error: "conflict", agent_id: "pines" } as any,
+                { event: "error", code: "AGENT_CONFLICT", error: "conflict" } as any,
                 ctx,
             ),
         ).not.toThrow();
+        // Nothing to key an episode on — no retry is scheduled.
+        expect(ctx.registration.scheduleRetry).not.toHaveBeenCalled();
     });
 });
 
@@ -137,8 +143,8 @@ describe("ErrorHandler — AGENT_CONFLICT_FATAL is terminal", () => {
                 ctx,
             );
             expect(handled).toBe(true);
-            expect(ctx.client._scheduleRegisterRetry).not.toHaveBeenCalled();
-            expect(ctx.client._failRegisterRetry).toHaveBeenCalledWith("pines");
+            expect(ctx.registration.scheduleRetry).not.toHaveBeenCalled();
+            expect(ctx.registration.fail).toHaveBeenCalledWith("pines");
             // The banner names both ways out.
             const banner = spy.mock.calls.map((c) => String(c[0])).join("\n");
             expect(banner).toContain("pinecall kick pines");
@@ -148,16 +154,17 @@ describe("ErrorHandler — AGENT_CONFLICT_FATAL is terminal", () => {
         }
     });
 
-    it("falls back to a plain error event when the fatal hook is missing", () => {
+    it("falls back to a plain error event when there is no agent to fail", () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         try {
-            const ctx = makeCtx({ _failRegisterRetry: undefined });
+            const ctx = makeCtx();
             new ErrorHandler().handle(
-                { event: "error", code: "AGENT_CONFLICT_FATAL", agent_id: "pines", error: "held" } as any,
+                { event: "error", code: "AGENT_CONFLICT_FATAL", error: "held" } as any,
                 ctx,
             );
-            expect(ctx.client._emitWire).toHaveBeenCalled();
-            expect(ctx.client._scheduleRegisterRetry).not.toHaveBeenCalled();
+            expect(ctx.emitClientEvent).toHaveBeenCalled();
+            expect(ctx.registration.fail).not.toHaveBeenCalled();
+            expect(ctx.registration.scheduleRetry).not.toHaveBeenCalled();
         } finally {
             spy.mockRestore();
         }
@@ -171,7 +178,7 @@ describe("ConnectionHandler — retry state reset", () => {
         const agent = { id: "pines", _flushPending: vi.fn(), _emitWire: vi.fn(), _markRegistered: vi.fn() };
         const ctx = makeCtx({}, agent);
         new ConnectionHandler().handle({ event: "agent.created", agent_id: "pines" } as any, ctx);
-        expect(ctx.client._clearRegisterRetry).toHaveBeenCalledWith("pines");
+        expect(ctx.registration.clear).toHaveBeenCalledWith("pines");
         expect(agent._flushPending).toHaveBeenCalled();
     });
 
@@ -181,6 +188,6 @@ describe("ConnectionHandler — retry state reset", () => {
         const agent = { id: "pines", _flushPending: vi.fn(), _emitWire: vi.fn(), _markRegistered: vi.fn() };
         const ctx = makeCtx({}, agent);
         new ConnectionHandler().handle({ event: "agent.resumed", agent_id: "pines" } as any, ctx);
-        expect(ctx.client._clearRegisterRetry).toHaveBeenCalledWith("pines");
+        expect(ctx.registration.clear).toHaveBeenCalledWith("pines");
     });
 });

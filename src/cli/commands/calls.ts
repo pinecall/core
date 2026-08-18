@@ -6,7 +6,8 @@
  */
 
 import type { CliConfig } from "../config.js";
-import { c, table, info, error } from "../ui.js";
+import { pg } from "../playground.js";
+import { c, table, info } from "../ui.js";
 
 interface CallRecord {
     callId: string;
@@ -67,20 +68,10 @@ export async function callsCommand(config: CliConfig, args?: string[]): Promise<
     const limitArg = (args || []).find(a => a.startsWith("--limit="));
     const limit = limitArg ? parseInt(limitArg.slice("--limit=".length)) : 20;
 
-    let res: Response;
-    try {
-        res = await fetch(`${config.playground}/api/usage/calls?limit=${limit}`, {
-            headers: { Authorization: `Bearer ${config.apiKey}` },
-        });
-    } catch {
-        error(`Cannot reach Playground at ${config.playground}`);
-    }
-
-    if (!res!.ok) {
-        error(`Failed to fetch call history: ${res!.status}`);
-    }
-
-    const data: { calls: CallRecord[] } = await res!.json();
+    const data = await pg<{ calls: CallRecord[] }>(config, `/usage/calls?limit=${limit}`, {
+        jsonContentType: false,
+        httpErrorMessage: (err) => `Failed to fetch call history: ${err.status}`,
+    });
 
     if (config.json) {
         console.log(JSON.stringify(data, null, 2));

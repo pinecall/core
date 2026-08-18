@@ -1,20 +1,37 @@
 /**
- * pinecall test — Chat Client
+ * Chat client — the `llm.chat` WebSocket protocol, once.
  *
- * WebSocket client for the llm.chat protocol.
+ * Two commands talk text to a live agent: `pinecall chat` (a REPL) and
+ * `pinecall test` (a judge LLM driving a scripted conversation). They differ in
+ * what they DO with the stream, never in how they read it, so the socket, the
+ * connect handshake, the 30s ping and the event decoding live here and each
+ * command listens for the events it cares about.
+ *
+ * Not exported from `src/index.ts` — this is internal to the CLI for now.
  * Adapted from pinecall-test/src/client.ts.
  */
 
 import WebSocket from "ws";
 import { EventEmitter } from "node:events";
-import type { ToolCallInfo } from "./types.js";
 
 const DEFAULT_SERVER = "wss://voice.pinecall.io/client";
+
+/** One tool call as the agent reported it. */
+export interface ToolCallInfo {
+    name: string;
+    arguments: string;
+}
 
 export interface ChatClientOptions {
     server?: string;
     apiKey: string;
     agentId: string;
+    /**
+     * Prefix of the generated `session_id`. The server treats it as opaque, but
+     * it is what a human reads in the call log — "chat-" for the REPL, "test-"
+     * for a spec run.
+     */
+    sessionPrefix?: string;
 }
 
 export class ChatClient extends EventEmitter {
@@ -95,6 +112,9 @@ export class ChatClient extends EventEmitter {
             case "ping":
                 this.ws?.send(JSON.stringify({ event: "pong" }));
                 break;
+            case "llm.chat.started":
+                this.emit("started", { model: data.model });
+                break;
             case "llm.chat.token":
                 this.emit("token", { token: data.token ?? "", text: data.text ?? "" });
                 break;
@@ -123,7 +143,7 @@ export class ChatClient extends EventEmitter {
             throw new Error("Not connected");
         }
         if (!this._sessionId) {
-            this._sessionId = "test-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+            this._sessionId = (this.opts.sessionPrefix ?? "test-") + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
         }
         this.ws.send(JSON.stringify({
             event: "llm.chat",

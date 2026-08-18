@@ -2,6 +2,10 @@
  * pinecall test — Types
  */
 
+// The shape comes from the chat client that reports it — one definition.
+import type { ToolCallInfo } from "../../../api/chat-client.js";
+export type { ToolCallInfo };
+
 // ── Spec file schema ─────────────────────────────────
 
 export interface Spec {
@@ -96,9 +100,4 @@ export interface TurnRecord {
     agentResponse: string;
     /** Tool calls the agent made */
     agentToolCalls: ToolCallInfo[];
-}
-
-export interface ToolCallInfo {
-    name: string;
-    arguments: string;
 }

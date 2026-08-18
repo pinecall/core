@@ -13,7 +13,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Spec, JudgeConfig, JudgeMessage, SpecResult, TurnRecord, ToolCallInfo } from "./types.js";
-import { ChatClient } from "./chat-client.js";
+import { ChatClient } from "../../../api/chat-client.js";
 import { runVoiceBridge } from "./voice-client.js";
 import { callJudge, DEFAULT_JUDGE, type JudgeResponse } from "./judge.js";
 import { c } from "../../ui.js";
