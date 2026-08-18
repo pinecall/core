@@ -122,3 +122,155 @@ describe('buildShortcutPayload', () => {
     expect(result.tools).toHaveLength(1)
   })
 })
+
+// ── Wire snapshot ────────────────────────────────────────
+//
+// The whole point of the encoder: every SDK key lands on the wire under the
+// name the server reads, in the order it has always been written, and nothing
+// else travels. Locked BEFORE the table-driven rewrite so the refactor cannot
+// silently rename, reorder or drop a key.
+
+describe('buildShortcutPayload — wire snapshot', () => {
+  const maximal = {
+    voice: 'elevenlabs/sarah',
+    language: 'es',
+    flash: true,
+    stt: 'deepgram:nova-3:es',
+    interruption: { minWords: 2 },
+    llm: 'openai/gpt-4.1-mini',
+    prompt: 'You are Clara.',
+    promptVars: { name: 'Ana' },
+    greeting: 'Hola!',
+    greetingInChat: true,
+    memory: { remember: ['name'], consolidate: 'turn' },
+    timezone: 'Europe/Madrid',
+    preparing: { enabled: true, timeoutMs: 2500 },
+    rawPrompt: true,
+    tools: [{ type: 'function', function: { name: 'lookup' } }],
+    skills: [{ name: 'booking' }],
+    sessionLimits: { maxDurationMs: 60000 },
+    config: { language: 'es' },
+    knowledgeBase: ['kb_a', 'kb_b'],
+    mode: 'chat',
+    media: { video: false },
+    // Never travels — auto-derived server-side from the STT provider.
+    turnDetection: 'native',
+    // Client-side only.
+    phoneNumber: '+34600000000',
+    allowedOrigins: ['https://x.dev'],
+  }
+
+  it('maps every key to its wire name, and nothing else', () => {
+    const result = buildShortcutPayload(maximal as any)
+    expect(result).toEqual({
+      voice: 'elevenlabs/sarah',
+      language: 'es',
+      flash: true,
+      stt: { provider: 'deepgram', model: 'nova-3', language: 'es' },
+      interruption: { minWords: 2 },
+      llm: 'openai/gpt-4.1-mini',
+      prompt: 'You are Clara.',
+      vars: { name: 'Ana' },
+      greeting: 'Hola!',
+      greetingInChat: true,
+      memory: { remember: ['name'], consolidate: 'turn' },
+      timezone: 'Europe/Madrid',
+      preparing: { enabled: true, timeout_ms: 2500 },
+      raw_prompt: true,
+      tools: [{ type: 'function', function: { name: 'lookup' } }],
+      skills: [{ name: 'booking' }],
+      session_limits: { maxDurationMs: 60000 },
+      config: { language: 'es' },
+      knowledge_base: ['kb_a', 'kb_b'],
+      mode: 'chat',
+      media: { video: false },
+    })
+  })
+
+  it('writes the keys in the order the server has always received them', () => {
+    expect(Object.keys(buildShortcutPayload(maximal as any))).toEqual([
+      'voice', 'language', 'flash', 'stt', 'interruption', 'llm', 'prompt',
+      'vars', 'greeting', 'greetingInChat', 'memory', 'timezone', 'preparing',
+      'raw_prompt', 'tools', 'skills', 'session_limits', 'config',
+      'knowledge_base', 'mode', 'media',
+    ])
+  })
+
+  it('is byte-identical as JSON for the maximal config', () => {
+    expect(JSON.stringify(buildShortcutPayload(maximal as any))).toBe(
+      '{"voice":"elevenlabs/sarah","language":"es","flash":true,' +
+        '"stt":{"provider":"deepgram","model":"nova-3","language":"es"},' +
+        '"interruption":{"minWords":2},"llm":"openai/gpt-4.1-mini",' +
+        '"prompt":"You are Clara.","vars":{"name":"Ana"},"greeting":"Hola!",' +
+        '"greetingInChat":true,"memory":{"remember":["name"],"consolidate":"turn"},' +
+        '"timezone":"Europe/Madrid","preparing":{"enabled":true,"timeout_ms":2500},' +
+        '"raw_prompt":true,"tools":[{"type":"function","function":{"name":"lookup"}}],' +
+        '"skills":[{"name":"booking"}],"session_limits":{"maxDurationMs":60000},' +
+        '"config":{"language":"es"},"knowledge_base":["kb_a","kb_b"],' +
+        '"mode":"chat","media":{"video":false}}',
+    )
+  })
+
+  // ── Omission ────────────────────────────────────────────
+
+  it('omits undefined keys instead of sending null', () => {
+    const result = buildShortcutPayload({ voice: 'x', language: undefined, prompt: undefined } as any)
+    expect(Object.keys(result)).toEqual(['voice'])
+    expect(result).not.toHaveProperty('language')
+  })
+
+  it('keeps falsy values that are real settings', () => {
+    const result = buildShortcutPayload({ flash: false, interruption: false, greetingInChat: false, rawPrompt: false } as any)
+    expect(result).toEqual({ flash: false, interruption: false, greetingInChat: false, raw_prompt: false })
+  })
+
+  // ── Greeting ────────────────────────────────────────────
+
+  it('sends only the text of a { text, addToHistory } greeting', () => {
+    const result = buildShortcutPayload({ greeting: { text: 'Hi!', addToHistory: false } } as any)
+    expect(result.greeting).toBe('Hi!')
+  })
+
+  it('sends a per-language greeting map whole', () => {
+    const greeting = { en: 'Hi!', es: 'Hola!' }
+    expect(buildShortcutPayload({ greeting } as any).greeting).toEqual(greeting)
+  })
+
+  // ── Preparing ───────────────────────────────────────────
+
+  it('snake-cases preparing.timeoutMs', () => {
+    expect(buildShortcutPayload({ preparing: { timeoutMs: 2500 } } as any).preparing)
+      .toEqual({ timeout_ms: 2500 })
+  })
+
+  it('passes preparing: true / false through untouched', () => {
+    expect(buildShortcutPayload({ preparing: true } as any).preparing).toBe(true)
+    expect(buildShortcutPayload({ preparing: false } as any).preparing).toBe(false)
+  })
+
+  // ── session_limits ──────────────────────────────────────
+
+  it('accepts an already snake_cased session_limits', () => {
+    const limits = { maxDurationMs: 10 }
+    expect(buildShortcutPayload({ session_limits: limits } as any).session_limits).toEqual(limits)
+  })
+
+  it('prefers sessionLimits when both spellings are present', () => {
+    const result = buildShortcutPayload({
+      sessionLimits: { maxDurationMs: 1 },
+      session_limits: { maxDurationMs: 2 },
+    } as any)
+    expect(result.session_limits).toEqual({ maxDurationMs: 1 })
+  })
+
+  // ── tools / skills ──────────────────────────────────────
+
+  it('calls _toWire() on tools and skills that have one', () => {
+    const result = buildShortcutPayload({
+      tools: [{ _toWire: () => ({ name: 'wired-tool' }) }],
+      skills: [{ _toWire: () => ({ name: 'wired-skill' }) }],
+    } as any)
+    expect(result.tools).toEqual([{ name: 'wired-tool' }])
+    expect(result.skills).toEqual([{ name: 'wired-skill' }])
+  })
+})
