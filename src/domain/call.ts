@@ -11,8 +11,8 @@
  */
 
 import { TypedEventBus } from "../kernel/event-bus.js";
-import { PinecallError } from "../kernel/errors.js";
 import { generateId } from "../kernel/id.js";
+import { Requester, REQUEST_TIMEOUT_MS } from "../kernel/requester.js";
 import { ReplyStream } from "./reply-stream.js";
 import type { Turn } from "./turn.js";
 import type {
@@ -118,13 +118,12 @@ export interface ForwardOptions {
 
 /**
  * How long a history/prompt request waits for its server ack before rejecting.
- * Generous on purpose — this is a failure detector, not a latency budget. The
- * turn's own budget is the `preparing` one, enforced server-side.
+ * Lives in the kernel now (the requester owns the timer); re-exported here
+ * because that is where it has always been imported from.
  */
-export const REQUEST_TIMEOUT_MS = 10_000;
+export { REQUEST_TIMEOUT_MS };
 
 export class Call extends TypedEventBus<CallEvents> {
-    static #requestSeq = 0;
     readonly id: string;
     readonly from: string;
     readonly to: string;
@@ -212,8 +211,8 @@ export class Call extends TypedEventBus<CallEvents> {
     #lastTurnConfidence = 0;
     #lastTurnLanguage: string | undefined;
 
-    /** @internal Pending response resolvers for request/response events. */
-    #pendingResponses = new Map<string, (data: any) => void>();
+    /** @internal The request/response machine — see kernel/requester.ts. */
+    #requester: Requester;
 
     /** Skills currently active on this call (tracked from server skill events). */
     #activeSkills = new Set<string>();
@@ -246,6 +245,11 @@ export class Call extends TypedEventBus<CallEvents> {
         this.metadata = data.metadata ?? {};
         this.#language = data.language ?? "";
         this.#send = send;
+        this.#requester = new Requester({
+            send,
+            scopeId: this.id,
+            scopeLabel: `call ${this.id}`,
+        });
     }
 
     // ── High-level reply methods ─────────────────────────────────────────
@@ -410,86 +414,29 @@ export class Call extends TypedEventBus<CallEvents> {
 
     // ── History management (server-side LLM) ─────────────────────────────
 
-    /**
-     * @internal Send a request and wait for its response event.
-     *
-     * Correlated by `request_id`, which the server echoes. Two reasons:
-     * concurrent requests used to overwrite each other in the pending map (they
-     * all key on "history.updated"), and a late reply could resolve the wrong
-     * caller. Servers that don't echo it fall back to event-name keying, which
-     * is what shipped before.
-     *
-     * The timeout is the point: without one, an ack that never routes leaves
-     * `await call.setPromptVars()` pending FOREVER, which is how the whole
-     * mechanism managed to fail without anyone noticing.
-     */
-    #request(sendEvent: string, responseEvent: string, data: Record<string, unknown> = {}): Promise<any> {
-        const requestId = `rq_${(++Call.#requestSeq).toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-        const promise = new Promise<any>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.#pendingResponses.delete(responseEvent);
-                this.#pendingResponses.delete(requestId);
-                reject(new PinecallError(
-                    `Timed out after ${REQUEST_TIMEOUT_MS}ms waiting for "${responseEvent}" ` +
-                    `in reply to "${sendEvent}" on call ${this.id}.`,
-                    "REQUEST_TIMEOUT",
-                ));
-            }, REQUEST_TIMEOUT_MS);
-            const settle = (payload: any) => { clearTimeout(timer); resolve(payload); };
-            // Registered under BOTH keys: request_id for a server that echoes it,
-            // event name for one that doesn't.
-            this.#pendingResponses.set(responseEvent, settle);
-            this.#pendingResponses.set(requestId, settle);
-            this.#send({ event: sendEvent, call_id: this.id, request_id: requestId, ...data });
-        });
-        return promise.then((res) => {
-            // The server acks even when it could not find a handler for the
-            // call, and says so — better a rejection the app can see than the
-            // silence that used to leave the promise pending for good.
-            if (res?.error) {
-                throw new PinecallError(
-                    `"${sendEvent}" was rejected by the server on call ${this.id}: ${res.error}`,
-                    "REQUEST_REJECTED",
-                );
-            }
-            return res;
-        });
-    }
-
-    /**
-     * Mark a returned promise as handled so a fire-and-forget caller — the
-     * overwhelmingly common shape, `call.setPromptVars(v)` with no `await` —
-     * cannot bring the process down with an unhandled rejection when a request
-     * fails. A caller that DOES await still receives the error.
-     */
-    static #handled<T>(p: Promise<T>): Promise<T> {
-        p.catch(() => {});
-        return p;
-    }
-
     getHistory(): Promise<Array<{ role: string; content: string }>> {
-        return Call.#handled(
-            this.#request("history.get", "history.data").then((res) => res.messages ?? []),
+        return Requester.handled(
+            this.#requester.request("history.get", "history.data").then((res) => res.messages ?? []),
         );
     }
 
     addHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
-        return Call.#handled(
-            this.#request("history.add", "history.updated", { messages })
+        return Requester.handled(
+            this.#requester.request("history.add", "history.updated", { messages })
                 .then((res) => res.count ?? 0),
         );
     }
 
     setHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
-        return Call.#handled(
-            this.#request("history.set", "history.updated", { messages })
+        return Requester.handled(
+            this.#requester.request("history.set", "history.updated", { messages })
                 .then((res) => res.count ?? 0),
         );
     }
 
     clearHistory(): Promise<number> {
-        return Call.#handled(
-            this.#request("history.clear", "history.updated").then((res) => res.count ?? 0),
+        return Requester.handled(
+            this.#requester.request("history.clear", "history.updated").then((res) => res.count ?? 0),
         );
     }
 
@@ -499,7 +446,7 @@ export class Call extends TypedEventBus<CallEvents> {
     }
 
     setPromptFile(filePath: string): Promise<number> {
-        return Call.#handled((async () => {
+        return Requester.handled((async () => {
             // Lazy import — browser-safe, fixes the require("path")/require("fs") bundler issue
             const { readFileSync } = await import("node:fs");
             const { resolve } = await import("node:path");
@@ -519,22 +466,22 @@ export class Call extends TypedEventBus<CallEvents> {
      * acknowledges it.
      */
     setPromptVars(vars: Record<string, string>): Promise<number> {
-        return Call.#handled(
-            this.#request("history.set_vars", "history.updated", { vars })
+        return Requester.handled(
+            this.#requester.request("history.set_vars", "history.updated", { vars })
                 .then((res) => res.count ?? 0),
         );
     }
 
     addContext(text: string): Promise<number> {
-        return Call.#handled(
-            this.#request("history.add_context", "history.updated", { text })
+        return Requester.handled(
+            this.#requester.request("history.add_context", "history.updated", { text })
                 .then((res) => res.count ?? 0),
         );
     }
 
     #sendPrompt(text: string): Promise<number> {
-        return Call.#handled(
-            this.#request("history.set_instructions", "history.updated", { prompt: text })
+        return Requester.handled(
+            this.#requester.request("history.set_instructions", "history.updated", { prompt: text })
                 .then((res) => res.count ?? 0),
         );
     }
@@ -566,17 +513,7 @@ export class Call extends TypedEventBus<CallEvents> {
 
     /** @internal Resolve a pending history request/response promise. */
     _applyHistoryResponse(eventType: string, data: Record<string, unknown>): boolean {
-        // request_id first — exact correlation when the server echoes it.
-        const requestId = data.request_id as string | undefined;
-        const resolver = (requestId ? this.#pendingResponses.get(requestId) : undefined)
-            ?? this.#pendingResponses.get(eventType);
-        if (resolver) {
-            if (requestId) this.#pendingResponses.delete(requestId);
-            this.#pendingResponses.delete(eventType);
-            resolver(data);
-            return true;
-        }
-        return false;
+        return this.#requester.applyResponse(eventType, data);
     }
 
     /**
