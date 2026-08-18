@@ -13,106 +13,27 @@
 import { TypedEventBus } from "../kernel/event-bus.js";
 import { generateId } from "../kernel/id.js";
 import { Requester, REQUEST_TIMEOUT_MS } from "../kernel/requester.js";
+import { CallRequests } from "./call-requests.js";
 import { ReplyStream } from "./reply-stream.js";
 import type { Turn } from "./turn.js";
+import type { CallEvents } from "./call-events.js";
+import type { ReplyOptions, ForwardOptions } from "./call-events.js";
 import type {
-    SpeechStartedEvent,
-    SpeechEndedEvent,
-    UserSpeakingEvent,
     UserMessageEvent,
-    TurnPauseEvent,
-    TurnResumedEvent,
     TurnContinuedEvent,
     BotSpeakingEvent,
     BotWordEvent,
-    BotFinishedEvent,
-    BotInterruptedEvent,
-    MessageConfirmedEvent,
-    ReplyRejectedEvent,
-    AudioMetricsEvent,
-    SessionTimeoutEvent,
-    ToolCallEvent,
 } from "../protocol/events.js";
+import { CallHistoryRecorder } from "./call-history.js";
+import { streamCallSSE } from "../sse/call-stream.js";
+import type { SSEResponse, StreamSSEOptions } from "../sse/call-stream.js";
 import type { SessionConfig } from "../config/session.js";
-import type { ConversationRecord, HistoryStore } from "../history.js";
+import type { HistoryStore } from "../history.js";
 
-// ─── Call-scoped event map ───────────────────────────────────────────────
-
-export interface CallEvents {
-    [key: string]: (...args: any[]) => void;
-    "speech.started": (event: SpeechStartedEvent) => void;
-    "speech.ended": (event: SpeechEndedEvent) => void;
-    "user.speaking": (event: UserSpeakingEvent) => void;
-    "user.message": (event: UserMessageEvent) => void;
-    "eager.turn": (turn: Turn) => void;
-    "turn.pause": (event: TurnPauseEvent) => void;
-    "turn.end": (turn: Turn) => void;
-    "turn.resumed": (event: TurnResumedEvent) => void;
-    "turn.continued": (event: TurnContinuedEvent) => void;
-    "bot.speaking": (event: BotSpeakingEvent) => void;
-    "bot.word": (event: BotWordEvent) => void;
-    "bot.finished": (event: BotFinishedEvent) => void;
-    "bot.interrupted": (event: BotInterruptedEvent) => void;
-    "message.confirmed": (event: MessageConfirmedEvent) => void;
-    "reply.rejected": (event: ReplyRejectedEvent) => void;
-    "audio.metrics": (event: AudioMetricsEvent) => void;
-    "call.held": () => void;
-    "call.unheld": () => void;
-    "call.muted": () => void;
-    "call.unmuted": (mutedTranscript: string | null) => void;
-    "llm.toolCall": (event: ToolCallEvent) => void;
-    "skill.loaded": (event: SkillEvent) => void;
-    "skill.unloaded": (event: SkillEvent) => void;
-    /**
-     * The server is about to generate a reply and is HOLDING the turn open for
-     * you. Refresh per-turn prompt variables here.
-     *
-     * Return a promise (an `async` handler does this for you) and the SDK waits
-     * for it before telling the server to go ahead — so an awaited
-     * `call.setPromptVars()` inside this handler is guaranteed to land on THIS
-     * generation, not the next one.
-     */
-    "call.preparing": (call: Call) => void | Promise<unknown>;
-    /**
-     * The server gave up waiting for `call.preparing` and generated with the
-     * previous values. Only fires for agents that opted in with `preparing`.
-     * This is the loud failure — a silent one is what this replaced.
-     */
-    "call.preparingTimeout": (event: PreparingTimeoutEvent) => void;
-    "session.timeout": (event: SessionTimeoutEvent) => void;
-    "ended": (reason: string) => void;
-}
-
-/** Payload of `call.preparingTimeout`. */
-export interface PreparingTimeoutEvent {
-    callId: string;
-    /** Turn counter, as the server numbers it. */
-    turn: number;
-    /** How long the server actually waited, in ms. */
-    waitedMs: number;
-    /** The budget it was allowed to wait, in ms. */
-    budgetMs: number;
-}
-
-/** Emitted when a skill is activated/deactivated on a call. */
-export interface SkillEvent {
-    /** Skill name. */
-    skill: string;
-    /** Who triggered it: "model" (loadSkill meta-tool) or "manual" (call.loadSkill). */
-    by: "model" | "manual";
-}
-
-// ─── Reply options ───────────────────────────────────────────────────────
-
-export interface ReplyOptions {
-    messageId?: string;
-    inReplyTo?: string;
-}
-
-export interface ForwardOptions {
-    message?: string;
-    announce?: boolean;
-}
+// These types used to live in this file; index.ts (and every app) imports them
+// from here, so they keep travelling through it.
+export type { SSEResponse, StreamSSEOptions };
+export type { CallEvents, PreparingTimeoutEvent, SkillEvent, ReplyOptions, ForwardOptions } from "./call-events.js";
 
 // ─── Call class ──────────────────────────────────────────────────────────
 
@@ -190,6 +111,11 @@ export class Call extends TypedEventBus<CallEvents> {
     /** @internal Message ID being tracked for word accumulation. */
     #botWordMessageId: string | null = null;
 
+    /** @internal The message id the word buffer belongs to — read by the SSE stream. */
+    get _currentBotMessageId(): string | null {
+        return this.#botWordMessageId;
+    }
+
     /** Outbound greeting (set by dial). Used by streamSSE to send the first transcript entry. */
     greeting: string | null = null;
 
@@ -211,18 +137,26 @@ export class Call extends TypedEventBus<CallEvents> {
     #lastTurnConfidence = 0;
     #lastTurnLanguage: string | undefined;
 
-    /** @internal The request/response machine — see kernel/requester.ts. */
-    #requester: Requester;
+    /** @internal Server-side history/prompt round-trips — see call-requests.ts. */
+    #requests: CallRequests;
 
     /** Skills currently active on this call (tracked from server skill events). */
     #activeSkills = new Set<string>();
 
-    /** @internal Agent reference for history saves. Set by lifecycle handler. */
-    #historyStore: HistoryStore | undefined;
-    #historyAgentId = "";
-    #historySaveTimer: ReturnType<typeof setTimeout> | undefined;
-    /** Debounce interval for incremental history saves (ms). */
-    static HISTORY_DEBOUNCE_MS = 200;
+    /** @internal Incremental history persistence — see domain/call-history.ts. */
+    #history: CallHistoryRecorder | undefined;
+
+    /**
+     * Debounce interval for incremental history saves (ms).
+     * The recorder owns it now; kept here because that is where it has always
+     * been read from (and set from, in tests).
+     */
+    static get HISTORY_DEBOUNCE_MS(): number {
+        return CallHistoryRecorder.HISTORY_DEBOUNCE_MS;
+    }
+    static set HISTORY_DEBOUNCE_MS(ms: number) {
+        CallHistoryRecorder.HISTORY_DEBOUNCE_MS = ms;
+    }
 
     constructor(
         data: {
@@ -245,11 +179,7 @@ export class Call extends TypedEventBus<CallEvents> {
         this.metadata = data.metadata ?? {};
         this.#language = data.language ?? "";
         this.#send = send;
-        this.#requester = new Requester({
-            send,
-            scopeId: this.id,
-            scopeLabel: `call ${this.id}`,
-        });
+        this.#requests = new CallRequests(this.id, send);
     }
 
     // ── High-level reply methods ─────────────────────────────────────────
@@ -413,36 +343,17 @@ export class Call extends TypedEventBus<CallEvents> {
     unmute(): void { this.#send({ event: "call.unmute", call_id: this.id }); }
 
     // ── History management (server-side LLM) ─────────────────────────────
+    // One frame out, one ack back — the machinery lives in call-requests.ts.
 
-    getHistory(): Promise<Array<{ role: string; content: string }>> {
-        return Requester.handled(
-            this.#requester.request("history.get", "history.data").then((res) => res.messages ?? []),
-        );
-    }
-
-    addHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
-        return Requester.handled(
-            this.#requester.request("history.add", "history.updated", { messages })
-                .then((res) => res.count ?? 0),
-        );
-    }
-
-    setHistory(messages: Array<{ role: string; content: string }>): Promise<number> {
-        return Requester.handled(
-            this.#requester.request("history.set", "history.updated", { messages })
-                .then((res) => res.count ?? 0),
-        );
-    }
-
-    clearHistory(): Promise<number> {
-        return Requester.handled(
-            this.#requester.request("history.clear", "history.updated").then((res) => res.count ?? 0),
-        );
-    }
+    getHistory(): Promise<Array<{ role: string; content: string }>> { return this.#requests.getHistory(); }
+    addHistory(messages: Array<{ role: string; content: string }>): Promise<number> { return this.#requests.addHistory(messages); }
+    setHistory(messages: Array<{ role: string; content: string }>): Promise<number> { return this.#requests.setHistory(messages); }
+    clearHistory(): Promise<number> { return this.#requests.clearHistory(); }
+    addContext(text: string): Promise<number> { return this.#requests.addContext(text); }
 
     setPrompt(prompt: string): Promise<number> {
         this._promptTemplate = prompt;
-        return this.#sendPrompt(prompt);
+        return this.#requests.setInstructions(prompt);
     }
 
     setPromptFile(filePath: string): Promise<number> {
@@ -452,7 +363,7 @@ export class Call extends TypedEventBus<CallEvents> {
             const { resolve } = await import("node:path");
             const resolved = resolve(this._promptsDir, filePath);
             this._promptTemplate = readFileSync(resolved, "utf-8").trim();
-            return this.#sendPrompt(this._promptTemplate);
+            return this.#requests.setInstructions(this._promptTemplate);
         })());
     }
 
@@ -465,26 +376,7 @@ export class Call extends TypedEventBus<CallEvents> {
      * lands. Resolves with the message count, or rejects if the server never
      * acknowledges it.
      */
-    setPromptVars(vars: Record<string, string>): Promise<number> {
-        return Requester.handled(
-            this.#requester.request("history.set_vars", "history.updated", { vars })
-                .then((res) => res.count ?? 0),
-        );
-    }
-
-    addContext(text: string): Promise<number> {
-        return Requester.handled(
-            this.#requester.request("history.add_context", "history.updated", { text })
-                .then((res) => res.count ?? 0),
-        );
-    }
-
-    #sendPrompt(text: string): Promise<number> {
-        return Requester.handled(
-            this.#requester.request("history.set_instructions", "history.updated", { prompt: text })
-                .then((res) => res.count ?? 0),
-        );
-    }
+    setPromptVars(vars: Record<string, string>): Promise<number> { return this.#requests.setVars(vars); }
 
     // ── Dispatch-only API (friend methods) ───────────────────────────────
     // Called by dispatch handlers. Prefixed with _ and marked @internal.
@@ -513,7 +405,7 @@ export class Call extends TypedEventBus<CallEvents> {
 
     /** @internal Resolve a pending history request/response promise. */
     _applyHistoryResponse(eventType: string, data: Record<string, unknown>): boolean {
-        return this.#requester.applyResponse(eventType, data);
+        return this.#requests.applyResponse(eventType, data);
     }
 
     /**
@@ -596,8 +488,7 @@ export class Call extends TypedEventBus<CallEvents> {
         }
 
         // Cancel any pending debounced save and force a final save
-        if (this.#historySaveTimer) clearTimeout(this.#historySaveTimer);
-        this._saveHistoryNow();
+        this.#history?.flush();
 
         // Abort all streams
         for (const stream of this.#activeStreams) {
@@ -615,11 +506,10 @@ export class Call extends TypedEventBus<CallEvents> {
      * @internal Initialize history tracking. Called by lifecycle handler on call.started.
      */
     _initHistory(agentId: string, historyStore: HistoryStore): void {
-        this.#historyStore = historyStore;
-        this.#historyAgentId = agentId;
+        this.#history = new CallHistoryRecorder(this, agentId, historyStore);
         this.startedAt = Date.now() / 1000;
         // Initial save — creates the record with status: "active"
-        this._saveHistoryNow();
+        this.#history.saveNow();
     }
 
     /**
@@ -628,165 +518,16 @@ export class Call extends TypedEventBus<CallEvents> {
      */
     _pushMessage(msg: Record<string, unknown>): void {
         this.messages.push(msg);
-        this._saveHistoryDebounced();
+        this.#history?.saveDebounced();
     }
-
-    /**
-     * @internal Schedule a debounced history save (coalesces rapid events).
-     */
-    _saveHistoryDebounced(): void {
-        if (!this.#historyStore) return;
-        if (this.#historySaveTimer) clearTimeout(this.#historySaveTimer);
-        this.#historySaveTimer = setTimeout(() => {
-            this._saveHistoryNow();
-        }, Call.HISTORY_DEBOUNCE_MS);
-    }
-
-    /**
-     * @internal Immediate history save. Builds a ConversationRecord from current state.
-     */
-    _saveHistoryNow(): void {
-        if (!this.#historyStore) return;
-
-        const contactId = (
-            this.metadata?.userId
-                ? String(this.metadata.userId)
-                : this.from
-        );
-
-        const record: ConversationRecord = {
-            callId: this.id,
-            agentId: this.#historyAgentId,
-            channel: this.transport as ConversationRecord["channel"],
-            direction: this.direction,
-            from: contactId,
-            to: this.to,
-            startedAt: this.startedAt,
-            endedAt: this.endedAt,
-            duration: this.duration,
-            reason: this.reason,
-            status: this.status,
-            transcript: this.transcript,
-            messages: this.messages,
-            metadata: this.metadata,
-        };
-
-        // Fire-and-forget — never block event dispatch
-        this.#historyStore.save(record).catch(() => {
-            // Silently ignore save errors during call
-        });
-    }
-
 
     // ─── SSE streaming ──────────────────────────────────────────────────
 
     /**
-     * Stream this call's events as Server-Sent Events to an HTTP response.
-     *
-     * Handles SSE headers, word-by-word buffering, event scoping,
-     * keepalive pings, and automatic cleanup. Designed for "Call Me"
-     * endpoints where the browser needs a live transcript.
-     *
-     * @param res  Node.js HTTP response (Express, Connect, raw http.ServerResponse)
-     * @param opts Optional config
-     *
-     * @example
-     * ```ts
-     * app.post("/api/call-me", async (req, res) => {
-     *   const call = await agent.dial({ to: req.body.phone, from: "+1...", greeting: "Hi!" });
-     *   call.streamSSE(res);
-     * });
-     * ```
+     * Stream this call's events as Server-Sent Events to an HTTP response —
+     * headers, word buffering, keepalive pings and cleanup. See sse/call-stream.ts.
      */
     streamSSE(res: SSEResponse, opts?: StreamSSEOptions): void {
-        const greeting = opts?.greeting ?? this.greeting;
-
-        // ── SSE headers ──
-        if (typeof res.writeHead === "function") {
-            res.writeHead(200, {
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            });
-        }
-        if (typeof (res as any).flushHeaders === "function") {
-            (res as any).flushHeaders();
-        }
-
-        const send = (event: string, data: Record<string, unknown>) => {
-            try {
-                res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-                if (typeof (res as any).flush === "function") (res as any).flush();
-            } catch { /* client gone */ }
-        };
-
-        // ── Keepalive ping ──
-        const ping = setInterval(() => {
-            try {
-                res.write(":ping\n\n");
-                if (typeof (res as any).flush === "function") (res as any).flush();
-            } catch { clearInterval(ping); }
-        }, 25_000);
-
-        // ── Initial events ──
-        send("call.started", { callId: this.id });
-
-        if (greeting) {
-            send("bot.confirmed", { text: greeting, messageId: "greeting" });
-        }
-
-        // ── Event listeners ──
-        this.on("bot.word", () => {
-            send("bot.word", { text: this.currentBotText, messageId: this.#botWordMessageId ?? "" });
-        });
-
-        this.on("message.confirmed", (event) => {
-            if (event.text) {
-                send("bot.confirmed", { text: event.text, messageId: event.messageId });
-            }
-        });
-
-        this.on("user.speaking", (event) => {
-            send("user.speaking", { text: event.text, messageId: event.messageId });
-        });
-
-        this.on("user.message", (event) => {
-            send("user.message", { text: event.text, messageId: event.messageId });
-        });
-
-        this.on("llm.toolCall", (event) => {
-            const tools = event.toolCalls ?? [];
-            for (const tc of tools) {
-                send("tool.call", { name: tc.name, args: tc.arguments });
-            }
-        });
-
-        this.on("ended", (reason) => {
-            send("call.ended", { reason, duration: Math.round(this.duration || 0) });
-            clearInterval(ping);
-            res.end();
-        });
-
-        // ── Client disconnect ──
-        res.on("close", () => {
-            clearInterval(ping);
-            // Call listeners auto-cleanup on _applyEnd
-        });
+        streamCallSSE(this, res, opts);
     }
-}
-
-// ── SSE types (minimal duck-typing for Express/Connect/raw http) ─────
-
-/** Minimal writable response for streamSSE. */
-export interface SSEResponse {
-    writeHead?: (status: number, headers: Record<string, string>) => void;
-    write: (chunk: string) => boolean;
-    end: () => void;
-    on: (event: string, handler: () => void) => void;
-}
-
-export interface StreamSSEOptions {
-    /** Greeting text to send as the first bot message (for outbound calls). */
-    greeting?: string;
 }
