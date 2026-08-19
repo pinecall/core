@@ -48,7 +48,7 @@ const pc = new Pinecall(); // reads PINECALL_API_KEY
 const agent = pc.agent("support", {
   stt: "deepgram/flux",
   voice: "elevenlabs/sarah",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "You are a friendly support agent.",
 });
 
@@ -56,7 +56,7 @@ const agent = pc.agent("support", {
 pc.agent("support", {
   stt: { provider: "deepgram", model: "nova-3", language: "en", smart_format: true, keyterms: ["Pinecall"] },
   voice: "elevenlabs/sarah",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "...",
 });
 ```
@@ -315,7 +315,7 @@ When you have different phone numbers per language/region, set per-number STT ov
 ```typescript
 const agent = pc.agent("global-support", {
   prompt: "You are a multilingual support agent.",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   phoneNumbers: [
     // English — Flux (fastest, native turn detection)
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },

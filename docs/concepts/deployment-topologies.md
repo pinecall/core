@@ -67,7 +67,7 @@ const pc = new Pinecall();
 
 export const agent = pc.agent("support", {
   prompt: "You are a support agent for an online store...",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",

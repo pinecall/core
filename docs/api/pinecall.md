@@ -74,7 +74,7 @@ Create or retrieve an agent. If an agent with this ID already exists, returns it
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   stt: "deepgram/flux",
   prompt: "You are a support agent. Be concise.",
   greeting: "Hi! How can I help you today?",
@@ -89,7 +89,7 @@ const agent = pc.agent("support", {
 | `voice` | `string \| VoiceConfig` | TTS voice shortcut (e.g. `elevenlabs/sarah`) |
 | `language` | `string` | BCP-47 language code |
 | `stt` | `string \| STTConfig` | STT shortcut (e.g. `deepgram/flux`) |
-| `llm` | `string \| LLMConfig` | LLM shortcut (e.g. `openai/gpt-5.3-chat-latest`) or full config |
+| `llm` | `string \| LLMConfig` | LLM shortcut (e.g. `openai/gpt-5.4-nano`) or full config |
 | `prompt` | `string` | System prompt for the LLM |
 | `promptVars` | `Record<string, string>` | Default `{{var}}` values, seeded at registration so nothing ever renders as a literal `{{VAR}}` |
 | `preparing` | `boolean \| { timeoutMs }` | Opt in to the pre-turn barrier: the server holds each generation while your [`call.preparing`](/guides/events#call-preparing) handler refreshes per-turn variables |

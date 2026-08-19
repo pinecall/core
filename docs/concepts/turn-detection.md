@@ -104,12 +104,29 @@ SmartTurn uses a small ML model to understand conversational patterns. For examp
 - "Yeah" → `turn.end` (acknowledgment)
 - "So I was thinking about maybe" → `turn.pause` (trailing off)
 
-SmartTurn parameters:
+SmartTurn runs **once** per silence, ~280ms after the user goes quiet, and its
+verdict stands: on `turn.end` the reply starts immediately; on `turn.pause` the
+server keeps listening until either the user resumes speaking or
+`max_silence_seconds` elapses, which forces `turn.end`. A stray breath, click or
+chair creak after the user has stopped does **not** restart that silence clock —
+only `resume_min_ms` of continuous voice that also clears the loudness gate counts
+as "the user resumed". (This mirrors pipecat's VAD `start_secs` / SmartTurn
+`stop_secs` behaviour.)
+
+SmartTurn parameters (`turn_detection`):
 
 | Parameter | Default | What it does |
 |---|---|---|
-| `smart_turn_threshold` | `0.7` | Higher = more patient (needs higher confidence to end) |
-| `max_silence_seconds` | `2.0` | Force turn.end after this much silence regardless |
+| `smart_turn_threshold` | `0.5` | Probability above which the model's verdict is `turn.end`. `0.5` is the model's native boundary; higher = more patient but flat-intonation sentences ("…at 10 p.m.") sit in `turn.pause` longer |
+| `max_silence_seconds` | `3.0` | Force `turn.end` after this much silence regardless of the model |
+| `smart_turn_recheck_ms` | `0` | `>0` = run the model one extra time this many ms into the silence (off by default) |
+
+Resume hysteresis (`vad`):
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `resume_min_ms` | `200` | Continuous voice needed, after `speech_end_delay_ms` of silence, before it counts as the user speaking again |
+| `resume_min_volume` | *(same as `interruption.min_volume`, 0.35)* | Smoothed-loudness gate that voice must also clear to count as a resume |
 
 ## The turn state machine
 
@@ -219,7 +236,6 @@ The turn detection strategy switches **per call** based on which phone number wa
 
 ## What's next
 
-- [Example: Turn Detection](/examples/turn-detection) — runnable debug tool showing every event
 - [STT Providers](/reference/stt-providers) — full provider reference with tuning parameters
 - [Hot-reload](/concepts/hot-reload) — swap STT provider mid-call
 - [Events reference](/reference/events) — all turn-related events

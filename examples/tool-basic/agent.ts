@@ -37,7 +37,7 @@ const getOrderStatus = tool({
 });
 
 // A/B the agent's LLM without editing the file:
-//   AGENT_LLM=openai/gpt-5.3-chat-latest pinecall run agent.ts
+//   AGENT_LLM=openai/gpt-5.4-nano pinecall run agent.ts
 const AGENT_LLM = process.env.AGENT_LLM || "openai/gpt-4.1-mini";
 
 const agent = pc.agent("tooltest", {

@@ -76,7 +76,7 @@ pinecall run agent/index.js
 ```
 
 ```
-  ⚡ booting pines  ·  gpt-5.3-chat-latest · cartesia/sonic
+  ⚡ booting pines  ·  gpt-5.4-nano · cartesia/sonic
   ⚙ tools: checkAvailability, makeReservation, cancelReservation
   ☎ listening on +14155550177 …
 

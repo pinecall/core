@@ -85,7 +85,7 @@ const pc = new Pinecall(); // reads PINECALL_API_KEY
 const agent = pc.agent("support", {
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "You are a friendly support agent.",
 });
 
@@ -93,7 +93,7 @@ const agent = pc.agent("support", {
 pc.agent("support", {
   voice: { provider: "cartesia", voice_id: "a0e99841-...", model: "sonic-3.5", speed: 1.0, emotion: "neutral" },
   stt: "deepgram/flux",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "...",
 });
 ```
@@ -142,7 +142,7 @@ multilingual auto-default and keeps `eleven_flash_v2_5`:
 ```typescript
 const agent = pc.agent("sofia", {
   prompt: "Sos Sofía, asistente de la clínica.",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   voice: "elevenlabs/agus",
   stt: "deepgram/flux",
   language: "es",

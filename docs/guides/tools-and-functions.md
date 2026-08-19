@@ -44,7 +44,7 @@ const scheduleCallback = tool({
 
 const agent = pc.agent("support", {
   prompt: "You are a helpful support agent. Use tools to look up information.",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
@@ -132,7 +132,7 @@ the turn still continues — the normal tool's result needs a reply. Combine wit
 `noFollowup` defaults to `false`, so existing tools are unchanged.
 
 > Requires a tool-capable model (e.g. `openai/gpt-4.1-mini`, `anthropic/claude-*`).
-> Chat-only OpenAI snapshots such as `gpt-5.3-chat-latest` do not emit `tool_calls`.
+> Chat-only OpenAI snapshots such as `gpt-5.4-nano` do not emit `tool_calls`.
 
 ## The `call` parameter
 

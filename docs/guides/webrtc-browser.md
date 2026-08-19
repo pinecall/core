@@ -26,7 +26,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const mara = pc.agent("mara", {
   prompt: "You are Mara. Be concise and warm.",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "es",

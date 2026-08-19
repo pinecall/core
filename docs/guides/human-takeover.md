@@ -40,7 +40,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const support = pc.agent("support", {
   language: "en",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "You are a helpful support agent.",
 });
 
@@ -178,7 +178,6 @@ The pause state data model already supports voice call IDs and chat session IDs 
 
 ## What's next
 
-- [WhatsApp Dashboard example](/examples/whatsapp-dashboard) — runnable example with React UI
 - [WhatsApp guide](/guides/whatsapp) — set up the WhatsApp channel
 - [Events reference](/reference/events) — all event data shapes
 - [Agent API](/api/agent) — `pause()`, `resume()`, `sendMessage()` reference

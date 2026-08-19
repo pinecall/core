@@ -48,7 +48,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const support = pc.agent("support", {
   language: "en",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "You are a helpful support agent on WhatsApp. Be concise.",
 });
 
@@ -91,7 +91,7 @@ const lookupOrder = tool({
 });
 
 const support = pc.agent("support", {
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "...",
   tools: [lookupOrder],
 });
@@ -105,7 +105,7 @@ The same agent can serve WhatsApp **and** phone calls. The LLM config, tools, an
 const support = pc.agent("support", {
   voice: "elevenlabs/sarah",
   language: "en",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "...",
   tools: [lookupOrder],
 });
@@ -276,7 +276,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 const history = new JsonFileHistory("./data/conversations.json");
 
 const support = pc.agent("support", {
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   prompt: "You are a support agent.",
   history,
 });
@@ -363,7 +363,6 @@ The `source` field on `whatsapp.response` is `"human"` when the message was sent
 
 ## What's next
 
-- [WhatsApp Dashboard example](/examples/whatsapp-dashboard) — runnable example with React UI and human takeover
 - [Conversation History](/guides/conversation-history) — persistence options and custom stores
 - [Human Takeover](/guides/human-takeover) — advanced pause/resume patterns
 - [Tools and Functions](/guides/tools-and-functions) — let your WhatsApp bot take actions

@@ -69,7 +69,7 @@ agent.on("turn.end", async (turn, call) => {
   try {
     const history = await call.getHistory();
     const completion = await openai.chat.completions.create({
-      llm: "openai/gpt-5.3-chat-latest",
+      llm: "openai/gpt-5.4-nano",
       messages: [
         { role: "system", content: "You are helpful. Be concise." },
         ...history,
@@ -124,7 +124,7 @@ agent.on("turn.end", async (turn, call) => {
 
 ```typescript
 import { ChatOpenAI } from "@langchain/openai";
-const model = new ChatOpenAI({ model: "gpt-5.3-chat-latest", streaming: true });
+const model = new ChatOpenAI({ model: "gpt-5.4-nano", streaming: true });
 
 agent.on("turn.end", async (turn, call) => {
   const stream = call.replyStream(turn);

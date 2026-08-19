@@ -22,7 +22,7 @@ const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
 
 const receptionist = pc.agent("receptionist", {
   prompt: "You are the receptionist for Acme Corp. Be brief and warm.",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
@@ -53,7 +53,7 @@ If you use `pc.agent()`, the `greeting` field handles everything — no event ha
 ```typescript
 const agent = pc.agent("receptionist", {
   voice: "elevenlabs/sarah",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   stt: "deepgram/flux",
   prompt: "You are a receptionist for Acme Corp.",
   phoneNumber: "+13186330963",
@@ -145,7 +145,7 @@ const endCall = tool({
 
 const agent = pc.agent("receptionist", {
   prompt: "You are a receptionist. Look up orders when asked.",
-  llm: "openai/gpt-5.3-chat-latest",
+  llm: "openai/gpt-5.4-nano",
   voice: "elevenlabs/sarah",
   stt: "deepgram/flux",
   language: "en",
