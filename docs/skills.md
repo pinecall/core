@@ -34,7 +34,7 @@ Or copy just the skills you want into your agent's skills directory:
 | Cursor / Copilot / others | per the agent's docs |
 
 ```bash
-cp -R skills/pinecall-guides ~/your-project/.claude/skills/
+cp -R skills/pinecall-phone ~/your-project/.claude/skills/
 ```
 
 ## What's inside
@@ -43,24 +43,32 @@ One skill per docs section — install all of them, or only the ones you need:
 
 | Skill | Covers |
 |-------|--------|
-| `pinecall-quickstart` | Install + your first voice agent |
-| `pinecall-concepts` | Agents/Channels/Calls, server vs client LLM, hot reload, topologies |
-| `pinecall-guides` | Inbound/outbound, WhatsApp, tools, events, takeover, WebRTC, multi-tenant, testing… |
-| `pinecall-examples` | Copy-paste full agents |
+| `pinecall-quickstart` | Install, first agent, project structure, dev mode, deployment |
+| `pinecall-concepts` | Agents/Channels/Calls, server vs client LLM, turn detection, hot reload, managed vs BYOK |
+| `pinecall-build-agent` | Tools, memory, conversation history, knowledge bases (RAG), tap, skills, realtime speech |
+| `pinecall-phone` | Inbound voice, outbound calls, ringing & reject |
+| `pinecall-messaging` | WhatsApp |
+| `pinecall-browser-channel` | WebRTC in the browser |
+| `pinecall-observe` | Events, call log, live listening, human takeover, live call apps, multi-tenant |
+| `pinecall-streaming` | SSE / WebSocket event streaming to your backend |
+| `pinecall-develop` | Testing agents, MCP server, Agent Skills, security |
 | `pinecall-sdk-api` | `@pinecall/sdk` API (Pinecall / Agent / Call / ReplyStream) |
 | `pinecall-web-voice` | `@pinecall/web/core` — browser WebRTC voice |
 | `pinecall-web-widget` | `@pinecall/web` React widget |
 | `pinecall-web-chat` | `@pinecall/web/chat` — text chat |
 | `pinecall-web-components` | Framework-agnostic web components |
-| `pinecall-reference` | CLI, STT/TTS/LLM providers, events, limits, REST |
-| `pinecall-security` | Security model |
+| `pinecall-ionic` | `@pinecall/ionic` — native mobile calls, PushKit |
+| `pinecall-react-native` | `@pinecall/react-native` |
+| `pinecall-providers` | STT / TTS / LLM provider tables |
+| `pinecall-reference` | CLI, events reference, session limits, REST API |
+
 
 ## Built-in house rules
 
 Every skill carries the Pinecall **house rules**, so the agent never drifts from
 the supported configuration:
 
-- Example defaults: `stt: "deepgram/flux"`, `llm: "openai/gpt-5.3-chat-latest"`,
+- Example defaults: `stt: "deepgram/flux"`, `llm: "openai/gpt-5.4-nano"`,
   `voice: "elevenlabs/sarah"`. Never `deepgram/nova-2`.
 - **Turn detection & VAD are auto-derived from the STT provider — never set
   `turnDetection` or `vad` by hand.** (Flux → native turns + native VAD; every

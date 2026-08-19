@@ -19,7 +19,10 @@
         "group": "Get Started",
         "pages": [
           "index",
-          "quickstart"
+          "quickstart",
+          "guides/project-structure",
+          "guides/dev-mode",
+          "concepts/deployment-topologies"
         ]
       },
       {
@@ -30,65 +33,79 @@
           "concepts/server-vs-client-llm",
           "concepts/turn-detection",
           "concepts/hot-reload",
-          "concepts/deployment-topologies"
+          "reference/managed-vs-byok"
         ]
       },
       {
-        "group": "Guides",
+        "group": "Build the Agent",
         "pages": [
-          "guides/project-structure",
-          "guides/inbound-voice",
-          "guides/outbound-calls",
-          "guides/build-a-live-call-app",
-          "guides/call-log",
-          "guides/events",
-          "guides/live-listening",
-          "guides/whatsapp",
-          "guides/conversation-history",
-          "guides/memory",
-          "guides/human-takeover",
-          "guides/webrtc-browser",
-          "guides/token-metadata",
           "guides/tools-and-functions",
-          "guides/realtime-speech",
-          "guides/skills",
+          "guides/memory",
+          "guides/conversation-history",
           "guides/knowledge-bases",
           "guides/tap",
-          "guides/multi-tenant",
-          "guides/sse-streaming",
-          "guides/ws-streaming",
-          "guides/dev-mode",
-          "guides/call-ringing",
-          "guides/mcp",
-          "guides/testing-agents"
+          "guides/skills",
+          "guides/realtime-speech",
+          "guides/token-metadata"
         ]
       },
       {
-        "group": "Examples",
-        "pages": [
-          "examples/index",
-          "examples/outbound-dispatch",
-          "examples/turn-detection",
-          "examples/headless-agent",
-          "examples/multi-channel-bot",
-          "examples/chat-bot",
-          "examples/browser-widget"
-        ]
-      },
-      {
-        "group": "@pinecall/sdk (Node.js)",
-        "pages": [
-          "api/pinecall",
-          "api/agent",
-          "api/call",
-          "api/reply-stream"
-        ]
-      },
-      {
-        "group": "@pinecall/web (Browser)",
+        "group": "Channels",
         "pages": [
           {
-            "group": "Voice \u2014 core",
+            "group": "Phone",
+            "pages": [
+              "guides/inbound-voice",
+              "guides/outbound-calls",
+              "guides/call-ringing"
+            ]
+          },
+          {
+            "group": "Messaging",
+            "pages": [
+              "guides/whatsapp"
+            ]
+          },
+          {
+            "group": "Browser & Mobile",
+            "pages": [
+              "guides/webrtc-browser"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "Observe & Control",
+        "pages": [
+          "guides/events",
+          "guides/call-log",
+          "guides/live-listening",
+          "guides/human-takeover",
+          "guides/build-a-live-call-app",
+          "guides/multi-tenant",
+          {
+            "group": "Streaming to your backend",
+            "pages": [
+              "guides/sse-streaming",
+              "guides/ws-streaming"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "Develop & Ship",
+        "pages": [
+          "guides/testing-agents",
+          "guides/mcp",
+          "skills",
+          "security"
+        ]
+      },
+      {
+        "group": "Client SDKs",
+        "pages": [
+          {
+            "group": "@pinecall/web — Voice core",
             "pages": [
               "web/core/overview",
               "web/core/voice-session",
@@ -97,7 +114,7 @@
             ]
           },
           {
-            "group": "React widget",
+            "group": "@pinecall/web — React widget",
             "pages": [
               "web/widget/overview",
               "web/widget/props",
@@ -107,51 +124,57 @@
             ]
           },
           {
-            "group": "Text chat",
+            "group": "@pinecall/web — Text chat",
             "pages": [
               "web/chat/overview",
               "web/chat/chat-session"
             ]
           },
           {
-            "group": "Web components",
+            "group": "@pinecall/web — Web components",
             "pages": [
               "web/components/overview"
+            ]
+          },
+          {
+            "group": "@pinecall/ionic",
+            "pages": [
+              "mobile/ionic-overview",
+              "mobile/background-calls-pushkit"
+            ]
+          },
+          {
+            "group": "@pinecall/react-native",
+            "pages": [
+              "mobile/react-native"
             ]
           }
         ]
       },
       {
-        "group": "@pinecall/ionic (Mobile)",
+        "group": "API Reference",
         "pages": [
-          "mobile/ionic-overview",
-          "mobile/background-calls-pushkit",
-          "mobile/react-native"
-        ]
-      },
-      {
-        "group": "Agent Skills",
-        "pages": [
-          "skills"
-        ]
-      },
-      {
-        "group": "Reference",
-        "pages": [
-          "reference/cli",
           "reference/events",
-          "reference/stt-providers",
-          "reference/tts-providers",
-          "reference/llm-providers",
-          "reference/managed-vs-byok",
+          "reference/rest-api",
+          "reference/cli",
           "reference/session-limits",
-          "reference/rest-api"
-        ]
-      },
-      {
-        "group": "Security",
-        "pages": [
-          "security"
+          {
+            "group": "@pinecall/sdk (Node.js)",
+            "pages": [
+              "api/pinecall",
+              "api/agent",
+              "api/call",
+              "api/reply-stream"
+            ]
+          },
+          {
+            "group": "Providers",
+            "pages": [
+              "reference/stt-providers",
+              "reference/tts-providers",
+              "reference/llm-providers"
+            ]
+          }
         ]
       }
     ]
