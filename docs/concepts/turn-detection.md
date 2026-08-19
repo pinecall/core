@@ -217,7 +217,7 @@ speech.started        → user starts again...
 
 ## Multi-language: mixing Flux and non-Flux providers
 
-When you have phone numbers in different languages, some land on Flux (native turn detection) and others on a non-Flux STT (SmartTurn + Silero) — Arabic and Hebrew, for instance, default to Gladia because Flux does not cover them. Just set the `stt` provider — **the server auto-configures everything else**:
+When you have phone numbers in different languages, some land on Flux (native turn detection) and others on a non-Flux STT (SmartTurn + Silero) — Arabic, for instance, defaults to ElevenLabs Scribe because Flux does not cover it. Just set the `stt` provider — **the server auto-configures everything else**:
 
 ```typescript
 const agent = pc.agent("global-support", {
@@ -228,8 +228,8 @@ const agent = pc.agent("global-support", {
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },
     // Spanish — Flux multilingual (native turn detection)
     { number: "+34612345678", language: "es", voice: "elevenlabs/valentina", stt: "deepgram/flux" },
-    // Arabic — Gladia (the default for ar/he) → server auto-activates SmartTurn + Silero
-    { number: "+972501234567", language: "ar", voice: "elevenlabs/ahmad", stt: "gladia/solaria" },
+    // Arabic — Scribe (the default for ar) → server auto-activates SmartTurn + Silero
+    { number: "+966501234567", language: "ar", voice: "elevenlabs/ahmad", stt: "elevenlabs/scribe" },
   ],
 });
 ```

@@ -131,8 +131,8 @@ const agent = pc.agent("global-support", {
   phoneNumbers: [
     { number: "+14155551234", language: "en", voice: "elevenlabs/sarah", stt: "deepgram/flux" },
     { number: "+34612345678", language: "es", voice: "elevenlabs/valentina", stt: "deepgram/flux" },
-    // Arabic requires Nova-3 (Flux doesn't support it)
-    { number: "+972501234567", language: "ar", voice: "elevenlabs/ahmad", stt: "deepgram/nova-3" },
+    // Arabic — Flux has no Arabic; the server defaults to ElevenLabs Scribe
+    { number: "+966501234567", language: "ar", voice: "elevenlabs/ahmad", stt: "elevenlabs/scribe" },
   ],
 });
 ```

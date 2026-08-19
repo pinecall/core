@@ -139,8 +139,8 @@ const mara = pc.agent("mara", {
   phoneNumbers: [
     // US number: English, fast native turns
     { number: "+14155551234", language: "en", stt: "deepgram/flux", voice: "elevenlabs/sarah" },
-    // Saudi number: Arabic, requires Nova (Flux doesn't support Arabic)
-    { number: "+966501234567", language: "ar", stt: "deepgram/nova-3", voice: "elevenlabs/ahmad" },
+    // Saudi number: Arabic — Flux has no Arabic, so the server defaults to ElevenLabs Scribe
+    { number: "+966501234567", language: "ar", stt: "elevenlabs/scribe", voice: "elevenlabs/ahmad" },
     // Simple — just a number, inherits agent defaults
     "+13186330963",
   ],
