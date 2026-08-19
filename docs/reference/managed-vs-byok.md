@@ -68,8 +68,8 @@ curl https://playground.pinecall.io/api/rates/models
     // ...
   ],
   "managedProviders": {
-    "stt": ["cartesia", "deepgram", "elevenlabs", "gladia", "transcribe"],
-    "tts": ["cartesia", "elevenlabs", "polly"],
+    "stt": ["cartesia", "deepgram", "elevenlabs", "gladia", "soniox", "transcribe"],
+    "tts": ["cartesia", "elevenlabs", "polly", "soniox"],
     "llm": ["anthropic", "google", "mistral", "openai"]
   }
 }

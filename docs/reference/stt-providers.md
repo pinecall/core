@@ -19,6 +19,15 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 { stt: "deepgram/nova-3" }
 { stt: "deepgram/nova-2" }
 
+// Soniox — 60 languages in one model, ends the turn itself
+{ stt: "soniox/realtime" }
+
+// ElevenLabs Scribe v2 realtime — the default for Arabic
+{ stt: "elevenlabs/scribe" }
+
+// Cartesia Ink-Whisper
+{ stt: "cartesia/ink-whisper" }
+
 // Gladia
 { stt: "gladia/solaria" }
 
@@ -26,12 +35,13 @@ Pinecall supports multiple STT providers. Use the `provider/model` format or a f
 { stt: "transcribe" }
 
 // ── Bring-your-own-key only (add your key under Provider Keys first) ──
-{ stt: "cartesia/ink-whisper" }      // Cartesia Ink-Whisper
-{ stt: "elevenlabs/scribe" }         // ElevenLabs Scribe v2 (realtime)
 { stt: "assemblyai/universal" }      // AssemblyAI Universal-3
-{ stt: "soniox/realtime" }           // Soniox real-time, 60 languages
-{ stt: "xai/grok-stt" }              // xAI Grok STT (BYOK)
+{ stt: "xai/grok-stt" }              // xAI Grok STT
 ```
+
+Everything above the BYOK line runs on Pinecall's own keys — nothing to configure,
+usage comes out of your Pinecall credits. Only AssemblyAI and xAI need a key of
+your own.
 
 ## Using an STT in an agent
 
@@ -330,7 +340,7 @@ For most agents, start with `deepgram/flux`. For languages Flux doesn't cover, t
 
 **Deepgram Nova-3** supports 60+ languages including everything Flux covers plus: Arabic, Hindi, Urdu, Bengali, Thai, Vietnamese, Hebrew, Farsi, Swahili, Tamil, Telugu, and many more.
 
-> **Rule of thumb:** If your language works with Flux, use Flux — it's faster and has native turn detection. If not, use Nova-3.
+> **Rule of thumb:** if your language works with Flux, use Flux — it is faster and has native turn detection. If not, the server already defaults to the right provider for that language, and `soniox/realtime` covers callers who switch language mid-call.
 
 ### Multi-language agents with `phoneNumbers`
 
