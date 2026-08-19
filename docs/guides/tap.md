@@ -1,5 +1,5 @@
 ---
-title: Tap a website
+title: "Tap a Website"
 description: Guide — crawl a website client-side, extract it to clean markdown and pour it into a knowledge base, then keep it in sync.
 ---
 

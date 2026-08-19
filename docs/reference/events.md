@@ -1,9 +1,9 @@
 ---
-title: "Events"
+title: "Events Reference"
 description: "Every event the SDK emits, with payload shapes and timing."
 ---
 
-# Events
+# Events Reference
 
 This is the complete catalog of events. Subscribe via `agent.on(event, handler)`. All call-scoped events include the `Call` as the final argument.
 

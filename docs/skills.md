@@ -1,9 +1,9 @@
 ---
-title: "Agent Skills (@pinecall/skills)"
+title: "Agent Skills for your IDE"
 description: "Drop the Pinecall docs into Claude Code, Cursor, Antigravity, Copilot or any agent that speaks the open Agent Skills format — so your coding agent builds voice & chat agents the right way, offline, with the correct defaults."
 ---
 
-# Agent Skills
+# Agent Skills for your IDE
 
 [`@pinecall/skills`](https://github.com/pinecall/skills) packages the entire
 Pinecall documentation as **[Agent Skills](https://github.com/agentskills/agentskills)** —

@@ -1,9 +1,9 @@
 ---
-title: "Events Guide"
+title: "Events"
 description: "Complete guide to every event in the Pinecall SDK — lifecycle, speech, turn, bot, tools, session, WhatsApp, and more."
 ---
 
-# Events Guide
+# Events
 
 Every event the SDK emits, organized by category. Subscribe via `agent.on(event, handler)` — all call-scoped events include the `Call` as the final argument.
 

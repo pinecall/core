@@ -1,5 +1,5 @@
 ---
-title: Knowledge bases (RAG)
+title: "Knowledge Bases (RAG)"
 description: Tutorial — ground a voice or chat agent on your own documents with retrieval-augmented generation.
 ---
 
