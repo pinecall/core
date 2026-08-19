@@ -7,20 +7,21 @@ description: "How Pinecall detects when the user finishes speaking and manages c
 
 Turn detection is the core of a natural voice conversation — knowing **when the user has finished speaking** so the agent can respond, without cutting them off or waiting too long.
 
-Pinecall supports two turn detection strategies. You never pick one: the server
-derives it from your STT provider, and the rule has exactly one branch.
+Pinecall supports two kinds of turn detection — the **STT's own endpointing**, or the
+local **SmartTurn model** — and the server picks per STT provider:
 
 | STT provider | Turn detection | VAD | How it works |
 |---|---|---|---|
 | `deepgram/flux` *(the default)* | **Native** | **Native** | Flux detects turns inside the STT stream itself and emits `EagerEndOfTurn` / `EndOfTurn` directly. No separate VAD, no extra model, zero added latency. |
+| `soniox/realtime` | **Native** — semantic endpointing | **Silero** (speech start + barge-in only) | Soniox decides the user is done from pauses, intonation *and whether the sentence is complete*, and marks the final transcript; the server commits the turn on that mark. Opt out with `stt: { provider: "soniox", turn: "smart_turn" }`. |
 | **every other STT** | **SmartTurn** | **Silero** | Silero VAD marks where speech starts and stops, then the SmartTurn model reads the audio's intonation to decide whether the user actually finished or is just pausing mid-sentence. |
 
-"Every other STT" is literal — it covers `deepgram/nova-3`, `soniox/realtime`,
-`cartesia/ink-whisper`, `elevenlabs/scribe`, `assemblyai/universal`,
-`gladia/solaria`, `xai/grok-stt` and `transcribe` alike, and any provider added
-later. Nothing about a provider changes the turn logic except whether it is Flux.
+"Every other STT" is literal — `deepgram/nova-3`, `cartesia/ink-whisper`,
+`elevenlabs/scribe`, `assemblyai/universal`, `gladia/solaria`, `xai/grok-stt` and
+`transcribe` alike, and any provider added later. A provider only gets the first
+kind when it ships its own endpointing.
 
-> **You never configure this manually.** The server auto-derives the turn detection strategy from the STT provider. Just set `stt` and the rest follows.
+> **You never configure this manually.** The server auto-derives the turn detection strategy from the STT provider. Just set `stt` and the rest follows. The one knob is `stt.turn` on Soniox — see [STT providers → Soniox](/reference/stt-providers#who-ends-the-turn-turn).
 
 > **Not to be confused with `detectTurnEnd`.** `detectTurnEnd` is a *separate*, real option on `agent.dial()` and `agent.bridge()` — it does **not** configure the turn-detection strategy. It controls **when your greeting is delivered**: by default (`false`) the greeting is spoken immediately on pickup (good for humans); set it to `true` to wait for the **other side** (a bot/IVR/answering machine that greets first) to finish its own greeting before speaking yours. When `true`, the other party's end-of-turn is also relayed to your code as a `turn.end` event, so code that drives the call manually (e.g. a test/judge agent) knows when to speak. Default `false` for `dial`, `true` for `bridge`. See [Outbound Calls → `detectTurnEnd`](/guides/outbound-calls#detectturnend--wait-for-the-other-sides-greeting-before-speaking).
 
@@ -62,7 +63,7 @@ stt: {
 
 ## How Smart Turn + Silero VAD works
 
-For every non-Flux provider, the server uses a two-stage pipeline:
+For every provider without its own endpointing (everything but Flux and Soniox), the server uses a two-stage pipeline:
 
 ### Stage 1: Silero VAD (Voice Activity Detection)
 

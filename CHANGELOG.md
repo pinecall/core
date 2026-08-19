@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`stt.turn` for Soniox** — who ends the turn. `"native"` (default) lets
+  Soniox's semantic endpointing decide, as Flux does for itself; `"smart_turn"`
+  keeps Soniox as transcriber and hands the turn to the local SmartTurn model.
+  Typed on the new `SonioxSTTConfig`, which also exposes the `endpoint_*`
+  tuning fields that were accepted but untyped. Server-side; needs a voice
+  server that knows the knob.
+
 ### Removed
 - **`fetchBalance`** (and its `Balance` / `FetchBalanceOptions` types) is gone
   from the public API. It was never implemented — every call threw

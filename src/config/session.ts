@@ -50,11 +50,44 @@ export interface TranscribeSTTConfig {
     language?: string;
 }
 
+/**
+ * Soniox real-time STT (`stt-rt-v5`, 60+ languages, one model).
+ *
+ * Soniox has SEMANTIC endpointing — it decides the user is done from pauses,
+ * intonation and whether the utterance is complete — so by default it is also
+ * the session's turn detector (like Flux). `turn` hands that job to the local
+ * SmartTurn model instead; the `endpoint_*` fields tune Soniox's own decision
+ * when you keep it.
+ */
+export interface SonioxSTTConfig {
+    provider: "soniox";
+    language?: string;
+    model?: string;
+    /**
+     * Who ends the turn. `"native"` (default): Soniox's semantic endpointing.
+     * `"smart_turn"`: the local SmartTurn model, with Soniox as transcriber only.
+     * Pick `"smart_turn"` when `max_endpoint_delay_ms` keeps cutting long
+     * mid-sentence pauses and raising it makes every reply wait.
+     */
+    turn?: "native" | "smart_turn";
+    enable_endpoint_detection?: boolean;
+    /** 0–3, higher = ends the turn sooner. Default 2. */
+    endpoint_latency_adjustment_level?: number;
+    /** -1.0..1.0, positive = more endpoints. Default 0.3. */
+    endpoint_sensitivity?: number;
+    /** Hard cap on the wait, 500–3000. Default 1500. */
+    max_endpoint_delay_ms?: number;
+    /** Free-form recognition bias; `keyterms` is folded into it. */
+    context?: string;
+    keyterms?: string[];
+}
+
 export type STTConfig =
     | DeepgramSTTConfig
     | FluxSTTConfig
     | GladiaSTTConfig
-    | TranscribeSTTConfig;
+    | TranscribeSTTConfig
+    | SonioxSTTConfig;
 
 // ─── TTS ─────────────────────────────────────────────────────────────────
 

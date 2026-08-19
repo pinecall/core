@@ -87,6 +87,7 @@ export type {
     FluxSTTConfig,
     GladiaSTTConfig,
     TranscribeSTTConfig,
+    SonioxSTTConfig,
     TTSConfig,
     ElevenLabsTTSConfig,
     CartesiaTTSConfig,

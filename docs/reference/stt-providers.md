@@ -264,9 +264,39 @@ stt: { provider: "soniox", keyterms: ["Pinecall", "WebRTC", "PN-48291"] }
 > invisibly rather than erroring. Bias terms must end up in `context`; that is
 > what `keyterms` is mapped onto.
 
-Turn detection comes from Soniox's own **endpoint detection** (server-side), which
-emits an end-of-utterance marker; the transcript is finalized on that marker rather
-than on a silence timer. VAD/turn detection is auto-derived — never configure it.
+### Who ends the turn (`turn`)
+
+Soniox has **semantic endpointing**: it decides the user is done from pauses,
+intonation *and whether the sentence is complete*, server-side. So by default it is
+also the session's **turn detector** — the same deal Flux gets. A 600–900 ms pause in
+"my account number is four, seven…" does not end the turn, because the utterance is
+not finished.
+
+```typescript
+// Default — Soniox decides the turn itself. Nothing to configure.
+stt: "soniox/realtime"
+
+// Tune Soniox's own decision (all optional)
+stt: {
+  provider: "soniox",
+  endpoint_latency_adjustment_level: 2,  // 0–3, higher = ends sooner
+  endpoint_sensitivity: 0.3,             // -1.0..1.0, positive = more endpoints
+  max_endpoint_delay_ms: 1500,           // 500–3000, hard cap on the wait
+}
+
+// Hand the turn to SmartTurn instead — Soniox transcribes only
+stt: { provider: "soniox", turn: "smart_turn" }
+```
+
+The trade-off is `max_endpoint_delay_ms`: it is a **hard cap**. A pause longer than
+the cap ends the turn however unfinished the sentence is, and raising the cap makes
+the agent wait that long before *every* reply. SmartTurn has no such floor — it
+re-runs on each silence, answers fast after a complete sentence and holds through an
+incomplete one. If your callers dictate long numbers or think out loud, try
+`turn: "smart_turn"` and compare.
+
+`turn` is the one turn-related setting you may write; `turnDetection` and `vad` stay
+auto-derived. Flux ignores `turn` — it cannot run without its own turn signals.
 
 ## xAI Grok (BYOK)
 
@@ -283,16 +313,16 @@ stt: { provider: "xai", model: "grok-stt", language: "en" }
 | Provider | Best for | Trade-off |
 |---|---|---|
 | `deepgram/flux` | Real-time voice agents | Lowest latency; English, Spanish, French, German, Portuguese, and ~15 more |
-| `deepgram/nova-3` | Arabic, Hindi, Thai, CJK, and 60+ languages | Slightly higher latency; smart_turn + silero VAD |
+| `deepgram/nova-3` | Hindi, Thai, CJK, and 60+ languages | Slightly higher latency; smart_turn + silero VAD |
 | `gladia/solaria` | Code-switching, multilingual | Higher latency than Deepgram |
 | `transcribe` | AWS-native deployments | AWS pricing model |
 | `cartesia/ink-whisper` | Single-vendor with Cartesia TTS | Managed (shared key) |
-| `elevenlabs/scribe` | Single-vendor with ElevenLabs TTS | Managed (shared key) |
+| `elevenlabs/scribe` | Arabic (the default for `ar`), single-vendor with ElevenLabs TTS | Managed (shared key) |
 | `assemblyai/universal` | Accuracy + diarization | BYOK only |
-| `soniox/realtime` | Multilingual (60 langs, one model), single-vendor with Soniox TTS | Managed (shared key) |
+| `soniox/realtime` | Multilingual (60 langs, one model), semantic endpointing, single-vendor with Soniox TTS | Managed (shared key) |
 | `xai/grok-stt` | Single-vendor with Grok LLM + TTS | BYOK only |
 
-For most agents, start with `deepgram/flux`. Use `deepgram/nova-3` for languages Flux doesn't cover (Arabic, Hindi, Thai, Chinese, Japanese, Korean, etc.).
+For most agents, start with `deepgram/flux`. For languages Flux doesn't cover, the server already picks a default per language (Arabic → `elevenlabs/scribe`, Hebrew → `gladia/solaria`, the rest → `deepgram/nova-3`); `soniox/realtime` is the one-model answer when callers switch languages mid-call.
 
 ## Language coverage
 
