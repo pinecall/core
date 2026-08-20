@@ -26,6 +26,13 @@
         ]
       },
       {
+        "group": "Tutorial",
+        "pages": [
+          "tutorial/configurable-agent",
+          "tutorial/how-it-was-built"
+        ]
+      },
+      {
         "group": "Concepts",
         "pages": [
           "concepts/philosophy",
