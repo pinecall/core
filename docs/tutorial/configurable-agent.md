@@ -36,7 +36,8 @@ A configurable agent breaks that rule on purpose, so it had better break it prec
 
 The first row is what a receptionist would change if they could. The second is made of
 decisions with consequences for latency, cost and quality — a text box is the wrong
-place for them. The code keeps that line in one function, `configFor(settings)`.
+place for them. The code keeps that line in one function, `config(settings)` — the top
+half of the object it returns reads from the settings, the bottom half is constants.
 
 ## The shape
 
@@ -95,19 +96,25 @@ export default [
 
 ## 1. The agent
 
-`server/agent/agent.ts` creates the agent from the current settings and hands back the
-instance. Four lines in the config deserve a note.
+`server/agent/agent.ts` builds the whole configuration in one function of the settings
+and registers the agent with it. Four lines deserve a note.
 
 ```ts
-const agent = pc.agent("dental-desk", {
-  ...configFor(Settings.get()),      // greeting, voice, language, promptVars
-  prompt: PROMPT,
+const config = (s: SettingsRow) => ({
+  greeting: s.greeting,               // ── from the form
+  voice: s.voice,
+  language: s.language,
+  promptVars: vars(s),
+
+  prompt: PROMPT,                     // ── from a pull request
   timezone: "Europe/Madrid",
   llm: "openai/gpt-5.4-nano",
   stt: "deepgram/flux",
   tools: [checkAvailability, bookAppointment],
-  ...(phone ? { phoneNumber: phone } : {}),
+  phoneNumber: process.env.PHONE,     // undefined → browser only
 });
+
+const agent = pc.agent("dental-desk", config(Settings.get()));
 ```
 
 **`stt: "deepgram/flux"`** — Flux detects the end of a turn inside the STT stream:
@@ -121,22 +128,23 @@ against the server's clock.
 
 **`phoneNumber`** is the entire telephony setup. There is no webhook to configure.
 
-**`configFor(settings)`** is the line from the top of this page, made executable:
-everything it returns comes from the form; everything else in this object comes from a
-pull request.
+**`config(settings)`** is the line from the top of this page, made executable — and
+because it is *one* function, the same call that creates the agent is the call that
+updates it (step 3). No spread, no "base config plus overrides".
 
 The agent is started once per process, from `server/app.ts`:
 
 ```ts
 // server/app.ts
-declare global { var __agent: ReturnType<typeof startAgent> | undefined; }
-globalThis.__agent ??= startAgent();
+export const agent = remember("agent", startAgent);
 ```
 
-That `??=` is not decoration. In development Vite re-evaluates `server/app.ts` on a hot
-reload, and an agent registered twice under the same slug is refused by the server. The
-same trick (Epic Stack calls it `remember`) keeps the event bus a singleton, so a reload
-never leaves the agent listening to a stale copy.
+`remember` is four lines in `app/lib/remember.server.ts`: keep one instance on
+`globalThis`, create it the first time only. It is not decoration. In development Vite
+re-evaluates `server/app.ts` on a hot reload, and an agent registered twice under the
+same slug is refused by the server. The event bus is remembered the same way, so a
+reload never leaves the agent listening to a stale copy. (Epic Stack ships the same
+idea as `@epic-web/remember`.)
 
 ## 2. Settings become data
 
@@ -180,7 +188,7 @@ call already has the right clinic name, hours and services.
 Same process, so this is one line:
 
 ```ts
-bus.on("settings", (s) => agent.update(configFor(s)));
+bus.on("settings", (s) => agent.update(config(s)));
 ```
 
 `agent.update()` travels down the WebSocket the agent already holds.

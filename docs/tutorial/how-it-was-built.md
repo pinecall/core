@@ -127,9 +127,12 @@ agent it means nobody is answering until someone opens the browser. One
 
 **Hot reload registered a second agent.** Vite re-evaluates `server/app.ts` on a change
 to anything it imports, and a second `pc.agent("dental-desk")` in the same process is
-refused by the server. `globalThis.__agent ??= startAgent()` — the `remember` pattern —
-and the same for the event bus, so a reload never leaves the agent subscribed to a stale
-emitter.
+refused by the server. `remember("agent", startAgent)` — four lines that keep one
+instance on `globalThis`, the pattern Epic Stack ships as `@epic-web/remember` — and
+the same for the event bus, so a reload never leaves the agent subscribed to a stale
+emitter. (The first cut was a bare `declare global` + `globalThis.__agent ??=` in
+`server/app.ts`; it worked and it read like plumbing. The helper is the same five
+characters of semantics with a name.)
 
 ## What it cost
 
@@ -138,7 +141,7 @@ emitter.
 | Repository | 20 files, 481 lines, `tsc` clean |
 | Processes | 1 |
 | Pinecall surface | `pc.agent()`, `agent.update()`, `tool()`, `createToken()`, `<VoiceWidget>`, five agent events |
-| Lines that make it configurable | `configFor()` (6) · `bus.on("settings", …)` (1) · the form's `action` (2) |
+| Lines that make it configurable | `config()` (12, half of them constants) · `bus.on("settings", …)` (1) · the form's `action` (2) |
 | Lines that make the page live | `events.ts` (28) · the agent's five `agent.on` relays · one `EventSource` |
 
 Making an agent configurable from a UI is not a framework feature. It is one function
