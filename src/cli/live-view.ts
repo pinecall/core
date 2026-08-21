@@ -95,6 +95,15 @@ export interface LiveView {
     detach(agent: LiveViewAgent): void;
     /** Print a plain line (boot banner, notices) through the same stream, keeping the live line intact. */
     print(line: string): void;
+    /**
+     * Pin a line to the bottom of the screen — the terminal chat prompt lives
+     * there. While something is pinned the transcript keeps scrolling above it
+     * but the live call line (interims, bot words, turn state) stops competing
+     * for the last row. `pin(null)` releases it and hands the row back.
+     *
+     * A no-op off a TTY: there is no last line to own.
+     */
+    pin(line: string | null): void;
     /** Print a tool result (`✓ …`) under the call the tool ran in. */
     toolResult(agent: LiveViewAgent, call: LiveViewCall | undefined, result: unknown): void;
     /** Format a JSON value for the terminal — exposed so the runner shares one colouriser. */
@@ -150,6 +159,8 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
     const agents = new Map<string, Attached>();
     /** The redrawable last line (TTY only). null = cursor sits on a fresh line. */
     let live: string | null = null;
+    /** A line that OWNS the last row (the chat prompt). null = the calls own it. */
+    let pinned: string | null = null;
 
     // ── Low-level writing ────────────────────────────────────────────
 
@@ -230,7 +241,7 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
 
     /** Redraw the last line for the call that last moved: interim caller words, the growing bot line, or the turn state. */
     function refresh(cs: CallSnapshot): void {
-        if (!tty) return;
+        if (!tty || pinned !== null) return;
         const status = `${c.dim("·")} ${stateGlyph(cs.state)} ${c.dim(rel(cs))}`;
         const pre = `${INDENT}${prefix(cs.agent, cs)}`;
         const bot = cs.draft.agent;
@@ -273,10 +284,11 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
                 const cs = e.call;
                 const secs = e.durationS;
                 const dur = `${secs < 10 ? secs.toFixed(1) : Math.round(secs)}s`;
-                setLive(null);
+                if (pinned === null) setLive(null);
                 emitLine(`${INDENT}${prefix(cs.agent, cs, 1)}${c.dim("☎")}  call ended ${c.dim("—")} ${c.dim(e.reason)} ${c.dim(`(${dur})`)}`);
                 emitLine("");
                 // Another call still running? Put its state back on the last line.
+                if (pinned !== null) { setLive(pinned); return; }
                 const next = calls.values().next();
                 if (!next.done) refresh(next.value);
                 return;
@@ -386,6 +398,16 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
         emitLine(line);
     }
 
+    function pin(line: string | null): void {
+        if (!tty) return;
+        pinned = line;
+        if (line !== null) { setLive(line); return; }
+        setLive(null);
+        // Give the row back to whatever call is still running.
+        const next = calls.values().next();
+        if (!next.done) refresh(next.value);
+    }
+
     function toolResult(agent: LiveViewAgent, call: LiveViewCall | undefined, result: unknown): void {
         store.toolResult(agent.id, call, result);
     }
@@ -416,7 +438,7 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
     }
 
     return {
-        attach, detach, print, toolResult, json, setEvents, store, c,
+        attach, detach, print, pin, toolResult, json, setEvents, store, c,
         get events() { return debug; },
     };
 }

@@ -33,6 +33,8 @@
  *   PINECALL_RUN_UI_PORT=n    (`--ui-port n`)             default 4747
  *   PINECALL_RUN_UI_HOST=h    (`--ui-host h`)             default 127.0.0.1
  *   PINECALL_RUN_OPEN=1       (`--open`)                  open the browser
+ *   PINECALL_RUN_AGENT=id     (`--agent id`)               who `c` and `--call` talk to
+ *   PINECALL_RUN_CALL=+34…    (`--call +34…`)              the agent rings you on boot
  */
 
 import type { Agent } from "./domain/agent.js";
@@ -46,6 +48,9 @@ import {
     type ConsoleServer,
 } from "./cli/console/server.js";
 import { attachKeys, openInBrowser } from "./cli/console/keys.js";
+import { openPrompt, type OpenPrompt } from "./cli/console/prompt.js";
+import { isChatCapable, newChatSession, sendChat, type ChatAgentLike } from "./cli/console/chat.js";
+import { ringMe, type DialAgentLike } from "./cli/console/dial.js";
 
 // ── Mode from the environment ────────────────────────────────────────────
 
@@ -81,6 +86,7 @@ export function attachRunner(host?: RunnerHost): (agent: Agent) => void {
     return (agent: Agent) => {
         attachAgentDisplay(agent);
         if (host) startConsole(host);
+        maybeRing(agent);
     };
 }
 
@@ -152,7 +158,16 @@ let releaseKeys: (() => void) | null = null;
 function startConsole(host: RunnerHost): void {
     if (consoleStarted) return;
     consoleStarted = true;
-    if (process.env.PINECALL_RUN_UI === "0") return;
+
+    const v0 = getView();
+    if (process.env.PINECALL_RUN_UI === "0") {
+        // No web console, but the terminal is still an observer — and `c` still
+        // talks to the agent. Bind the keys the web half does not own.
+        v0.print(`  ${v0.c.dim("·")} ${v0.c.dim("web console off (--no-ui)   (c chat · e events · q quit)")}`);
+        v0.print("");
+        bindKeys(host, v0);
+        return;
+    }
 
     const v = getView();
     const { c } = v;
@@ -176,7 +191,7 @@ function startConsole(host: RunnerHost): void {
             v.print(`  ${c.dim("·")} ${c.dim(`bound to ${server.hostname} — every request needs the run key above (?k=…)`)}`);
         }
         v.print("");
-        bindKeys(host, server, v);
+        bindKeys(host, v);
         if (process.env.PINECALL_RUN_OPEN === "1") open(server.url, v);
     }).catch((err: Error) => {
         v.print(`  ${c.yellow("◉")} ${c.dim(`console off — ${err.message}`)}`);
@@ -184,13 +199,21 @@ function startConsole(host: RunnerHost): void {
     });
 }
 
-function bindKeys(host: RunnerHost, server: ConsoleServer, v: LiveView): void {
+/**
+ * Bind the shortcuts. Called again every time the chat prompt gives stdin back:
+ * exactly one owner of the raw stream at a time — the keys, or the prompt.
+ */
+function bindKeys(host: RunnerHost, v: LiveView): void {
     const { c } = v;
+    releaseKeys?.();
     releaseKeys = attachKeys({
         input: process.stdin as any,
         bindings: {
-            p: () => open(server.url, v),
-            c: () => v.print(`  ${c.dim("·")} ${c.dim("terminal chat — coming soon; type in the web console meanwhile")}`),
+            p: () => {
+                if (consoleServer) open(consoleServer.url, v);
+                else v.print(`  ${c.dim("·")} ${c.dim("no web console in this run (--no-ui)")}`);
+            },
+            c: () => startChat(host, v),
             e: () => {
                 v.setEvents(!v.events);
                 v.print(`  ${c.dim("·")} ${c.dim(`events: ${v.events ? "on" : "off"}`)}`);
@@ -198,6 +221,136 @@ function bindKeys(host: RunnerHost, server: ConsoleServer, v: LiveView): void {
         },
         onQuit: () => quit(host, v),
     });
+}
+
+// ── `c` — the terminal chat prompt ───────────────────────────────────────
+
+/** The prompt that currently owns stdin. Only ever one. */
+let prompt: OpenPrompt | null = null;
+/** One chat session per agent, so the conversation continues across `c`. */
+const chatSessions = new Map<string, string>();
+
+/** Agents this process can chat with — a live `Agent`, not a snapshot of one. */
+function chatTargets(host: RunnerHost): ChatAgentLike[] {
+    const found: ChatAgentLike[] = [];
+    for (const agent of host.agents.values()) if (isChatCapable(agent)) found.push(agent);
+    return found;
+}
+
+/**
+ * `c`: pick an agent (when there are several), then read lines and send them.
+ *
+ * The reply is NOT printed here — it comes back as ordinary agent events and
+ * the live view draws it like any other conversation, which is the whole point.
+ */
+function startChat(host: RunnerHost, v: LiveView): void {
+    const { c } = v;
+    if (prompt) return;
+
+    const targets = chatTargets(host);
+    if (targets.length === 0) {
+        v.print(`  ${c.dim("·")} ${c.dim("no agent to chat with yet — it appears as soon as one registers")}`);
+        return;
+    }
+
+    const wanted = (process.env.PINECALL_RUN_AGENT || "").trim();
+    const picked = wanted ? targets.find((a) => a.id === wanted) : undefined;
+    if (picked) { chatWith(host, v, picked); return; }
+    if (targets.length === 1) { chatWith(host, v, targets[0]!); return; }
+
+    v.print("");
+    v.print(`  ${c.dim("·")} ${c.dim("which agent?")}`);
+    targets.forEach((a, i) => v.print(`  ${c.dim(`${i + 1})`)} ${c.bold(a.id)}`));
+
+    const pick: { agent: ChatAgentLike | null } = { agent: null };
+    prompt = openLine(host, v, `  ${c.dim("agent")} ${c.dim("›")} `, (line) => {
+        const n = Number(line);
+        if (!Number.isInteger(n) || n < 1 || n > targets.length) {
+            v.print(`  ${c.dim("·")} ${c.dim(`pick 1–${targets.length}, or Esc`)}`);
+            return;
+        }
+        pick.agent = targets[n - 1]!;
+        prompt?.close();
+    }, () => { if (pick.agent) chatWith(host, v, pick.agent); });
+    if (!prompt) offTty(v);
+}
+
+function chatWith(host: RunnerHost, v: LiveView, agent: ChatAgentLike): void {
+    const { c } = v;
+    let session = chatSessions.get(agent.id);
+    if (!session) { session = newChatSession(); chatSessions.set(agent.id, session); }
+
+    v.print(`  ${c.dim("·")} ${c.dim(`chatting with ${agent.id} — Esc or an empty line closes the prompt`)}`);
+    prompt = openLine(host, v, `  ${c.cyan("you")} ${c.dim("›")} `, (line) => {
+        try {
+            sendChat(agent, session!, line);
+        } catch (err) {
+            v.print(`  ${c.yellow("·")} ${c.dim(`could not send — ${(err as Error).message}`)}`);
+        }
+    });
+    if (!prompt) offTty(v);
+}
+
+/**
+ * Open a prompt: it takes stdin from the shortcuts and hands it back on close.
+ * The line is drawn as the view's pinned last row, so the transcript — including
+ * the agent's reply to what was just typed — keeps scrolling above it.
+ */
+function openLine(
+    host: RunnerHost,
+    v: LiveView,
+    label: string,
+    onSubmit: (line: string) => void,
+    after?: () => void,
+): OpenPrompt | null {
+    releaseKeys?.();
+    releaseKeys = null;
+    const opened = openPrompt({
+        input: process.stdin as any,
+        label,
+        render: (line) => v.pin(line),
+        onSubmit,
+        onClose: () => {
+            prompt = null;
+            bindKeys(host, v);
+            after?.();
+        },
+    });
+    if (!opened) bindKeys(host, v);   // not a TTY after all — put the keys back
+    return opened;
+}
+
+function offTty(v: LiveView): void {
+    v.print(`  ${v.c.dim("·")} ${v.c.dim("chat needs an interactive terminal — use the web console instead")}`);
+}
+
+// ── `--call <number>` — the agent rings you ──────────────────────────────
+
+let ringing = false;
+
+/**
+ * Dial once per run, as soon as the agent the call belongs to is registered
+ * server-side (`agent.ready`) — before that the server has no such agent and
+ * the dial 404s.
+ */
+function maybeRing(agent: Agent): void {
+    const to = (process.env.PINECALL_RUN_CALL || "").trim();
+    if (!to || ringing) return;
+    const wanted = (process.env.PINECALL_RUN_AGENT || "").trim();
+    if (wanted && agent.id !== wanted) return;
+    ringing = true;
+
+    const v = getView();
+    const { c } = v;
+    const say = (glyph: string, line: string) => { v.print(`  ${glyph} ${line}`); v.print(""); };
+
+    Promise.resolve(agent.ready)
+        .then(() => ringMe(agent as unknown as DialAgentLike, to))
+        .then((result) => {
+            if (result.ok) say(c.green("☎"), result.message);
+            else say(c.yellow("☎"), c.dim(result.message));
+        })
+        .catch((err: Error) => say(c.yellow("☎"), c.dim(`could not call ${to} — ${err?.message ?? String(err)}`)));
 }
 
 function open(url: string, v: LiveView): void {
@@ -211,6 +364,8 @@ function open(url: string, v: LiveView): void {
 function quit(host: RunnerHost, v: LiveView): void {
     v.print("");
     v.print(`  ${v.c.dim("·")} ${v.c.dim("bye")}`);
+    prompt?.close();
+    prompt = null;
     releaseKeys?.();
     releaseKeys = null;
     const done = () => {
