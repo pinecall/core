@@ -9,6 +9,7 @@
  *   pinecall phones                     List phone numbers
  *   pinecall voices [--provider] [--language]  List TTS voices
  *   pinecall tts "<text>" [-o out.wav]  Text-to-speech to a file or stdout
+ *   pinecall stt <file> | --stream      Speech-to-text from a file or live PCM on stdin
  *   pinecall chat [agent]               Chat with a connected agent
  *   pinecall balance                    Show Twilio balance
  *   pinecall account                    Org overview (keys, twilio, phones)
@@ -38,6 +39,8 @@ const HELP = `
     voices                 ${c.dim("List available TTS voices")}
     voices play            ${c.dim("Preview a voice")}
     tts "<text>"           ${c.dim("Text-to-speech → file (-o) or stdout; --words for timestamps")}
+    stt <file>             ${c.dim("Speech-to-text → stdout (-o file); --diarize, --format srt|vtt|json")}
+    stt --stream           ${c.dim("Live transcription of raw PCM on stdin (sox/ffmpeg → pinecall stt --stream)")}
     balance                ${c.dim("Show credit balance")}
     usage                  ${c.dim("Credit usage breakdown")}
     calls                  ${c.dim("Call history")}
@@ -85,7 +88,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["mcp", "account", "twilio", "voices", "tts", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
+const SELF_HELP_COMMANDS = new Set(["mcp", "account", "twilio", "voices", "tts", "stt", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -188,6 +191,11 @@ async function main(): Promise<void> {
         case "tts": {
             const { ttsCommand } = await import("./cli/commands/tts.js");
             await ttsCommand(config, args);
+            break;
+        }
+        case "stt": {
+            const { sttCommand } = await import("./cli/commands/stt.js");
+            await sttCommand(config, args);
             break;
         }
         case "balance": {

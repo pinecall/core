@@ -102,7 +102,8 @@
       {
         "group": "Use it without an agent",
         "pages": [
-          "guides/text-to-speech"
+          "guides/text-to-speech",
+          "guides/speech-to-text"
         ]
       },
       {
