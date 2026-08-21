@@ -3,7 +3,8 @@
  *
  * Spawns tsx (for .ts) or node (for .js/.mjs) with PINECALL_CLI_RUN=1,
  * which triggers the SDK to auto-attach the runner display (boot banner,
- * live transcript, tool call formatting).
+ * live transcript, tool call formatting — see src/cli/live-view.ts).
+ * `--events` adds PINECALL_RUN_EVENTS=1: every event name + payload summary.
  *
  * The user's file is a complete agent — this just adds the terminal UI.
  */
@@ -21,6 +22,10 @@ const HELP = `
   ${c.bold("Usage")}
     pinecall run agent.ts          ${c.dim("Run a TypeScript agent")}
     pinecall run server.js         ${c.dim("Run a JavaScript agent")}
+    pinecall run agent.ts --events ${c.dim("Also print every event (debug)")}
+
+  ${c.bold("Flags")}
+    --events      ${c.dim("print every agent event name + payload summary (PINECALL_RUN_EVENTS=1)")}
 
   ${c.bold("Requirements")}
     .ts files require ${c.cyan("tsx")} — install with: ${c.dim("npm i -g tsx")}
@@ -69,7 +74,8 @@ export async function runCommand(_config: any, argv: string[]): Promise<void> {
 
     const { bin, args: runnerArgs } = runner!;
     const isWin = process.platform === "win32";
-    const spawnEnv = { ...process.env, PINECALL_CLI_RUN: "1" };
+    const spawnEnv: NodeJS.ProcessEnv = { ...process.env, PINECALL_CLI_RUN: "1" };
+    if (argv.includes("--events")) spawnEnv.PINECALL_RUN_EVENTS = "1";
     const spawnCwd = resolve(file, "..");
 
     // Spawn the agent process
