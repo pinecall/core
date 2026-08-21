@@ -70,13 +70,36 @@ Every command at a glance (run `pinecall --help` for the same list):
 
 ### `pinecall run <file>`
 
-Run an agent file with a live terminal display. The primary way to develop and test agents.
+Run an agent file with a live terminal display **and a local web console**. The primary way to develop and test agents.
 
 ```bash
 pinecall run agent/index.ts
 pinecall run agent/index.js
 pinecall run agent/index.ts --events   # debug: print every event
+pinecall run agent/index.ts --open     # open the web console in the browser
+pinecall run agent/index.ts --no-ui    # terminal only
 ```
+
+**Flags**
+
+| Flag | Env | What it does |
+|------|-----|--------------|
+| `--events` | `PINECALL_RUN_EVENTS=1` | print every event name + payload summary |
+| `--open` | `PINECALL_RUN_OPEN=1` | open the console in the default browser on boot |
+| `--no-ui` | `PINECALL_RUN_UI=0` | do not start the web console |
+| `--ui-port <n>` | `PINECALL_RUN_UI_PORT` | console port (default `4747`; the next 10 are tried if busy) |
+| `--ui-host <h>` | `PINECALL_RUN_UI_HOST` | console interface (default `127.0.0.1`) |
+
+The flag wins over the environment variable. Global flags (`--api-key`, `--server`, `--json`, …) apply as usual.
+
+**Keys** (in a TTY, while the agent runs)
+
+| Key | What it does |
+|-----|--------------|
+| `p` | open the console in the browser |
+| `c` | terminal chat — not yet; points you at the console's chat tab |
+| `e` | toggle event printing on and off, live |
+| `q` | quit — closes the console, disconnects, restores the terminal (so does `Ctrl-C`) |
 
 ```
   ⚡ booting pines  ·  gpt-5.4-nano · cartesia/sonic
@@ -121,6 +144,14 @@ A session that never announces itself — `pinecall chat`, the MCP `chat` tool, 
 ```
 
 `NO_COLOR` disables colours. Uses `tsx` for `.ts` files, `node` for `.js`. Sets `PINECALL_CLI_RUN=1` which triggers the SDK's built-in runner display (boot banner, live transcript, tool call formatting). The agent file needs zero changes — `pinecall run` just adds the terminal UI.
+
+**The web console.** The same process also serves a local web app — the banner prints its URL:
+
+```
+  ◉ console → http://127.0.0.1:4747   (p open · c chat · e events · q quit)
+```
+
+Calls the process is handling (live and recent), the selected call's transcript growing word by word with tools inline, an events drawer, and a panel that **calls the agent from the browser over WebRTC** or chats with it by text. It binds `127.0.0.1`; on any other host (`--ui-host 0.0.0.0`) every request needs the per-run key printed in the banner (`?k=…`). Tokens are minted by the runner — your API key never reaches the page. Full walkthrough: [The run console](/guides/run-console).
 
 > **Convention:** Agent code lives in `agent/index.ts` (or `.js`), tools in `agent/tools.ts`. Export the agent: `export const agent = pc.agent(...)`.
 

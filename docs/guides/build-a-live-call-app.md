@@ -5,6 +5,13 @@ description: "Step by step: a restaurant voice agent you can talk to from the br
 
 # Build a Live Call App
 
+> **`pinecall run` now ships a console that does this out of the box** — call
+> the agent from the browser, watch every call live, chat by text, with no code
+> at all ([The run console](/guides/run-console)). It is a development tool:
+> local, unstyled by you, unauthenticated beyond a loopback bind. Build your own
+> when you need **your** design, **your** auth and **your** data next to the
+> call — this guide is how.
+
 This guide builds a complete app, step by step: **Bistro Aurora**, a restaurant
 host that
 
