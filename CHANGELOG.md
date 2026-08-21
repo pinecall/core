@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.12.0] — 2026-08-21 — pinecall run grows a console: the terminal goes live and the browser joins in
+
+`pinecall run` is now the whole dev loop. The terminal view shows what the
+caller is saying while they say it, the agent's words as they are spoken, the
+turn state and every tool call; a local web console on `127.0.0.1:4747` lets
+you call the agent from the browser, watch every phone/WebRTC/chat/WhatsApp
+call live and chat by text; `c` opens a chat prompt in the terminal and
+`--call` makes the agent ring you. One event bus, three observers — the
+terminal, the web console and whatever you build with `pc.stream()`.
+
 ### Added
 - **A local web console in `pinecall run`.** The agent process now serves a
   small HTTP server (127.0.0.1:4747 by default) and prints its URL in the boot
