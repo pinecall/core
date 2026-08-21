@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.12.1] — 2026-08-22 — one frame per event: no more duplicate bubbles
+
 ### Fixed
 - **A call's events could be written twice on `pc.stream()`/`agent.stream()`
   and the console's `GET /events`.** A duplicated wire frame from the server

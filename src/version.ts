@@ -16,4 +16,4 @@
 declare const __PKG_VERSION__: string;
 
 export const VERSION: string =
-    typeof __PKG_VERSION__ !== "undefined" ? __PKG_VERSION__ : "0.12.0";
+    typeof __PKG_VERSION__ !== "undefined" ? __PKG_VERSION__ : "0.12.1";
