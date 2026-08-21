@@ -236,7 +236,16 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         // Auto-attach runner display for `pinecall run`
         if (this.#getEnv("PINECALL_CLI_RUN") === "1") {
             import("./runner.js").then((mod) => {
-                this.#runnerHook = mod.attachRunner();
+                // The host is what the runner's web console needs — the agents
+                // it observes, where to mint tokens, and how to stream. The API
+                // key is NOT part of it: it never leaves this object.
+                this.#runnerHook = mod.attachRunner({
+                    agents: this.#agents,
+                    apiUrl: this.#apiUrl,
+                    createToken: (channel, agentId, metadata) => this.createToken(channel, agentId, metadata),
+                    stream: (res, opts) => this.stream(res, opts),
+                    close: () => this.disconnect(),
+                });
                 // Attach to any agents already created before import resolved
                 for (const agent of this.#agents.values()) {
                     this.#runnerHook!(agent);

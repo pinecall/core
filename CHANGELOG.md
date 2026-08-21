@@ -10,6 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A local web console in `pinecall run`.** The agent process now serves a
+  small HTTP server (127.0.0.1:4747 by default) and prints its URL in the boot
+  banner: `◉ console → http://127.0.0.1:4747   (p open · c chat · e events · q
+  quit)`. It exposes the process over a frozen contract — `GET /api/agents`,
+  `GET /api/calls` (live calls plus the last 50 ended, with their transcript),
+  `GET /events` (SSE: a `console.hello` resync frame with `{ agents, calls }`,
+  then every agent event, plus `llm.toolCall` and a synthetic `llm.toolResult`
+  the public `pc.stream()` does not carry), `POST /token` and
+  `POST /chat-token` (minted per request with `{ console: true }` metadata —
+  the API key never reaches the page) and `POST /api/calls/:id/hangup`. The
+  built web app is served from `dist/ui/` inside the installed package; a
+  source checkout without it gets a page listing the endpoints instead.
+- **Console flags:** `--no-ui` (`PINECALL_RUN_UI=0`), `--ui-port <n>`
+  (`PINECALL_RUN_UI_PORT`, the next 10 ports are tried if it is busy),
+  `--ui-host <h>` (`PINECALL_RUN_UI_HOST`) and `--open`
+  (`PINECALL_RUN_OPEN=1`, opens the browser on boot).
+- **Keyboard shortcuts in a TTY:** `p` opens the console, `e` turns the
+  every-event debug mode on and off *at runtime*, `q` / Ctrl-C quits
+  gracefully (the server closes, the client disconnects), `c` is reserved for
+  the terminal chat prompt. With stdin piped nothing is touched.
+- **`@pinecall/sdk/console`** — the transcript reducer and the calls model, the
+  ONE event → conversation state machine the terminal view, the console server
+  and the browser app all run on. Pure, dependency-free and browser-clean
+  (`CallSnapshot`, `TranscriptLine`, `createTranscriptStore`,
+  `createCallsModel`).
+
+### Security
+- The console binds loopback by default. On any other interface every request
+  must carry the per-run key (`?k=…`, which then sets the `pc_console`
+  cookie) or it is 401. The key is generated per run and never leaves the
+  process; the API key is never sent to the page and never logged.
 - **The `pinecall run` web console (`dist/ui/`).** A prebuilt single-page app
   shipped inside the package — no CDN and no second install — that the runner
   serves at `http://127.0.0.1:4747`. Three columns on the Pinecall design
@@ -39,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a pointer to the console.
 
 ### Changed
+- `src/cli/live-view.ts` no longer decides *what* was said — only how to draw
+  it. The state machine moved to `src/cli/console/transcript-reducer.ts` and
+  the view paints the effects it emits, so the terminal, the web console and
+  the browser cannot drift. Rendered output is unchanged.
 - **`pinecall run` is live.** The terminal display no longer waits for the
   finals: in a TTY the caller's line grows as words are recognised
   (`user.speaking`) and is fixed on `user.message`; the agent's line grows
