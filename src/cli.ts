@@ -8,6 +8,7 @@
  *   pinecall agents                     List connected agents
  *   pinecall phones                     List phone numbers
  *   pinecall voices [--provider] [--language]  List TTS voices
+ *   pinecall tts "<text>" [-o out.wav]  Text-to-speech to a file or stdout
  *   pinecall chat [agent]               Chat with a connected agent
  *   pinecall balance                    Show Twilio balance
  *   pinecall account                    Org overview (keys, twilio, phones)
@@ -36,6 +37,7 @@ const HELP = `
     phones remove          ${c.dim("Remove a number")}
     voices                 ${c.dim("List available TTS voices")}
     voices play            ${c.dim("Preview a voice")}
+    tts "<text>"           ${c.dim("Text-to-speech → file (-o) or stdout; --words for timestamps")}
     balance                ${c.dim("Show credit balance")}
     usage                  ${c.dim("Credit usage breakdown")}
     calls                  ${c.dim("Call history")}
@@ -83,7 +85,7 @@ const HELP = `
 `;
 
 // Commands that handle their own --help
-const SELF_HELP_COMMANDS = new Set(["mcp", "account", "twilio", "voices", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
+const SELF_HELP_COMMANDS = new Set(["mcp", "account", "twilio", "voices", "tts", "test", "chat", "signup", "phone", "phones", "agents", "balance", "usage", "calls", "run", "kick", "knowledge", "conversations", "convos"]);
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -181,6 +183,11 @@ async function main(): Promise<void> {
         case "voices": {
             const { voicesCommand } = await import("./cli/commands/voices.js");
             await voicesCommand(config, args);
+            break;
+        }
+        case "tts": {
+            const { ttsCommand } = await import("./cli/commands/tts.js");
+            await ttsCommand(config, args);
             break;
         }
         case "balance": {

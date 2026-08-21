@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`pinecall tts "<text>" [-o out.wav]`** — text-to-speech from the terminal
+  over `pc.audio.speech()`. `--voice provider/alias` (default `elevenlabs/sarah`),
+  `--model`, `--lang`, `--format pcm|wav|mp3` (inferred from the `-o` extension),
+  `--rate 16000|24000`, `--words` (prints `start\tend\tword` to stderr as they
+  arrive). Text from the argument or stdin; audio goes to the file or to a
+  non-TTY stdout (`… --format wav | ffplay -`), never to a terminal. Ends with
+  request id, characters, audio ms and elapsed on stderr; refusals print the
+  `AudioApiError` code plus a one-line fix. Docs: `guides/text-to-speech` and
+  `reference/audio-api`.
 - **`pc.audio.speech()` / `pc.audio.voices()`** — standalone text-to-speech,
   no agent and no call. `speech({ input, voice, language?, model?, format?,
   sampleRate?, speed?, timestamps?, signal? })` POSTs `/v1/audio/speech` and
