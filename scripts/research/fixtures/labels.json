@@ -1,0 +1,54 @@
+{
+  "_doc": "Manual labels, 2026-08-21, by reading each extracted page. keep = useful content; low = real but weak (index of links, stub, tiny); drop:<reason> = junk for a voice-agent KB (empty, shell = JS-only app page, dup = same extracted text as another page, linkfarm = only links, legal, auth, banner = extraction picked a banner instead of the content). Junk for precision/recall = every drop:* label.",
+  "basecamp": {
+    "index.md": "keep", "2.md": "drop:dup", "5.md": "keep", "about.md": "keep", "accessibility.md": "keep",
+    "agents.md": "keep", "apps.md": "keep", "before-and-after.md": "low", "books.md": "keep",
+    "classes.md": "drop:dup", "cloud-exit.md": "keep", "community.md": "keep", "customers.md": "low",
+    "discounts.md": "keep", "features.md": "keep", "gettingreal.md": "drop:banner", "handbook.md": "keep",
+    "help.md": "drop:dup", "hill-charts.md": "keep", "integrations.md": "low", "keyboard.md": "keep",
+    "learn.md": "drop:empty", "live.md": "low", "managers.md": "drop:banner", "newsletter.md": "low",
+    "overkill.md": "keep", "paths.md": "keep", "pricing.md": "keep", "reliable.md": "keep",
+    "shapeup.md": "keep", "small.md": "keep", "support.md": "drop:empty", "underdogs.md": "keep",
+    "2__integrations.md": "low", "guides__group-chat-problems.md": "keep", "guides__how-we-communicate.md": "keep",
+    "guides__how-we-make-decisions.md": "keep", "guides__seven-shipping-principles.md": "keep",
+    "guides__why-we-choose-profit.md": "keep", "support__testimonials.md": "low",
+    "retired__tadalist.md": "keep", "retired__backpack.md": "keep", "retired__writeboard.md": "keep",
+    "retired__campfire.md": "keep", "shapeup__0.1-foreword.md": "keep", "shapeup__0.2-acknowledgements.md": "low",
+    "shapeup__0.3-chapter-01.md": "keep", "shapeup__1.1-chapter-02.md": "keep", "shapeup__1.2-chapter-03.md": "keep",
+    "shapeup__1.3-chapter-04.md": "keep", "shapeup__1.4-chapter-05.md": "keep", "shapeup__1.5-chapter-06.md": "keep",
+    "shapeup__2.1-chapter-07.md": "keep", "shapeup__2.2-chapter-08.md": "keep", "shapeup__2.3-chapter-09.md": "keep",
+    "shapeup__3.1-chapter-10.md": "keep", "shapeup__3.2-chapter-11.md": "keep", "shapeup__3.3-chapter-12.md": "keep",
+    "shapeup__3.4-chapter-13.md": "keep", "shapeup__3.5-chapter-14.md": "keep"
+  },
+  "caveman": {
+    "index.md": "keep", "activate.md": "drop:shell", "cavebench.md": "keep", "data-use.md": "drop:legal",
+    "developers.md": "keep", "enterprise.md": "keep", "forgot-password.md": "drop:auth", "labs.md": "keep",
+    "news.md": "low", "pricing.md": "keep", "privacy.md": "drop:legal", "products.md": "low",
+    "reset-password.md": "drop:shell", "signup.md": "drop:auth", "terms.md": "drop:legal",
+    "cavebench__leaderboard.md": "keep", "news__caveman-live-on-greenpt.md": "keep",
+    "news__efficiency-and-the-token-economy.md": "keep", "news__how-removing-tokens-raised-the-bill.md": "keep",
+    "news__the-47-tokens-your-agent-should-never-summarize.md": "keep", "news__the-average-stayed-flat.md": "keep",
+    "news__we-cut-26-percent-and-refused-the-claim.md": "keep", "news__your-agent-pays-before-it-works.md": "keep",
+    "privacy__cloud.md": "drop:legal", "products__cavegemma.md": "keep", "products__cavekit.md": "keep",
+    "products__caveman.md": "keep", "products__caveman-agent.md": "keep", "products__caveman-browse.md": "keep",
+    "products__caveman-cloud.md": "keep", "products__caveman-code.md": "keep", "products__caveman-proxy.md": "keep",
+    "products__cavemem.md": "keep", "labs__articles__cavebench-methodology.md": "keep",
+    "labs__articles__caveman-phenomenon.md": "keep", "labs__articles__logs-as-pixels.md": "keep",
+    "labs__articles__zero-dollar-dashboard.md": "keep"
+  },
+  "pcdocs": {
+    "index.md": "keep", "quickstart.md": "keep", "guides__project-structure.md": "keep", "guides__dev-mode.md": "keep",
+    "concepts__deployment-topologies.md": "keep", "mobile__ionic-overview.md": "keep", "guides__text-to-speech.md": "keep",
+    "guides__speech-to-text.md": "keep", "concepts__agents-and-channels.md": "keep", "guides__inbound-voice.md": "keep",
+    "guides__whatsapp.md": "keep", "guides__webrtc-browser.md": "keep", "guides__call-log.md": "keep",
+    "guides__build-a-live-call-app.md": "keep", "guides__realtime-speech.md": "keep", "api__pinecall.md": "keep",
+    "reference__stt-providers.md": "keep"
+  },
+  "joel": {
+    "index.md": "low",
+    "_default": "keep",
+    "2000__03__28__20000328.md": "low", "2000__04__06__20000406.md": "low", "2000__05__02__20000502.md": "low",
+    "2000__08__04__20000804.md": "low", "2000__08__14__20000814.md": "low", "2000__08__31__20000831.md": "low",
+    "2000__09__29__20000929.md": "low", "2000__09__19__20000919.md": "low"
+  }
+}

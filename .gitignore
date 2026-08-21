@@ -24,3 +24,4 @@ NEXT.md
 # Worktrees de trabajo (taskops y los de call-log): nunca al repo.
 .worktrees/
 .taskops/
+.research-data/
