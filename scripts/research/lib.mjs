@@ -93,7 +93,25 @@ export function costOf(model, usage) {
  * `format` (a JSON schema) switches to mode "analysis" — a suggestion to
  * Anthropic, not a constraint, so callers JSON.parse inside try/catch.
  */
-export async function llm({ system, user, model = "haiku", maxTokens = 1024, format, temperature = 0 }) {
+export async function llm(opts) {
+    // The gateway occasionally answers 200 with an EMPTY stream (no token, no
+    // done frame) when Anthropic is overloaded — seen 2026-08-21 with four
+    // spikes running in parallel. Treat that as a failure and retry.
+    let lastErr;
+    for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+            const r = await llmOnce(opts);
+            if (r.text.trim() || r.usage.output_tokens > 0) return r;
+            lastErr = new Error("empty stream from gateway");
+        } catch (e) {
+            lastErr = e;
+            if (/llm 4\d\d/.test(e.message) && !/429/.test(e.message)) throw e;
+        }
+        await new Promise((res) => setTimeout(res, 1500 * 2 ** attempt));
+    }
+    throw lastErr;
+}
+async function llmOnce({ system, user, model = "haiku", maxTokens = 1024, format, temperature = 0 }) {
     const started = Date.now();
     const body = {
         model,

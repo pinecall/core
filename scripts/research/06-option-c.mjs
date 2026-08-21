@@ -81,6 +81,7 @@ for (const site of sites) {
         cost += res.cost; ms += res.ms;
         logCost({ script: "06-option-c", mode, site, model, path: d.path, usage: res.usage, cost: res.cost, ms: res.ms });
         let out = res.text.trim().replace(/^```(?:markdown|md)?\n([\s\S]*)\n```$/m, "$1").trim();
+        if (!out) { console.error(`  ${d.path}: empty output, kept original`); docs.push(d); rows.push({ path: d.path, error: "empty output" }); continue; }
         const fid = fidelity(body, out);
         const tokOut = estimateTokens(out);
         rows.push({
