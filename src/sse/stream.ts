@@ -13,6 +13,29 @@ export interface StreamOptions {
     agents?: string[];
 }
 
+// ─── Dedup ───────────────────────────────────────────────────────────────
+
+/**
+ * A call's events can reach an agent listener more than once for the same
+ * logical message — a re-sent wire frame from the server, or a call proxied
+ * twice under a race. Each SSE connection guards against writing the same
+ * (event, callId, messageId) frame twice: the FIRST copy wins, every later
+ * one is dropped before it reaches `res.write()`. Events with no messageId
+ * (call.started, audio.metrics, …) are never deduped — only a message has an
+ * id to be idempotent on.
+ */
+function createDedupeGuard(): (event: string, data: Record<string, unknown>) => boolean {
+    const seen = new Set<string>();
+    return (event, data) => {
+        const messageId = typeof data.messageId === "string" ? data.messageId : "";
+        if (!messageId) return false;
+        const key = `${event}|${data.callId ?? ""}|${messageId}`;
+        if (seen.has(key)) return true;
+        seen.add(key);
+        return false;
+    };
+}
+
 // ─── Agent stream ────────────────────────────────────────────────────────
 
 export function createAgentStream(agent: Agent): Response;
@@ -35,9 +58,11 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
         res.flushHeaders();
         res.write(formatSSE("connected", { agent: agent.id }));
 
+        const dedupe = createDedupeGuard();
         for (const evt of STREAM_EVENTS) {
             const handler = (...args: any[]) => {
                 const data = buildEventData(evt, args);
+                if (dedupe(evt, data)) return;
                 const payload = { ...data, agent: agent.id };
                 try { res.write(formatSSE(evt, payload)); } catch { cleanup(); }
             };
@@ -61,9 +86,11 @@ export function createAgentStream(agent: Agent, res?: ServerResponse): Response 
                 formatSSE("connected", { agent: agent.id }),
             ));
 
+            const dedupe = createDedupeGuard();
             for (const evt of STREAM_EVENTS) {
                 const handler = (...args: any[]) => {
                     const data = buildEventData(evt, args);
+                    if (dedupe(evt, data)) return;
                     const payload = { ...data, agent: agent.id };
                     try {
                         controller.enqueue(encoder.encode(formatSSE(evt, payload)));
@@ -133,10 +160,12 @@ export function createMultiAgentStream(
         res.flushHeaders();
         res.write(formatSSE("connected", { agents: agentIds }));
 
+        const dedupe = createDedupeGuard();
         for (const agent of targetAgents) {
             for (const evt of STREAM_EVENTS) {
                 const handler = (...args: any[]) => {
                     const data = buildEventData(evt, args);
+                    if (dedupe(evt, data)) return;
                     const payload = { ...data, agent: agent.id };
                     try { res!.write(formatSSE(evt, payload)); }
                     catch { cleanup(); }
@@ -162,10 +191,12 @@ export function createMultiAgentStream(
                 formatSSE("connected", { agents: agentIds }),
             ));
 
+            const dedupe = createDedupeGuard();
             for (const agent of targetAgents) {
                 for (const evt of STREAM_EVENTS) {
                     const handler = (...args: any[]) => {
                         const data = buildEventData(evt, args);
+                        if (dedupe(evt, data)) return;
                         const payload = { ...data, agent: agent.id };
                         try { controller.enqueue(encoder.encode(formatSSE(evt, payload))); }
                         catch { cleanup(); }
