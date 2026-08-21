@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.11.0] — 2026-08-21 — speech-to-text without a call: files, live audio, and who said what
+
+The other half of the standalone audio stack. `pc.audio.transcribe()` turns a
+file into text (with speaker labels when you ask), `pc.audio.transcribeStream()`
+turns a live microphone into partials and finals over a WebSocket, and
+`pinecall stt` does both from the terminal — same providers your agents listen
+with (ElevenLabs Scribe, Deepgram nova-3, Soniox incl. its async diarization),
+billed per minute on the same credits, free on your own provider key, no agent
+and no call required.
+
 ### Added
 - **`pc.audio.transcribe()`** — standalone speech-to-text, no agent and no
   call. `transcribe(input, { model?, language?, diarize?, format?, filename?,
