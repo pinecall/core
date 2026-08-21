@@ -15,27 +15,32 @@
  * Everything is written through the injected `out`, so tests drive it with a
  * fake stream and a fake clock; nothing in here touches process.stdout.
  *
- * What it listens to is exactly what the SDK emits (src/domain/agent.ts):
- *   call.started / call.ended / call.ringing
- *   speech.started · user.speaking {text} · user.message {text}
- *   eager.turn · turn.pause · turn.end · turn.resumed · turn.continued
- *   bot.speaking {text} · bot.word {word} · bot.finished · bot.interrupted
- *   llm.toolCall {toolCalls[]}
- *   whatsapp.message {from,name,text} · whatsapp.response {to,text}
+ * ── What is state and what is paint ──────────────────────────────────────
  *
- * The bot's line is what has been HEARD: on voice, `bot.speaking` may carry
- * the whole text up front but nothing is shown until `bot.word` plays it;
- * chat and WhatsApp have no audio and no words, so there `bot.speaking` IS
- * the line (chunks are coalesced as they stream and fixed after a short
- * settle, or on the next event).
+ * This file no longer decides WHAT was said — only how to draw it. The event →
+ * conversation state machine lives in `./console/transcript-reducer.ts` and is
+ * shared with the web console's CallsModel and with the browser app, so the
+ * three observers of a `pinecall run` process cannot drift. The view owns a
+ * store, subscribes agents to it, and paints the effects it emits:
  *
- * A session that never announced itself — `pinecall chat`, the MCP chat tool,
- * any llm.chat client: `user.message` / `bot.speaking` with no `call.started`
- * before them — gets an implicit context on its first event, so its lines
- * render all the same.
+ *   session.started / session.ended · ringing
+ *   caller.line · agent.line · tool.call · tool.result
+ *   draft            ← the live last line moved (interim, bot words, turn state)
+ *   wa.message / wa.response
+ *
+ * The semantics (interims replace, the bot line is what has been HEARD, chat
+ * replies settle, an unannounced session gets an implicit context) are
+ * documented in the reducer.
  */
 
 import { palette, stripAnsi, type Palette } from "./ui.js";
+import {
+    createTranscriptStore,
+    type CallSnapshot,
+    type TranscriptEffect,
+    type TranscriptState,
+    type TranscriptStore,
+} from "./console/transcript-reducer.js";
 
 // ── Public surface ───────────────────────────────────────────────────────
 
@@ -90,40 +95,30 @@ export interface LiveView {
     detach(agent: LiveViewAgent): void;
     /** Print a plain line (boot banner, notices) through the same stream, keeping the live line intact. */
     print(line: string): void;
+    /**
+     * Pin a line to the bottom of the screen — the terminal chat prompt lives
+     * there. While something is pinned the transcript keeps scrolling above it
+     * but the live call line (interims, bot words, turn state) stops competing
+     * for the last row. `pin(null)` releases it and hands the row back.
+     *
+     * A no-op off a TTY: there is no last line to own.
+     */
+    pin(line: string | null): void;
     /** Print a tool result (`✓ …`) under the call the tool ran in. */
     toolResult(agent: LiveViewAgent, call: LiveViewCall | undefined, result: unknown): void;
     /** Format a JSON value for the terminal — exposed so the runner shares one colouriser. */
     json(value: unknown, inline?: boolean): string;
+    /** Turn the every-event debug mode on or off at runtime (the runner's `e` key). */
+    setEvents(on: boolean): void;
+    /** Whether debug mode is on right now. */
+    readonly events: boolean;
+    /** The conversation state — shared with the web console so the two cannot drift. */
+    readonly store: TranscriptStore;
     /** The palette in use (respects `color`). */
     readonly c: Palette;
 }
 
 // ── Internals ────────────────────────────────────────────────────────────
-
-type TurnState = "listening" | "thinking" | "pause" | "speaking";
-
-interface CallState {
-    id: string;
-    agentId: string;
-    label: string;
-    transport: string;
-    startedAt: number;
-    /** Interim caller text (voice) — replaced on each user.speaking, fixed on user.message. */
-    interim: string;
-    /** The bot line being built. null = no utterance in flight. */
-    bot: string | null;
-    /** Full text announced by bot.speaking (voice fallback when no words arrive). */
-    botAnnounced: string;
-    /** bot.word count of the utterance in flight — decides text vs voice when the channel is unknown. */
-    words: number;
-    /** Pending settle timer for a text reply (chat / unknown channel). */
-    settle: ReturnType<typeof setTimeout> | null;
-    /** Opened on the first event of a session that never sent call.started. */
-    implicit: boolean;
-    /** Everything the agent said this turn — a re-sent or cumulative bot.speaking must not print it twice. */
-    lastBot: string;
-    state: TurnState;
-}
 
 const INDENT = "  ";
 const TOOL_INDENT = "          ";
@@ -148,15 +143,24 @@ const DEBUG_EVENTS = [
 export function createLiveView(opts: LiveViewOptions): LiveView {
     const out = opts.out;
     const tty = opts.tty;
-    const debug = opts.events === true;
+    let debug = opts.events === true;
     const clock = opts.clock ?? (() => Date.now());
-    const settleMs = opts.settleMs ?? 300;
     const c = palette(opts.color);
 
-    const agents = new Map<string, Array<[string, (...a: any[]) => void]>>();
-    const calls = new Map<string, CallState>();
+    const store = createTranscriptStore({ clock, settleMs: opts.settleMs });
+    const calls = store.live;
+
+    /** Attached agents: the emitter, its debug subscriptions, and the store's detach. */
+    interface Attached {
+        agent: LiveViewAgent;
+        debugSubs: Array<[string, (...a: any[]) => void]>;
+        release: () => void;
+    }
+    const agents = new Map<string, Attached>();
     /** The redrawable last line (TTY only). null = cursor sits on a fresh line. */
     let live: string | null = null;
+    /** A line that OWNS the last row (the chat prompt). null = the calls own it. */
+    let pinned: string | null = null;
 
     // ── Low-level writing ────────────────────────────────────────────
 
@@ -197,13 +201,18 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
 
     // ── Prefixes and timing ─────────────────────────────────────────
 
-    const rel = (cs: CallState | undefined) =>
+    const rel = (cs: CallSnapshot | undefined) =>
         cs ? `t+${((clock() - cs.startedAt) / 1000).toFixed(1)}s` : "";
 
-    function prefix(agentId: string, cs?: CallState): string {
+    /**
+     * `extra` counts calls that are no longer in the store but still being
+     * drawn — the "call ended" line belongs to the session that just left, so
+     * it keeps the prefix it had while it was live.
+     */
+    function prefix(agentId: string, cs?: CallSnapshot, extra = 0): string {
         let p = "";
         if (agents.size > 1) p += c.dim(`[${agentId}] `);
-        if (cs && calls.size > 1) p += c.dim(`[${shortId(cs.id)}] `);
+        if (cs && calls.size + extra > 1) p += c.dim(`[${shortId(cs.id)}] `);
         if (!tty && cs) p += c.dim(rel(cs).padEnd(8)) + " ";
         return p;
     }
@@ -211,287 +220,114 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
     const shortId = (id: string) => (id.length > 6 ? id.slice(-6) : id);
 
     /** Indent for tool lines: deep in a TTY; off a TTY the timestamp leads and the gap follows it. */
-    const toolIndent = (agentId: string, cs?: CallState) =>
+    const toolIndent = (agentId: string, cs?: CallSnapshot) =>
         tty ? `${TOOL_INDENT}${prefix(agentId, cs)}` : `${INDENT}${prefix(agentId, cs)}${TOOL_GAP}`;
 
     const agentLabel = (id: string) => (id.length <= LABEL_WIDTH ? id.padEnd(LABEL_WIDTH) : id);
 
     // ── Transcript lines ────────────────────────────────────────────
 
-    function callerLine(cs: CallState, text: string): void {
-        emitLine(`${INDENT}${prefix(cs.agentId, cs)}${c.cyan("caller")} ${c.dim("›")} ${text}`);
+    function callerLine(cs: CallSnapshot, text: string): void {
+        emitLine(`${INDENT}${prefix(cs.agent, cs)}${c.cyan("caller")} ${c.dim("›")} ${text}`);
     }
 
-    function agentLine(cs: CallState, text: string, cut = false): void {
+    function agentLine(cs: CallSnapshot, text: string, cut = false): void {
         const marker = cut ? ` ${c.dim("⏏")}` : "";
+        const label = agentLabel(cs.agent);
         // A multi-line reply (chat) continues under its own label.
-        const body = text.replace(/\r?\n/g, `\n${INDENT}${" ".repeat(stripAnsi(prefix(cs.agentId, cs)).length + cs.label.length + 3)}`);
-        emitLine(`${INDENT}${prefix(cs.agentId, cs)}${c.purple(cs.label)} ${c.dim("›")} ${body}${marker}`);
-        cs.lastBot = cs.lastBot ? `${cs.lastBot}\n${text}` : text;
+        const body = text.replace(/\r?\n/g, `\n${INDENT}${" ".repeat(stripAnsi(prefix(cs.agent, cs)).length + label.length + 3)}`);
+        emitLine(`${INDENT}${prefix(cs.agent, cs)}${c.purple(label)} ${c.dim("›")} ${body}${marker}`);
     }
 
     /** Redraw the last line for the call that last moved: interim caller words, the growing bot line, or the turn state. */
-    function refresh(cs: CallState): void {
-        if (!tty) return;
+    function refresh(cs: CallSnapshot): void {
+        if (!tty || pinned !== null) return;
         const status = `${c.dim("·")} ${stateGlyph(cs.state)} ${c.dim(rel(cs))}`;
-        const pre = `${INDENT}${prefix(cs.agentId, cs)}`;
-        if (cs.bot !== null && cs.state === "speaking") {
-            setLive(`${pre}${c.purple(cs.label)} ${c.dim("›")} ${cs.bot}${cs.bot ? " " : ""}${status}`);
-        } else if (cs.interim) {
-            setLive(`${pre}${c.cyan("caller")} ${c.dim("›")} ${cs.interim} ${status}`);
+        const pre = `${INDENT}${prefix(cs.agent, cs)}`;
+        const bot = cs.draft.agent;
+        if (bot !== undefined && cs.state === "speaking") {
+            setLive(`${pre}${c.purple(agentLabel(cs.agent))} ${c.dim("›")} ${bot}${bot ? " " : ""}${status}`);
+        } else if (cs.draft.caller) {
+            setLive(`${pre}${c.cyan("caller")} ${c.dim("›")} ${cs.draft.caller} ${status}`);
         } else {
             setLive(`${pre}${stateGlyph(cs.state)} ${c.dim(rel(cs))}`);
         }
     }
 
-    function stateGlyph(state: TurnState): string {
+    function stateGlyph(state: TranscriptState): string {
         switch (state) {
-            case "listening": return `${c.green("●")} listening`;
             case "thinking": return `${c.yellow("●")} thinking`;
             case "pause": return `${c.dim("●")} pause`;
             case "speaking": return `${c.purple("●")} speaking`;
+            default: return `${c.green("●")} listening`;
         }
     }
 
-    function setState(cs: CallState, state: TurnState): void {
-        cs.state = state;
-        refresh(cs);
-    }
+    // ── Effects → paint ─────────────────────────────────────────────
 
-    /** Close the bot line in flight, if any. */
-    function finishBot(cs: CallState, cut = false): void {
-        clearSettle(cs);
-        if (cs.bot === null) return;
-        const text = cs.bot || cs.botAnnounced;
-        if (text) agentLine(cs, text, cut);
-        cs.bot = null;
-        cs.botAnnounced = "";
-        cs.words = 0;
-    }
-
-    /** Text reply in flight: fix it once no more chunks (and no words) arrive for `settleMs`. */
-    function armSettle(cs: CallState): void {
-        clearSettle(cs);
-        cs.settle = setTimeout(() => {
-            cs.settle = null;
-            if (cs.bot === null || cs.words > 0) return;
-            finishBot(cs);
-            setState(cs, "listening");
-        }, settleMs);
-    }
-
-    function clearSettle(cs: CallState): void {
-        if (cs.settle) clearTimeout(cs.settle);
-        cs.settle = null;
-    }
-
-    const isText = (transport: string) => transport === "chat" || transport === "whatsapp";
-    /** No audio for sure (chat/WA), or nobody said — then bot.speaking text is the line unless words prove otherwise. */
-    const isTextual = (cs: CallState) => isText(cs.transport) || cs.transport === "unknown";
-
-    /** Merge a streamed chunk: servers send deltas (append) or the growing text so far (replace). */
-    function mergeChunk(cur: string, text: string): string {
-        if (!cur) return text;
-        if (text.startsWith(cur)) return text;
-        return cur + text;
-    }
-
-    /** Append a spoken word with single-space joining. */
-    function appendWord(line: string, word: string): string {
-        const w = word.trim();
-        if (!w) return line;
-        return line ? `${line} ${w}` : w;
-    }
-
-    // ── Event handlers ──────────────────────────────────────────────
-
-    function onCallStarted(agent: LiveViewAgent, call: LiveViewCall, implicit = false): CallState {
-        const known = calls.get(call.id);
-        if (known) return known;
-        const cs: CallState = {
-            id: call.id,
-            agentId: agent.id,
-            label: agentLabel(agent.id),
-            transport: call.transport ?? "unknown",
-            startedAt: clock(),
-            interim: "",
-            bot: null,
-            botAnnounced: "",
-            words: 0,
-            settle: null,
-            implicit,
-            lastBot: "",
-            state: "listening",
-        };
-        calls.set(call.id, cs);
-        const when = tty ? ` ${c.dim("—")} ${c.dim(wallClock(clock()))}` : "";
-        if (implicit) {
-            // Nobody announced this session (pinecall chat, the MCP chat tool, an llm.chat client).
-            emitLine(`${INDENT}${prefix(agent.id, cs)}${c.green("☎")}  session ${c.dim("—")} ${c.bold(call.from || "chat")} ${c.dim(`· ${cs.transport}`)}${when}`);
-        } else {
-            const dir = call.direction === "outbound" ? "outgoing" : "incoming";
-            const peer = (call.direction === "outbound" ? call.to : call.from) || "unknown";
-            const kind = cs.transport === "chat" ? "chat" : cs.transport === "whatsapp" ? "whatsapp" : "call";
-            emitLine(`${INDENT}${prefix(agent.id, cs)}${c.green("☎")}  ${dir} ${kind} ${c.dim("—")} ${c.bold(peer)} ${c.dim(`· ${cs.transport}`)}${when}`);
-        }
-        refresh(cs);
-        return cs;
-    }
-
-    /**
-     * The context an event belongs to — opened implicitly when the session never
-     * sent call.started / chat.started. Without a call object at all the
-     * context is per agent (one implicit session per agent at a time).
-     */
-    function contextFor(agent: LiveViewAgent, call: LiveViewCall | undefined): CallState {
-        const id = call?.id || `${agent.id}:implicit`;
-        const known = calls.get(id);
-        if (known) return known;
-        return onCallStarted(agent, {
-            id,
-            from: call?.from,
-            to: call?.to,
-            direction: call?.direction,
-            transport: call?.transport ?? "unknown",
-        }, true);
-    }
-
-    function onCallEnded(agent: LiveViewAgent, call: LiveViewCall, reason: string): void {
-        const cs = calls.get(call.id) ?? calls.get(`${agent.id}:implicit`);
-        if (!cs) return;
-        finishBot(cs);
-        cs.interim = "";
-        const secs = call.duration && call.duration > 0 ? call.duration : (clock() - cs.startedAt) / 1000;
-        const dur = `${secs < 10 ? secs.toFixed(1) : Math.round(secs)}s`;
-        setLive(null);
-        emitLine(`${INDENT}${prefix(agent.id, cs)}${c.dim("☎")}  call ended ${c.dim("—")} ${c.dim(reason)} ${c.dim(`(${dur})`)}`);
-        emitLine("");
-        calls.delete(cs.id);
-        // Another call still running? Put its state back on the last line.
-        const next = calls.values().next();
-        if (!next.done) refresh(next.value);
-    }
-
-    function onRinging(agent: LiveViewAgent, ringing: { from?: string; to?: string }): void {
-        emitLine(`${INDENT}${prefix(agent.id)}${c.green("☎")}  ringing ${c.dim("—")} ${c.bold(ringing.from || "unknown")}`);
-    }
-
-    function withCall(fn: (cs: CallState, event: any) => void) {
-        return (event: any, call: LiveViewCall | undefined) => {
-            const cs = call ? calls.get(call.id) : undefined;
-            if (cs) fn(cs, event);
-        };
-    }
-
-    const onSpeechStarted = withCall((cs) => {
-        if (cs.state !== "speaking") setState(cs, "listening");
-    });
-
-    const onUserSpeaking = withCall((cs, event) => {
-        const text = typeof event?.text === "string" ? event.text : "";
-        cs.interim = text;
-        if (cs.state !== "listening") cs.state = "listening";
-        refresh(cs);
-    });
-
-    /** Like withCall, but a session nobody announced still gets a context (user.message / bot.speaking). */
-    function withContext(agent: LiveViewAgent, fn: (cs: CallState, event: any) => void) {
-        return (event: any, call: LiveViewCall | undefined) => fn(contextFor(agent, call), event);
-    }
-
-    const onUserMessage = (agent: LiveViewAgent) => withContext(agent, (cs, event) => {
-        const text = typeof event?.text === "string" ? event.text : "";
-        // A text reply still open (chat / unknown channel): the user replied, so it is done.
-        if (isTextual(cs)) finishBot(cs);
-        cs.interim = "";
-        cs.lastBot = "";
-        if (text) callerLine(cs, text);
-        // Chat has no turn detector — the model starts right away.
-        setState(cs, isTextual(cs) ? "thinking" : cs.state);
-    });
-
-    const onThinking = withCall((cs) => setState(cs, "thinking"));
-    const onPause = withCall((cs) => setState(cs, "pause"));
-    const onListening = withCall((cs) => setState(cs, "listening"));
-
-    const onBotSpeaking = (agent: LiveViewAgent) => withContext(agent, (cs, event) => {
-        let text = typeof event?.text === "string" ? event.text : "";
-        if (isTextual(cs)) {
-            // Chunks stream in; bot.speaking IS the line — fixed once they settle,
-            // unless bot.words arrive and prove this is voice after all.
-            if (cs.words > 0) finishBot(cs); // a new utterance after a spoken one
-            if (cs.bot === null && cs.lastBot) {
-                // The server re-sent the reply already fixed (or the cumulative text
-                // containing it): print nothing, or only what is new.
-                if (cs.lastBot.includes(text)) return;
-                if (text.startsWith(cs.lastBot)) text = text.slice(cs.lastBot.length).replace(/^\s+/, "");
-                if (!text) return;
+    store.on((e: TranscriptEffect) => {
+        switch (e.kind) {
+            case "session.started": {
+                const cs = e.call;
+                const when = tty ? ` ${c.dim("—")} ${c.dim(wallClock(clock()))}` : "";
+                if (e.implicit) {
+                    // Nobody announced this session (pinecall chat, the MCP chat tool, an llm.chat client).
+                    emitLine(`${INDENT}${prefix(cs.agent, cs)}${c.green("☎")}  session ${c.dim("—")} ${c.bold(cs.peer || "chat")} ${c.dim(`· ${cs.channel}`)}${when}`);
+                } else {
+                    const dir = cs.direction === "outbound" ? "outgoing" : "incoming";
+                    const kind = cs.channel === "chat" ? "chat" : cs.channel === "whatsapp" ? "whatsapp" : "call";
+                    emitLine(`${INDENT}${prefix(cs.agent, cs)}${c.green("☎")}  ${dir} ${kind} ${c.dim("—")} ${c.bold(cs.peer || "unknown")} ${c.dim(`· ${cs.channel}`)}${when}`);
+                }
+                return;
             }
-            cs.bot = mergeChunk(cs.bot ?? "", text);
-            cs.words = 0;
-            armSettle(cs);
-        } else {
-            // A new utterance: close the previous one (no bot.finished arrived), start empty.
-            if (cs.bot !== null && cs.state === "speaking") finishBot(cs);
-            cs.bot = "";
-            cs.botAnnounced = text;
+            case "session.ended": {
+                const cs = e.call;
+                const secs = e.durationS;
+                const dur = `${secs < 10 ? secs.toFixed(1) : Math.round(secs)}s`;
+                if (pinned === null) setLive(null);
+                emitLine(`${INDENT}${prefix(cs.agent, cs, 1)}${c.dim("☎")}  call ended ${c.dim("—")} ${c.dim(e.reason)} ${c.dim(`(${dur})`)}`);
+                emitLine("");
+                // Another call still running? Put its state back on the last line.
+                if (pinned !== null) { setLive(pinned); return; }
+                const next = calls.values().next();
+                if (!next.done) refresh(next.value);
+                return;
+            }
+            case "ringing":
+                emitLine(`${INDENT}${prefix(e.agent)}${c.green("☎")}  ringing ${c.dim("—")} ${c.bold(e.from || "unknown")}`);
+                return;
+            case "caller.line":
+                callerLine(e.call, e.text);
+                return;
+            case "agent.line":
+                agentLine(e.call, e.text, e.cut);
+                return;
+            case "tool.call": {
+                const argsStr = typeof e.args === "string" ? e.args : json(e.args, true);
+                emitLine(`${toolIndent(e.agent, e.call)}${c.yellow("⚡")} ${c.yellow(c.bold(e.name))}(${argsStr})`);
+                return;
+            }
+            case "tool.result": {
+                // Short results stay on the ✓ line; long objects go pretty, one key per line.
+                const inline = json(e.result, true);
+                const display = stripAnsi(inline).length <= 72 ? inline : json(e.result);
+                if (!display) return;
+                emitLine(`${toolIndent(e.agent, e.call)}${c.green("✓")} ${display}`);
+                return;
+            }
+            case "draft":
+                refresh(e.call);
+                return;
+            case "wa.message":
+                if (e.text) emitLine(`${INDENT}${prefix(e.agent)}${c.cyan(e.who)} ${c.dim("›")} ${e.text}`);
+                return;
+            case "wa.response": {
+                const human = e.source === "human" ? ` ${c.dim("(human)")}` : "";
+                if (e.text) emitLine(`${INDENT}${prefix(e.agent)}${c.purple(agentLabel(e.agent))} ${c.dim("›")} ${e.text}${human}`);
+                return;
+            }
         }
-        setState(cs, "speaking");
     });
-
-    const onBotWord = withCall((cs, event) => {
-        const word = typeof event?.word === "string" ? event.word : "";
-        if (cs.bot === null) cs.bot = "";
-        if (cs.words === 0 && cs.transport === "unknown" && cs.bot) {
-            // Words are playing: the text announced up front is not the line, what is heard is.
-            cs.botAnnounced = cs.bot;
-            cs.bot = "";
-        }
-        clearSettle(cs);
-        cs.bot = appendWord(cs.bot, word);
-        cs.words += 1;
-        cs.state = "speaking";
-        refresh(cs);
-    });
-
-    const onBotFinished = withCall((cs) => {
-        finishBot(cs);
-        setState(cs, "listening");
-    });
-
-    const onBotInterrupted = withCall((cs) => {
-        finishBot(cs, true);
-        setState(cs, "listening");
-    });
-
-    /** The known context of an event, or the agent's implicit session when the event carries no call. */
-    const lookup = (agent: LiveViewAgent, call: LiveViewCall | undefined): CallState | undefined =>
-        call ? calls.get(call.id) : calls.get(`${agent.id}:implicit`);
-
-    const onToolCall = (agent: LiveViewAgent) => (event: any, call: LiveViewCall | undefined) => {
-        const cs = lookup(agent, call);
-        const items: Array<{ name?: string; arguments?: unknown }> =
-            Array.isArray(event?.toolCalls) ? event.toolCalls : [];
-        for (const item of items) {
-            const name = item.name || "unknown";
-            const args = parseArgs(item.arguments);
-            const argsStr = typeof args === "string" ? args : json(args, true);
-            emitLine(`${toolIndent(agent.id, cs)}${c.yellow("⚡")} ${c.yellow(c.bold(name))}(${argsStr})`);
-        }
-        if (cs) setState(cs, "thinking");
-    };
-
-    const onWaMessage = (agent: LiveViewAgent) => (event: any) => {
-        const who = event?.name || event?.from || "whatsapp";
-        const text = typeof event?.text === "string" ? event.text : "";
-        if (text) emitLine(`${INDENT}${prefix(agent.id)}${c.cyan(String(who))} ${c.dim("›")} ${text}`);
-    };
-
-    const onWaResponse = (agent: LiveViewAgent) => (event: any) => {
-        const text = typeof event?.text === "string" ? event.text : "";
-        const human = event?.source === "human" ? ` ${c.dim("(human)")}` : "";
-        if (text) emitLine(`${INDENT}${prefix(agent.id)}${c.purple(agentLabel(agent.id))} ${c.dim("›")} ${text}${human}`);
-    };
 
     // ── Debug: every event, one line ────────────────────────────────
 
@@ -513,48 +349,47 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
 
     function attach(agent: LiveViewAgent): () => void {
         if (agents.has(agent.id)) return () => detach(agent);
-        const subs: Array<[string, (...a: any[]) => void]> = [];
-        const on = (event: string, handler: (...a: any[]) => void) => {
-            subs.push([event, handler]);
-            agent.on(event, handler);
-        };
-
-        on("call.started", (call: LiveViewCall) => onCallStarted(agent, call));
-        on("call.ended", (call: LiveViewCall, reason: string) => onCallEnded(agent, call, reason ?? ""));
-        on("call.ringing", (ringing: { from?: string; to?: string }) => onRinging(agent, ringing));
-        // Chat / WhatsApp sessions announce themselves with their own event, not call.started.
-        on("chat.started", (call: LiveViewCall) => onCallStarted(agent, call));
-        on("whatsapp.started", (call: LiveViewCall) => onCallStarted(agent, call));
-        on("speech.started", onSpeechStarted);
-        on("user.speaking", onUserSpeaking);
-        on("user.message", onUserMessage(agent));
-        on("eager.turn", onThinking);
-        on("turn.end", onThinking);
-        on("turn.pause", onPause);
-        on("turn.resumed", onListening);
-        on("turn.continued", onListening);
-        on("bot.speaking", onBotSpeaking(agent));
-        on("bot.word", onBotWord);
-        on("bot.finished", onBotFinished);
-        on("bot.interrupted", onBotInterrupted);
-        on("llm.toolCall", onToolCall(agent));
-        on("whatsapp.message", onWaMessage(agent));
-        on("whatsapp.response", onWaResponse(agent));
-
-        if (debug) {
-            for (const name of DEBUG_EVENTS) on(name, onDebug(agent, name));
-        }
-
-        agents.set(agent.id, subs);
+        // Registered first: prefixes read agents.size, and the first line of
+        // the first event must already know how many agents there are.
+        const entry: Attached = { agent, debugSubs: [], release: () => {} };
+        agents.set(agent.id, entry);
+        // The store subscribes before the debug handlers, so a transcript line
+        // still lands before the debug line that describes the same event.
+        entry.release = store.attach(agent);
+        if (debug) subscribeDebug(entry);
         return () => detach(agent);
     }
 
     function detach(agent: LiveViewAgent): void {
-        const subs = agents.get(agent.id);
-        if (!subs) return;
-        for (const [event, handler] of subs) agent.off(event, handler);
-        for (const cs of calls.values()) if (cs.agentId === agent.id) clearSettle(cs);
+        const entry = agents.get(agent.id);
+        if (!entry) return;
+        unsubscribeDebug(entry);
+        entry.release();
         agents.delete(agent.id);
+    }
+
+    function subscribeDebug(entry: Attached): void {
+        if (entry.debugSubs.length > 0) return;
+        for (const name of DEBUG_EVENTS) {
+            const handler = onDebug(entry.agent, name);
+            entry.debugSubs.push([name, handler]);
+            entry.agent.on(name, handler);
+        }
+    }
+
+    function unsubscribeDebug(entry: Attached): void {
+        for (const [name, handler] of entry.debugSubs) entry.agent.off(name, handler);
+        entry.debugSubs.length = 0;
+    }
+
+    /** `e` at runtime: start (or stop) printing every event, without a restart. */
+    function setEvents(on: boolean): void {
+        if (on === debug) return;
+        debug = on;
+        for (const entry of agents.values()) {
+            if (on) subscribeDebug(entry);
+            else unsubscribeDebug(entry);
+        }
     }
 
     // ── Public helpers ──────────────────────────────────────────────
@@ -563,13 +398,18 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
         emitLine(line);
     }
 
+    function pin(line: string | null): void {
+        if (!tty) return;
+        pinned = line;
+        if (line !== null) { setLive(line); return; }
+        setLive(null);
+        // Give the row back to whatever call is still running.
+        const next = calls.values().next();
+        if (!next.done) refresh(next.value);
+    }
+
     function toolResult(agent: LiveViewAgent, call: LiveViewCall | undefined, result: unknown): void {
-        const cs = lookup(agent, call);
-        // Short results stay on the ✓ line; long objects go pretty, one key per line.
-        const inline = json(result, true);
-        const display = stripAnsi(inline).length <= 72 ? inline : json(result);
-        if (!display) return;
-        emitLine(`${toolIndent(agent.id, cs)}${c.green("✓")} ${display}`);
+        store.toolResult(agent.id, call, result);
     }
 
     /** Colourise a JSON value: keys cyan, strings green, numbers yellow, booleans purple. */
@@ -597,21 +437,13 @@ export function createLiveView(opts: LiveViewOptions): LiveView {
         return String(value);
     }
 
-    return { attach, detach, print, toolResult, json, c };
+    return {
+        attach, detach, print, pin, toolResult, json, setEvents, store, c,
+        get events() { return debug; },
+    };
 }
 
 // ── Pure helpers ─────────────────────────────────────────────────────────
-
-/** Tool arguments arrive as a JSON string on the wire; older shapes may already be objects. */
-function parseArgs(args: unknown): unknown {
-    if (typeof args !== "string") return args ?? {};
-    if (!args.trim()) return {};
-    try {
-        return JSON.parse(args);
-    } catch {
-        return args;
-    }
-}
 
 function wallClock(ms: number): string {
     const d = new Date(ms);

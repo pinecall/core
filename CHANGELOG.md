@@ -9,7 +9,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A local web console in `pinecall run`.** The agent process now serves a
+  small HTTP server (127.0.0.1:4747 by default) and prints its URL in the boot
+  banner: `◉ console → http://127.0.0.1:4747   (p open · c chat · e events · q
+  quit)`. It exposes the process over a frozen contract — `GET /api/agents`,
+  `GET /api/calls` (live calls plus the last 50 ended, with their transcript),
+  `GET /events` (SSE: a `console.hello` resync frame with `{ agents, calls }`,
+  then every agent event, plus `llm.toolCall` and a synthetic `llm.toolResult`
+  the public `pc.stream()` does not carry), `POST /token` and
+  `POST /chat-token` (minted per request with `{ console: true }` metadata —
+  the API key never reaches the page) and `POST /api/calls/:id/hangup`. The
+  built web app is served from `dist/ui/` inside the installed package; a
+  source checkout without it gets a page listing the endpoints instead.
+- **Console flags:** `--no-ui` (`PINECALL_RUN_UI=0`), `--ui-port <n>`
+  (`PINECALL_RUN_UI_PORT`, the next 10 ports are tried if it is busy),
+  `--ui-host <h>` (`PINECALL_RUN_UI_HOST`) and `--open`
+  (`PINECALL_RUN_OPEN=1`, opens the browser on boot).
+- **Keyboard shortcuts in a TTY:** `p` opens the console, `e` turns the
+  every-event debug mode on and off *at runtime*, `q` / Ctrl-C quits
+  gracefully (the server closes, the client disconnects), `c` opens the
+  terminal chat prompt. With stdin piped nothing is touched.
+- **`@pinecall/sdk/console`** — the transcript reducer and the calls model, the
+  ONE event → conversation state machine the terminal view, the console server
+  and the browser app all run on. Pure, dependency-free and browser-clean
+  (`CallSnapshot`, `TranscriptLine`, `createTranscriptStore`,
+  `createCallsModel`).
+- **A terminal chat prompt (`c`).** In a TTY, `c` opens a one-line
+  `you ›` prompt pinned under the live transcript: type, Enter sends, Esc or an
+  empty line closes it, Ctrl-U clears the line, backspace edits. The message
+  goes out as an `llm.chat` frame on the agent's OWN socket, so the reply comes
+  back as ordinary agent events (`chat.started`, `user.message`,
+  `bot.speaking`) and the terminal live view, the web console and your own
+  `pc.stream()` all render it with no special casing. The prompt and the
+  shortcuts take turns owning stdin, so neither swallows the other's keys, and
+  the transcript keeps scrolling above the prompt while you type. With several
+  agents in one file, `c` asks which one (or use `--agent <id>`). Off a TTY it
+  is inert — nothing is read and stdin is never touched.
+- **`--call <number>` — the agent rings you.** `pinecall run agent.mjs --call
+  +34600000000` (or `PINECALL_RUN_CALL`) places one outbound call through
+  `agent.dial` as soon as the agent is registered server-side, with
+  `{ console: true }` metadata, and the call then shows up in both observers.
+  Refusals are one line with the fix: a number that is not E.164 never reaches
+  the carrier, an agent with no phone channel is told to add `phoneNumber`, and
+  `busy` / `no-answer` / `failed` / a plan gate come back in the carrier's own
+  words instead of a stack trace.
+- **`--agent <id>`** (`PINECALL_RUN_AGENT`) — which agent `c` and `--call` talk
+  to when one file runs several.
+- **`canCall` on `GET /api/agents`** — true exactly when the agent has a phone
+  number to dial FROM, so the web console can offer a "ring me" button that
+  agrees with what `--call` would do.
+
+### Security
+- The console binds loopback by default. On any other interface every request
+  must carry the per-run key (`?k=…`, which then sets the `pc_console`
+  cookie) or it is 401. The key is generated per run and never leaves the
+  process; the API key is never sent to the page and never logged.
+- **The `pinecall run` web console (`dist/ui/`).** A prebuilt single-page app
+  shipped inside the package — no CDN and no second install — that the runner
+  serves at `http://127.0.0.1:4747`. Three columns on the Pinecall design
+  system (`@pinecall/react-theme`), light and dark: the **calls** the process
+  is handling (live first, with channel, peer, state and a running timer, then
+  the ones that ended with their duration and reason), the **transcript** of
+  the selected call (caller left, agent right, the interim caller line
+  replaced by the final, the agent's line growing word by word and marked `⏏`
+  when it was cut, tool calls inline as `⚡ name(args)` → `✓ result`,
+  expandable), and a **talk** panel that calls the agent from the browser over
+  WebRTC or chats with it by text (`@pinecall/web`). An events drawer shows the
+  raw stream — what `pinecall run --events` prints. Tokens are minted by the
+  runner (`POST /token`, `POST /chat-token`): the API key never reaches the
+  page. The transcript is driven by the same reducer semantics as the terminal
+  live view, so the two views can never disagree.
+
+- **Docs: [The run console](/guides/run-console).** A new guide covering what
+  `pinecall run` gives you now — the terminal live view, the web console (what
+  each column shows, calling the agent from the page, watching a phone call,
+  the events drawer, `--ui-host 0.0.0.0` and the per-run key for testing from a
+  phone), the HTTP surface, and the security model — plus **"One bus, three
+  observers"**: the agent process is the subject, and the terminal view, the
+  console (over `pc.stream()`) and your own code observe the same typed events,
+  with a ten-line fourth observer to prove it. `reference/cli.md` gains the
+  `pinecall run` flags (`--open`, `--no-ui`, `--ui-port`, `--ui-host`,
+  `--events`) and keys (`p` / `c` / `e` / `q`); `build-a-live-call-app` opens
+  with a pointer to the console.
+
 ### Changed
+- `--no-ui` no longer means "no terminal shortcuts": with the web console off,
+  `c` (chat), `e` (events) and `q` (quit) still work — only `p` has nothing to
+  open.
+- `src/cli/live-view.ts` no longer decides *what* was said — only how to draw
+  it. The state machine moved to `src/cli/console/transcript-reducer.ts` and
+  the view paints the effects it emits, so the terminal, the web console and
+  the browser cannot drift. Rendered output is unchanged.
 - **`pinecall run` is live.** The terminal display no longer waits for the
   finals: in a TTY the caller's line grows as words are recognised
   (`user.speaking`) and is fixed on `user.message`; the agent's line grows

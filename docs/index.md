@@ -37,7 +37,7 @@ const agent = pc.agent("mara", {
 });
 ```
 
-That snippet is a production-ready agent. The SDK auto-connects on construction, registers the agent, and starts accepting calls — phone, WebRTC, and chat. No `await pc.connect()` needed. Run it with `pinecall run agent/index.js` for a polished terminal UI.
+That snippet is a production-ready agent. The SDK auto-connects on construction, registers the agent, and starts accepting calls — phone, WebRTC, and chat. No `await pc.connect()` needed. Run it with `pinecall run agent/index.js` for a polished terminal UI — and a local web console at `http://127.0.0.1:4747` where you can call the agent from the browser, watch every call live and chat by text ([the run console](/guides/run-console)).
 
 ## What you can build
 
