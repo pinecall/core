@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`pc.audio.transcribe()`** — standalone speech-to-text, no agent and no
+  call. `transcribe(input, { model?, language?, diarize?, format?, filename?,
+  contentType?, signal? })` POSTs one audio file (bytes, a `Blob`/`File`, or —
+  Node only — a path, read lazily) as multipart to `/v1/audio/transcriptions`
+  and resolves with a `Transcription`: `requestId`, `text`, `language`,
+  `duration` (seconds), plus `model`, `words[]` (`{ word, start, end,
+  speaker? }`) and `segments[]` (`{ id, start, end, text, speaker? }`) with
+  `format: "verbose_json"`; `format: "text"` yields the plain text. `diarize:
+  true` labels speakers on words and segments. Models: `elevenlabs/scribe_v1`
+  (default), `deepgram/nova-3`, `deepgram/nova-2`, `soniox/stt-async-preview`.
+  Refusals arrive as the same typed `AudioApiError` as `speech()` (`status` +
+  `code`: `FILE_TOO_LARGE`, `DIARIZE_UNSUPPORTED`, `INSUFFICIENT_CREDITS`, …).
+  Also exported top-level as `transcribe()`, bound to nothing. Needs a voice
+  server that serves the endpoint.
+- **`pc.audio.transcribeStream()`** — live transcription of PCM you write.
+  `transcribeStream({ model?, language?, sampleRate?, encoding?, diarize? })`
+  opens `WS /v1/audio/transcriptions/stream` at once (Node only — the key
+  travels in the `Authorization` header, never in the URL), buffers `write()`
+  until the server says `ready`, then sends the audio as binary frames in
+  order. Events `ready`, `partial` (interim text), `final` (`{ text, start?,
+  end?, language?, speaker?, words? }`), `done` (`{ audioSeconds,
+  billedMinutes }`), `error` (`AudioApiError`) and `close` (code); `for await
+  (const item of stream)` yields the partials and finals in order and throws
+  on error. `finalize()` commits what the server has heard, `end()` says
+  there is no more audio and resolves on `done`, `close()` hangs up now.
+  Models: `deepgram/nova-3` (default), `elevenlabs/scribe_v2_realtime`,
+  `soniox/stt-rt-v5`; `sampleRate` 8000|16000 (default)|24000|48000,
+  `encoding` linear16 (default)|mulaw. Also exported top-level as
+  `transcribeStream()`.
+
 ---
 
 ## [0.10.0] — 2026-08-21 — speech without a call: the TTS stack on its own

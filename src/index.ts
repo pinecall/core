@@ -173,7 +173,7 @@ export type { ReconnectOptions } from "./transport/reconnect.js";
 export { fetchVoices } from "./api/voices.js";
 export type { Voice, VoiceLanguage, FetchVoicesOptions } from "./api/voices.js";
 
-export { speech, fetchAudioVoices, AudioApiError } from "./api/audio.js";
+export { speech, fetchAudioVoices, transcribe, transcribeStream, AudioApiError } from "./api/audio.js";
 export type {
     SpeechOptions,
     SpeechResult,
@@ -182,6 +182,21 @@ export type {
     SpeechFormat,
     SpeechApiOptions,
     FetchAudioVoicesOptions,
+    TranscriptionModel,
+    TranscribeInput,
+    TranscribeOptions,
+    TranscribeApiOptions,
+    TranscriptWord,
+    TranscriptSegment,
+    Transcription,
+    StreamModel,
+    TranscribeStreamOptions,
+    StreamFinal,
+    StreamReady,
+    StreamDone,
+    TranscribeStreamEvents,
+    TranscribeStreamItem,
+    TranscribeStream,
 } from "./api/audio.js";
 export type { AudioNamespace } from "./client.js";
 

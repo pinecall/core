@@ -122,7 +122,7 @@ type SpeechFrame =
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /** Minimal async queue: push from the network side, iterate from the consumer side. */
-class AsyncQueue<T> implements AsyncIterable<T> {
+export class AsyncQueue<T> implements AsyncIterable<T> {
     #items: T[] = [];
     #waiters: Array<{ resolve: (r: IteratorResult<T>) => void; reject: (e: unknown) => void }> = [];
     #closed = false;
@@ -210,8 +210,8 @@ function abortError(): Error {
     return err;
 }
 
-async function readError(res: Response): Promise<AudioApiError> {
-    let message = `audio/speech: HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`;
+export async function readError(res: Response, endpoint = "audio/speech"): Promise<AudioApiError> {
+    let message = `${endpoint}: HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`;
     let code = `HTTP_${res.status}`;
     const text = await res.text().catch(() => "");
     if (text) {
@@ -500,3 +500,26 @@ export async function fetchAudioVoices(opts: FetchAudioVoicesOptions = {}): Prom
     if (!data.success || !Array.isArray(data.voices)) return [];
     return (data.voices as Record<string, unknown>[]).map(mapVoice(opts.provider ?? "elevenlabs"));
 }
+
+// ── speech-to-text ───────────────────────────────────────────────────────
+// Lives in audio-stt.ts; re-exported here so `import { transcribe } from
+// "@pinecall/sdk"` and `./api/audio.js` both work.
+
+export { transcribe, transcribeStream } from "./audio-stt.js";
+export type {
+    TranscriptionModel,
+    TranscribeInput,
+    TranscribeOptions,
+    TranscribeApiOptions,
+    TranscriptWord,
+    TranscriptSegment,
+    Transcription,
+    StreamModel,
+    TranscribeStreamOptions,
+    StreamFinal,
+    StreamReady,
+    StreamDone,
+    TranscribeStreamEvents,
+    TranscribeStreamItem,
+    TranscribeStream,
+} from "./audio-stt.js";
