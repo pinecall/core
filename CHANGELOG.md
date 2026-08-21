@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.10.0] — 2026-08-21 — speech without a call: the TTS stack on its own
+
+The voice server's text-to-speech is now reachable **without an agent and
+without a call**: one HTTP request that streams the audio back as it is
+produced, with optional word timestamps. A desktop app (Electron main, Node,
+anything that speaks HTTP) can read a document aloud, announce a build, or
+preview a voice — using the same providers and voices your agents speak with,
+billed per character on the same credits, and free of charge on your own
+provider key.
+
 ### Added
 - **`pinecall tts "<text>" [-o out.wav]`** — text-to-speech from the terminal
   over `pc.audio.speech()`. `--voice provider/alias` (default `elevenlabs/sarah`),
