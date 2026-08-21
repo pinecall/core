@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The `pinecall run` web console (`dist/ui/`).** A prebuilt single-page app
+  shipped inside the package — no CDN and no second install — that the runner
+  serves at `http://127.0.0.1:4747`. Three columns on the Pinecall design
+  system (`@pinecall/react-theme`), light and dark: the **calls** the process
+  is handling (live first, with channel, peer, state and a running timer, then
+  the ones that ended with their duration and reason), the **transcript** of
+  the selected call (caller left, agent right, the interim caller line
+  replaced by the final, the agent's line growing word by word and marked `⏏`
+  when it was cut, tool calls inline as `⚡ name(args)` → `✓ result`,
+  expandable), and a **talk** panel that calls the agent from the browser over
+  WebRTC or chats with it by text (`@pinecall/web`). An events drawer shows the
+  raw stream — what `pinecall run --events` prints. Tokens are minted by the
+  runner (`POST /token`, `POST /chat-token`): the API key never reaches the
+  page. The transcript is driven by the same reducer semantics as the terminal
+  live view, so the two views can never disagree.
+
 ### Changed
 - **`pinecall run` is live.** The terminal display no longer waits for the
   finals: in a TTY the caller's line grows as words are recognised
