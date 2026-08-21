@@ -132,6 +132,13 @@ against the server's clock.
 because it is *one* function, the same call that creates the agent is the call that
 updates it (step 3). No spread, no "base config plus overrides".
 
+**The voice has to be native.** The first build used `elevenlabs/sarah`, an English
+voice, with `language: "es"` — it spoke Spanish with a tourist's accent. The catalogue
+has forty-odd native Spanish voices (`pinecall voices --language es`, or `list_voices`
+in the MCP); the default is now `elevenlabs/carolina-2` (es-ES) and the form only
+offers native ones. `language` picks the STT and the TTS model; it does not fix a
+voice's accent.
+
 The agent is started once per process, from `server/app.ts`:
 
 ```ts
@@ -254,10 +261,29 @@ Phone the number, and the page shows "📞 En llamada", the patient's words, the
 replies, and — when the agent books — the new row in the agenda. No polling, no
 refresh.
 
-One detail worth knowing: the bot's transcript line comes from **`bot.finished` +
+Two details worth knowing. The bot's transcript line comes from **`bot.finished` +
 `call.currentBotText`** on voice (TTS streams the reply word by word, so the full text
 only exists at the end) and from **`bot.speaking`** on chat (where the whole reply
-arrives at once). The agent listens to both and de-duplicates by `messageId`.
+arrives at once); the agent listens to both and de-duplicates by `messageId`. And the
+**tool calls are part of the transcript**: the tools are ours, so a tiny wrapper logs
+what was asked and what came back as a `tool` line —
+
+```
+⚙ check_availability {date:2026-08-28} → {open:true,slots:[09:00,09:30,10:00],total:22}
+```
+
+— between the patient's question and the agent's answer. A transcript that shows the
+lookup is the difference between "it said there was a slot at nine" and "it *checked*".
+(`llm.toolCall` fires too, with the names; the result is only known to the tool itself,
+which is why the wrapper lives there and not in an event handler.)
+
+> **If `agent.on("bot.word")` never fires on a browser call, it is not your code.**
+> Until sdk-server `17f7df3` the WebRTC transport sent `bot.speaking`, `bot.word`,
+> `bot.finished` and `user.speaking` to the SDK *without an `agent_id`*, and every SDK
+> handler drops a frame that has none — so they reached the socket and vanished, while
+> `user.message` and `turn.end` (which travel a different path that stamps it) arrived.
+> The way to see it is `PINECALL_LOG=./pinecall.log`, which writes every wire frame the
+> SDK receives; [How it was built](/tutorial/how-it-was-built) has the whole hunt.
 
 ## 5. The same agent, in the browser
 
@@ -270,13 +296,21 @@ export const action = async () =>
   Response.json(await createToken({ channel: "webrtc", agentId: "dental-desk", apiKey: process.env.PINECALL_API_KEY! }));
 ```
 
+The page does not use the ready-made widget. It builds its own button over
+`VoiceSession` from `@pinecall/web/core` — a connect/disconnect, the phase, the duration,
+mute — and reads the transcript straight from the session's state, which already
+carries interim user text, the bot's words as they play, and tool calls as `system`
+messages:
+
 ```tsx
-<VoiceWidget agent="dental-desk" name="Recepción" tokenProvider={token} />
+const session = new VoiceSession({ agent: "dental-desk", tokenProvider: token });
+const state = useSyncExternalStore(session.subscribe, session.getState);   // status · phase · messages · duration
+<button onClick={() => (state.status === "connected" ? session.disconnect() : session.connect())}>…</button>
 ```
 
-There is genuinely no second agent: the phone number and the widget are two doors into
-the same `pc.agent("dental-desk", …)`. The widget touches browser audio APIs, so the
-page renders it client-side only — a `lazy` import behind a "has mounted" flag.
+There is genuinely no second agent: the phone number and this button are two doors
+into the same `pc.agent("dental-desk", …)`. `VoiceSession` touches browser audio APIs,
+so it is imported on the client only (`import()` inside an effect).
 
 ## 6. Where config ends and code begins
 

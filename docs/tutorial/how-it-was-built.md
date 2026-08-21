@@ -113,6 +113,61 @@ agent. `bot.finished` (with `call.currentBotText`) is how a voice reply complete
 TTS streams it word by word. On chat there is no TTS; the whole reply arrives in
 `bot.speaking`. The agent now listens to both and de-duplicates by `messageId`.
 
+## The bug only a real *browser* call found — and it was not in the app
+
+The page showed the patient's lines and none of the agent's. The agent process logged
+`call.started`, `user.message`, `turn.end`, `call.ended` — and not one `bot.*`. The
+SDK documents `agent.on("bot.speaking")`, the server's WebRTC transport emits it to the
+SDK, the SDK forwards call events to the agent. Every piece looked right in isolation.
+
+The instrument that settled it: `PINECALL_LOG=./pinecall.log`, which makes the SDK
+write **every wire frame it receives**. (It did nothing at first — the SDK's file
+logger reaches for `require`, which an ESM bundle does not have, and falls back to a
+no-op in silence. `globalThis.require ??= createRequire(import.meta.url)` before the
+client is built, and it writes.) The log of one browser call:
+
+```
+76  bot.word        ← received
+ 4  bot.speaking    ← received
+ 4  bot.finished    ← received
+15  user.speaking   ← received
+ 3  user.message    ← received AND handled
+ 6  turn.end        ← received AND handled
+```
+
+The frames were arriving. Comparing one of each kind:
+
+| frame | keys | reached `agent.on(...)` |
+|---|---|---|
+| `user.message`, `turn.end`, `llm.tool_call` | `agent_id`, `call_id`, `phone_number`, … | yes |
+| `bot.speaking`, `bot.word`, `bot.finished`, `user.speaking` | `call_id`, `session_id`, … **no `agent_id`** | **no** |
+
+Every SDK dispatch handler opens with `if (!wire.agent_id) return false`. The server has
+two ways to talk to an agent: the pipeline's `EventBus` → `emit_to_call`, which stamps
+`agent_id` on its way out, and the transport's direct `emit_to_client(app_id, event)`,
+which did not. WebRTC's `bot.*` and `user.speaking` take the second road. So they
+reached the socket and were dropped — for every WebRTC agent that ever listened for
+them.
+
+Two lines in `sdk-server` (`emit_to_client` now stamps `agent_id` exactly like
+`emit_to_call`), a test, a deploy. The lesson is the method, not the fix: **when the
+events do not arrive, log the wire before you touch the handlers.**
+
+Three smaller things the same call taught:
+
+- **An English voice speaking Spanish sounds like a tourist.** `elevenlabs/sarah` with
+  `language: "es"` is exactly that. The default is now a native es-ES voice
+  (`elevenlabs/carolina-2`) and the form offers only native ones.
+- **The SSE endpoint crashed the server on hang-up.** When the tab closed, the
+  `ReadableStream` was cancelled but the loader's `request.signal` never fired, so the
+  bus listener kept writing into a closed controller — an exception inside an
+  `EventEmitter` listener, which is an uncaught exception, which is the process gone.
+  Handle `cancel()` as well as `abort`, and let a failed `enqueue` unsubscribe.
+- **The ready-made widget hid all of this.** `<VoiceWidget>` shows a transcript from
+  the DataChannel, so the browser side looked fine while the agent side was blind. The
+  page now drives `VoiceSession` itself and shows both views; "it works in the widget"
+  and "the agent received it" are different claims.
+
 ## The bugs only a real build found
 
 **The database moved.** `db.server.ts` resolved `db.json` relative to the module with
