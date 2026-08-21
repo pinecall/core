@@ -53,7 +53,6 @@
           "guides/tap",
           "guides/skills",
           "guides/realtime-speech",
-          "guides/text-to-speech",
           "guides/token-metadata"
         ]
       },
@@ -98,6 +97,12 @@
               "guides/ws-streaming"
             ]
           }
+        ]
+      },
+      {
+        "group": "Use it without an agent",
+        "pages": [
+          "guides/text-to-speech"
         ]
       },
       {
