@@ -1,0 +1,51 @@
+{
+  "_doc": "Realistic user questions per site. `expect` = regex the answer-bearing chunk text must match (answered@5 = any top-5 hit matches). `list: true` marks an enumeration question (the kind option E targets).",
+  "basecamp": [
+    { "q": "How much does Basecamp cost per month?", "expect": "\\$\\s?\\d+|per user|per month|free plan" },
+    { "q": "Do you offer discounts for teachers or non-profits?", "expect": "teacher|non-?profit|education|student" },
+    { "q": "What is Shape Up?", "expect": "appetite|six weeks|pitch|shaping" },
+    { "q": "Is there a Basecamp app for Android?", "expect": "android" },
+    { "q": "What are hill charts?", "expect": "hill chart" },
+    { "q": "Why did Basecamp leave the cloud?", "expect": "cloud" },
+    { "q": "What keyboard shortcut opens the jump menu?", "expect": "jump menu|shift ?\\+ ?j|⌘j" },
+    { "q": "How can I contact Basecamp support?", "expect": "support@|contact|email us|help\\.basecamp|support team" },
+    { "q": "What apps or platforms is Basecamp available on?", "expect": "ios|android|mac|windows", "list": true },
+    { "q": "Which books has 37signals written?", "expect": "rework|shape up|remote|getting real|it doesn.t have to be crazy", "list": true }
+  ],
+  "caveman": [
+    { "q": "How much does Caveman cost?", "expect": "free|\\$\\s?\\d|seat|pricing" },
+    { "q": "What is CaveBench?", "expect": "cavebench" },
+    { "q": "How many fewer output tokens does the Caveman skill produce?", "expect": "65 ?%|fewer output" },
+    { "q": "What data does Caveman collect?", "expect": "collect" },
+    { "q": "What is CaveGemma?", "expect": "gemma" },
+    { "q": "Is Caveman Browse an alternative to Playwright?", "expect": "playwright" },
+    { "q": "How do I sign up for Caveman Cloud?", "expect": "invite|waitlist|sign in|request access" },
+    { "q": "Why did removing tokens raise the bill?", "expect": "96\\.2|bill|denominator" },
+    { "q": "What products does Caveman offer?", "expect": "caveman skill|caveman proxy|caveman browse|cavemem|cavekit|caveman cloud", "list": true },
+    { "q": "Who writes the Caveman Labs reports?", "expect": "julius|brussee" }
+  ],
+  "pcdocs": [
+    { "q": "How do I install the Pinecall SDK?", "expect": "npm install @pinecall/sdk" },
+    { "q": "Which speech-to-text providers are supported?", "expect": "deepgram|soniox|assemblyai|whisper", "list": true },
+    { "q": "How does dev mode route calls to my agent?", "expect": "dev mode|caller.s phone|routed" },
+    { "q": "Can I use a client-side LLM with WhatsApp?", "expect": "server-side llm|not supported|whatsapp" },
+    { "q": "What Node.js version is required?", "expect": "node\\.js ≥ ?18|node 18|node\\.js 18|≥ ?18" },
+    { "q": "How do I stream text-to-speech audio?", "expect": "tts|text-to-speech|stream" },
+    { "q": "What is seq in the call log?", "expect": "seq" },
+    { "q": "How does the browser connect for WebRTC calls?", "expect": "webrtc|token|voice\\.pinecall\\.io" },
+    { "q": "What are the four main concepts of the SDK?", "expect": "pinecall|agent|channel|call", "list": true },
+    { "q": "How do I set up a WhatsApp channel?", "expect": "meta business|whatsapp" }
+  ],
+  "joel": [
+    { "q": "What is the Joel Test?", "expect": "joel test" },
+    { "q": "Why should a software team hire testers?", "expect": "tester" },
+    { "q": "What does Joel think about non-compete clauses?", "expect": "non-compete" },
+    { "q": "What companies did Joel Spolsky found?", "expect": "fog creek|stack overflow|trello" },
+    { "q": "What is the Guerrilla Guide to Interviewing?", "expect": "interview" },
+    { "q": "What are affordances and metaphors in UI design?", "expect": "affordance" },
+    { "q": "What did Joel say about Microsoft Passport?", "expect": "passport" },
+    { "q": "How should programmers be compensated?", "expect": "compensat" },
+    { "q": "What is the Ben and Jerry's versus Amazon strategy?", "expect": "ben and jerry|amazon" },
+    { "q": "What articles did Joel write in 2000?", "expect": "strategy letter|joel test|interview|user interface", "list": true }
+  ]
+}
