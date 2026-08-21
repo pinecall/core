@@ -101,7 +101,7 @@ In a terminal the last line is **live** and is redrawn in place while everything
 - tool calls (`⚡ name(args)`) and their results (`✓ …`) stay inline, in order;
 - call start and end keep their own lines, the end with the duration.
 
-Only the last line is ever redrawn, so scrollback stays readable. With several agents in one file lines are prefixed `[agent-id]`; with several concurrent calls, `[call-id]` too.
+A session that never announces itself — `pinecall chat`, the MCP `chat` tool, any `llm.chat` client — renders the same way (`☎  session — chat`): the reply text is fixed once its chunks stop arriving (300 ms) or on the next event. Only the last line is ever redrawn, so scrollback stays readable. With several agents in one file lines are prefixed `[agent-id]`; with several concurrent calls, `[call-id]` too.
 
 **Not a TTY** (piped, CI, `| tee`): no cursor movement and no escape codes — one line per final event, prefixed with the time since the call started. Interim speech and turn state are not printed.
 
