@@ -89,6 +89,8 @@ pinecall run agent/index.ts --no-ui    # terminal only
 | `--no-ui` | `PINECALL_RUN_UI=0` | do not start the web console |
 | `--ui-port <n>` | `PINECALL_RUN_UI_PORT` | console port (default `4747`; the next 10 are tried if busy) |
 | `--ui-host <h>` | `PINECALL_RUN_UI_HOST` | console interface (default `127.0.0.1`) |
+| `--call <number>` | `PINECALL_RUN_CALL` | the agent rings that number (E.164 / SIP URI) once registered; needs a phone channel — refusals print as one line with the fix |
+| `--agent <id>` | `PINECALL_RUN_AGENT` | multi-agent files: the agent `--call` dials and `c` talks to |
 
 The flag wins over the environment variable. Global flags (`--api-key`, `--server`, `--json`, …) apply as usual.
 
@@ -97,7 +99,7 @@ The flag wins over the environment variable. Global flags (`--api-key`, `--serve
 | Key | What it does |
 |-----|--------------|
 | `p` | open the console in the browser |
-| `c` | terminal chat — not yet; points you at the console's chat tab |
+| `c` | one-line chat prompt under the live view (`you › `; Enter sends, Esc closes); the turn travels on the agent's own socket and renders as a normal chat call in every observer. Multi-agent: a chooser, or `--agent <id>` |
 | `e` | toggle event printing on and off, live |
 | `q` | quit — closes the console, disconnects, restores the terminal (so does `Ctrl-C`) |
 

@@ -83,7 +83,7 @@ While `pinecall run` is in the foreground (a TTY):
 | Key | What it does |
 |-----|--------------|
 | `p` | open the console in your default browser |
-| `c` | terminal chat — not yet; it points you at the console's chat tab |
+| `c` | open a one-line chat prompt (`you › `) under the live view — Enter sends, Esc or an empty line closes. The message goes out on the agent's own socket as an ordinary text-chat turn, so the reply shows up in the terminal, the web console and any `pc.stream()` observer as a normal chat call (no API key involved, no second socket). With several agents a numbered chooser asks which one (skip it with `--agent <id>`) |
 | `e` | toggle event printing on and off, live (same as `--events`) |
 | `q` | quit: close the console, disconnect, restore the terminal (so does `Ctrl-C`) |
 
@@ -99,13 +99,20 @@ swallowed input.
 | `--ui-port <n>` | `PINECALL_RUN_UI_PORT` | `4747` (the next 10 ports are tried if it is busy) |
 | `--ui-host <h>` | `PINECALL_RUN_UI_HOST` | `127.0.0.1` |
 | `--events` | `PINECALL_RUN_EVENTS=1` | print every event in the terminal |
+| `--call <number>` | `PINECALL_RUN_CALL` | once the agent is registered, have it **ring you** at that number (E.164, e.g. `+34600000000`, or a SIP URI) — an ordinary outbound call that shows up in both observers. Needs a phone channel on the agent; refusals (no phone, bad number, plan gate, busy) print as one line with the fix |
+| `--agent <id>` | `PINECALL_RUN_AGENT` | in a multi-agent file: which agent `--call` dials and `c` talks to (otherwise `c` asks) |
 
 ```bash
 pinecall run agent/index.mjs --open              # straight into the browser
-pinecall run agent/index.mjs --no-ui             # just the terminal
+pinecall run agent/index.mjs --no-ui             # just the terminal (c / e / q still work)
 pinecall run agent/index.mjs --ui-port 4800
 pinecall run agent/index.mjs --ui-host 0.0.0.0   # reachable from your phone
+pinecall run agent/index.mjs --call +34600000000 # the agent rings you as soon as it is up
 ```
+
+`GET /api/agents` (and the console's top bar) tells you which agents can dial:
+each row carries `canCall: true` when the agent owns a phone channel — the same
+test `--call` makes before dialling.
 
 If the console cannot start (every port taken, a host that will not bind) the
 agent still runs — the banner says `console off — <reason>` and that is all
