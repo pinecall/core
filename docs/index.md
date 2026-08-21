@@ -47,7 +47,7 @@ That snippet is a production-ready agent. The SDK auto-connects on construction,
 - **Outbound campaigns** — programmatic outbound calls with TTS greetings
 - **Embedded copilots** — voice inside your web app via the React widget
 - **Native mobile calls** — a real CallKit phone call to your agent from an Ionic/Capacitor or React Native app ([mobile](/mobile/ionic-overview))
-- **Speech, without an agent** — call the text-to-speech stack on its own from a desktop app or a script: `pc.audio.speech()` streams the audio as it is produced ([text-to-speech](/guides/text-to-speech))
+- **Speech, without an agent** — call the text-to-speech and speech-to-text stacks on their own from a desktop app or a script: `pc.audio.speech()` streams the audio as it is produced ([text-to-speech](/guides/text-to-speech)); `pc.audio.transcribe()` transcribes a file with speaker labels and `pc.audio.transcribeStream()` turns a live microphone into partials and finals ([speech-to-text](/guides/speech-to-text))
 
 ## How the SDK is organized
 
@@ -119,6 +119,7 @@ Each number can override `language`, `stt`, `voice`, and `ringing`. The agent pr
 | Build a full app, step by step | [Guides → Build a live call app](/guides/build-a-live-call-app) |
 | Use realtime speech-to-speech | [Guides → Realtime speech](/guides/realtime-speech) |
 | Synthesize speech with no agent and no call | [Guides → Text-to-speech](/guides/text-to-speech) |
+| Transcribe audio / live speech with no agent and no call | [Guides → Speech-to-text](/guides/speech-to-text) |
 | Look up a method | [API Reference](/api/pinecall) |
 | Tune STT, TTS, or the LLM | [Reference → Providers](/reference/stt-providers) |
 

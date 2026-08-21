@@ -58,20 +58,35 @@ import type { ServerResponse } from "node:http";
 // REST API
 import { createToken as createTokenApi } from "./api/tokens.js";
 import type { TokenScopeOptions } from "./api/tokens.js";
-import { speech as speechApi, fetchAudioVoices } from "./api/audio.js";
-import type { SpeechOptions, SpeechResult, FetchAudioVoicesOptions } from "./api/audio.js";
+import { speech as speechApi, fetchAudioVoices, transcribe as transcribeApi, transcribeStream as transcribeStreamApi } from "./api/audio.js";
+import type {
+    SpeechOptions,
+    SpeechResult,
+    FetchAudioVoicesOptions,
+    TranscribeInput,
+    TranscribeOptions,
+    Transcription,
+    TranscribeStreamOptions,
+    TranscribeStream,
+} from "./api/audio.js";
 import type { Voice } from "./api/voices.js";
 
 /**
- * `pc.audio` — standalone text-to-speech bound to this client's key and URL.
- * No agent, no call: `speech()` streams one utterance, `voices()` lists what
- * it accepts. See `src/api/audio.ts` for the wire contract.
+ * `pc.audio` — standalone speech, bound to this client's key and URL. No
+ * agent, no call: `speech()` streams one utterance, `voices()` lists what it
+ * accepts, `transcribe()` turns a file into text, `transcribeStream()` turns
+ * live PCM into partial/final segments. See `src/api/audio.ts` and
+ * `src/api/audio-stt.ts` for the wire contracts.
  */
 export interface AudioNamespace {
     /** Synthesise `input` with `voice`; resolves on headers, audio streams. */
     speech(opts: SpeechOptions): Promise<SpeechResult>;
     /** Voices `speech()` accepts, optionally filtered by provider/language. */
     voices(opts?: Omit<FetchAudioVoicesOptions, "apiKey" | "apiUrl">): Promise<Voice[]>;
+    /** Transcribe one file (bytes, Blob, or a Node path). */
+    transcribe(input: TranscribeInput, opts?: TranscribeOptions): Promise<Transcription>;
+    /** Open a live transcription socket; write PCM, read partial/final. Node only. */
+    transcribeStream(opts?: TranscribeStreamOptions): TranscribeStream;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -139,10 +154,12 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     readonly #autoReconnect: boolean;
     readonly #promptsDir: string;
 
-    /** Standalone TTS — `pc.audio.speech()` / `pc.audio.voices()`. */
+    /** Standalone TTS/STT — `pc.audio.speech()` / `voices()` / `transcribe()` / `transcribeStream()`. */
     readonly audio: AudioNamespace = {
         speech: (opts) => speechApi({ ...opts, apiKey: this.#apiKey, apiUrl: this.#apiUrl }),
         voices: (opts = {}) => fetchAudioVoices({ ...opts, apiKey: this.#apiKey, apiUrl: this.#apiUrl }),
+        transcribe: (input, opts = {}) => transcribeApi(input, { ...opts, apiKey: this.#apiKey, apiUrl: this.#apiUrl }),
+        transcribeStream: (opts = {}) => transcribeStreamApi({ ...opts, apiKey: this.#apiKey, apiUrl: this.#apiUrl }),
     };
 
     readonly #agents = new Map<string, Agent>();
