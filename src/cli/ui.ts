@@ -11,27 +11,35 @@ import { VERSION } from "../version.js";
 
 const enabled = process.env.NO_COLOR === undefined && process.stdout.isTTY !== false;
 
-function wrap(open: string, close: string): (s: string) => string {
-    if (!enabled) return (s) => s;
-    return (s) => `${open}${s}${close}`;
+export type Palette = Record<"dim" | "bold" | "green" | "red" | "cyan" | "purple" | "yellow", (s: string) => string>;
+
+/**
+ * Build a colour palette. `enabled=false` returns identity functions — the
+ * way a renderer with an injected stream (the `pinecall run` live view, tests)
+ * gets NO_COLOR / non-TTY behaviour without touching process.stdout.
+ */
+export function palette(on: boolean): Palette {
+    const wrap = (open: string, close: string): (s: string) => string =>
+        on ? (s) => `${open}${s}${close}` : (s) => s;
+    return {
+        dim: wrap("\x1b[2m", "\x1b[22m"),
+        bold: wrap("\x1b[1m", "\x1b[22m"),
+        green: wrap("\x1b[32m", "\x1b[39m"),
+        red: wrap("\x1b[31m", "\x1b[39m"),
+        cyan: wrap("\x1b[36m", "\x1b[39m"),
+        purple: wrap("\x1b[35m", "\x1b[39m"),
+        yellow: wrap("\x1b[33m", "\x1b[39m"),
+    };
 }
 
-export const c = {
-    dim: wrap("\x1b[2m", "\x1b[22m"),
-    bold: wrap("\x1b[1m", "\x1b[22m"),
-    green: wrap("\x1b[32m", "\x1b[39m"),
-    red: wrap("\x1b[31m", "\x1b[39m"),
-    cyan: wrap("\x1b[36m", "\x1b[39m"),
-    purple: wrap("\x1b[35m", "\x1b[39m"),
-    yellow: wrap("\x1b[33m", "\x1b[39m"),
-};
+export const c: Palette = palette(enabled);
+
+/** Strip ANSI escape codes (colours and cursor/erase sequences). */
+export function stripAnsi(s: string): string {
+    return s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
+}
 
 // ── Table ────────────────────────────────────────────────────────────────
-
-/** Strip ANSI escape codes for width calculation. */
-function stripAnsi(s: string): string {
-    return s.replace(/\x1b\[[0-9;]*m/g, "");
-}
 
 /**
  * Render a formatted table to stdout.

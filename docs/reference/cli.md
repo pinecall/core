@@ -70,11 +70,12 @@ Every command at a glance (run `pinecall --help` for the same list):
 
 ### `pinecall run <file>`
 
-Run an agent file with a polished terminal display. The primary way to develop and test agents.
+Run an agent file with a live terminal display. The primary way to develop and test agents.
 
 ```bash
 pinecall run agent/index.ts
 pinecall run agent/index.js
+pinecall run agent/index.ts --events   # debug: print every event
 ```
 
 ```
@@ -82,14 +83,44 @@ pinecall run agent/index.js
   ⚙ tools: checkAvailability, makeReservation, cancelReservation
   ☎ listening on +14155550177 …
 
-  ☎  incoming call — connecting…
+  ☎  incoming call — +14155550177 · phone — 14:02:11
   caller › Hey, I'd like to reserve a table for Friday.
   pines  › Of course! How many guests?
-          ⚡ checkAvailability({ date: "2026-06-13", time: "19:00", partySize: 2 })
-          → available · window seat · 1.5 hours
+  caller › Two, around seven.
+          ⚡ checkAvailability(date: "2026-06-13", time: "19:00", partySize: 2)
+          ✓ available: true, table: "window"
+  pines  › Great news — a window table at 7 is free. Shall I book it?
+  caller › Yes pl                                       · ● listening t+24.1s
 ```
 
-Uses `tsx` for `.ts` files, `node` for `.js`. Sets `PINECALL_CLI_RUN=1` which triggers the SDK's built-in runner display (boot banner, live transcript, tool call formatting). The agent file needs zero changes — `pinecall run` just adds the pretty output.
+In a terminal the last line is **live** and is redrawn in place while everything above it is fixed:
+
+- the caller's line grows as words are recognised (`user.speaking`) and is fixed when the turn's final text arrives (`user.message`);
+- the agent's line grows **word by word as the audio is heard** (`bot.word`) and is fixed on `bot.finished`. A barge-in (`bot.interrupted`) fixes what was actually said and marks it `⏏`. Chat and WhatsApp agents have no audio, so there the reply text itself is the line;
+- the turn state — `● listening` / `● thinking` / `● pause` / `● speaking` — sits at the end of the live line with the time since the call started;
+- tool calls (`⚡ name(args)`) and their results (`✓ …`) stay inline, in order;
+- call start and end keep their own lines, the end with the duration.
+
+A session that never announces itself — `pinecall chat`, the MCP `chat` tool, any `llm.chat` client — renders the same way (`☎  session — chat`): the reply text is fixed once its chunks stop arriving (300 ms) or on the next event. Only the last line is ever redrawn, so scrollback stays readable. With several agents in one file lines are prefixed `[agent-id]`; with several concurrent calls, `[call-id]` too.
+
+**Not a TTY** (piped, CI, `| tee`): no cursor movement and no escape codes — one line per final event, prefixed with the time since the call started. Interim speech and turn state are not printed.
+
+```
+  t+0.0s   ☎  incoming call — +14155550177 · phone
+  t+2.0s   caller › Hey, I'd like a table for two.
+  t+3.5s   pines  › Of course! How many guests?
+  t+4.0s   ☎  call ended — hangup (12s)
+```
+
+**Debug mode:** `--events` (or `PINECALL_RUN_EVENTS=1`) additionally prints every event the agent emits — name plus a compact payload summary — in both modes. Useful when a turn does not go the way you expect:
+
+```
+  t+1.2s · speech.started {turnId:1,confidence:0.92,timestamp:1755…}
+  t+1.5s · user.speaking {messageId:"u1",text:"Hey",confidence:0.8}
+  t+2.0s · turn.end {turnId:1}
+```
+
+`NO_COLOR` disables colours. Uses `tsx` for `.ts` files, `node` for `.js`. Sets `PINECALL_CLI_RUN=1` which triggers the SDK's built-in runner display (boot banner, live transcript, tool call formatting). The agent file needs zero changes — `pinecall run` just adds the terminal UI.
 
 > **Convention:** Agent code lives in `agent/index.ts` (or `.js`), tools in `agent/tools.ts`. Export the agent: `export const agent = pc.agent(...)`.
 

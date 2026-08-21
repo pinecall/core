@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`pinecall run` is live.** The terminal display no longer waits for the
+  finals: in a TTY the caller's line grows as words are recognised
+  (`user.speaking`) and is fixed on `user.message`; the agent's line grows
+  **word by word as the audio plays** (`bot.word`) and is fixed on
+  `bot.finished` — or marked `⏏` on `bot.interrupted`; the turn state
+  (`● listening` / `thinking` / `pause` / `speaking`) with the time since the
+  call started sits on the last line, which is the only line ever redrawn, so
+  scrollback stays sane. Tool calls and results stay inline; chat/WhatsApp
+  agents (no audio, no words) show the reply text itself. Off a TTY (pipe, CI)
+  the output is one plain line per final event with a `t+12.3s` prefix and no
+  escape codes. Multi-agent files get `[agent-id]` prefixes, concurrent calls
+  `[call-id]`. All rendering lives in `src/cli/live-view.ts` with an
+  injectable stream; the runner only picks the mode from the environment.
+- **`pinecall run --events`** (or `PINECALL_RUN_EVENTS=1`) prints every agent
+  event name with a compact payload summary, in both renderers — a debug aid
+  for turns that do not go the way you expect.
+
+### Fixed
+- `pinecall run` showed no `caller ›` / `agent ›` lines for a chat session
+  that never sent `call.started` (`pinecall chat`, the MCP `chat` tool, any
+  `llm.chat` client): the view now opens an implicit context on the first
+  `user.message` / `bot.speaking`, listens to `chat.started` /
+  `whatsapp.started`, and fixes a text reply once its chunks settle (300 ms)
+  or the next event arrives — streamed chunks still coalesce into one line.
+- `pinecall run` printed no tool calls: the display read `tool_calls` /
+  `tools` off the `llm.toolCall` event, whose payload is `toolCalls` with
+  JSON-string `arguments`. Now parsed and rendered as `⚡ name(args)`.
+
 ---
 
 ## [0.11.0] — 2026-08-21 — speech-to-text without a call: files, live audio, and who said what
