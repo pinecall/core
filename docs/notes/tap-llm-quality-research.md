@@ -5,11 +5,15 @@ description: Research note (2026-08-21) — how much junk `pinecall knowledge ta
 
 # Tap quality research — noise, LLM triage / cleanup / enrichment
 
-Card tk-818bd3, 2026-08-21. Research only: nothing in `src/` changed. Every
-number below comes from `scripts/research/*` run against four public sites
-(plus one anecdote) and a throw-away dev KB; the scripts and the manual labels
-(`scripts/research/fixtures/`) reproduce them. **What was not measured is
-marked as such**, with the reason and the command that measures it.
+Card tk-818bd3, 2026-08-21; the cells the Anthropic outage left un-measured
+were filled by card tk-903a6d on 2026-08-22 with the gateway's **new default
+model** — `cheap` → `openrouter/qwen/qwen3-30b-a3b-instruct-2507` ($0.048 / $0.193
+per M tokens in/out; `GET /api/llm/models` → `default: cheap`). Rows are
+tagged by model: `haiku` = `claude-haiku-4-5` (the 2026-08-21 runs), `cheap` =
+the qwen3-30b above. Research only: nothing in `src/` changed. Every number
+below comes from `scripts/research/*` run against four public sites (plus one
+anecdote) and a throw-away dev KB; the scripts and the manual labels
+(`scripts/research/fixtures/`) reproduce them.
 
 > **Headline.** On the sites tapped, the classic noise — nav, footer, cookie
 > text — is already gone: Defuddle leaves **< 3 % cross-page boilerplate by
@@ -21,13 +25,22 @@ marked as such**, with the reason and the command that measures it.
 > is better than the premise assumed: the raw tap answers **39/40** questions in
 > the top-5, with **5 %** junk hits. A free deterministic pass (option A) halves
 > the junk hits but also **deleted facts twice** (a repeated bio, a sign-up page).
-> The LLM passes are cheap to run (**$0.0007/page** triage, **$0.004/page**
-> enrichment, **$0.01/page** cleanup) but on these sites **add little the
-> deterministic pass does not already get**; enrichment is the one that moved a
-> retrieval number. Recommendation: ship A (with a "keep one copy" rule and
-> the manifest out of the index) now; ship LLM triage + enrichment as an
-> opt-in lane cached by content hash; keep cleanup guarded and summarisation
-> out; measure on two customer KBs before any LLM lane is on by default.
+> The LLM passes are cheap to run — with haiku **$0.0007/page** triage,
+> **$0.004/page** enrichment, **$0.01/page** cleanup; with the gateway's new
+> default (qwen3-30b via OpenRouter) **20–40× less again: $0.00002 / $0.0001 /
+> $0.0002 per page** — but on these sites **add little the deterministic pass
+> does not already get**; enrichment is the one that moved a retrieval number
+> (it recovered both answers A lost — caveman with haiku, joel with the cheap
+> model) and also the one that can cost ranks when it rewrites every title
+> (basecamp, cheap: MRR 0.933 → 0.803). The overview (E) never answered a
+> question the pages did not. Cleanup (C) with the cheap model silently deleted
+> fact-bearing tooltip text on basecamp's pricing page — the containment check
+> does not see deletions — and lost a rank on two sites. Recommendation: ship A
+> (with a "keep one copy" rule and the manifest out of the index) now; ship
+> LLM triage + enrichment as an opt-in lane on the cheap default model, cached
+> by content hash, with the rewritten title in the header only; keep cleanup
+> guarded (now also against deletions) and summarisation out; measure on two
+> customer KBs before any LLM lane is on by default.
 
 ---
 
@@ -172,7 +185,20 @@ mechanically; a rewritten title (option D) is the version that can help.
 | caveman (haiku) | 7 / 2 | 7 · 0 · 1 | 1.00 | 0.88 | 1/2 | 0.00067 | 555 | 0.025 |
 | **all (haiku)** | 12 / 35 | 10 · 2 · 5 | **0.83** | **0.67** | 12/19 | **0.0007** | ~550 (4 s/call) | **0.112** |
 | basecamp (sonnet) | 4 / 7 | 3 · 1 · 4 | 0.75 | 0.43 | 4/8 | 0.00175 | 916 | 0.105 |
-| caveman (sonnet) | not measured — gateway died mid-run (§5) | | | | | | | |
+| caveman (sonnet) | not measured — gateway died mid-run (§5); the follow-up card ran the cheap model instead of sonnet (below), since sonnet is no longer the question | | | | | | | |
+| basecamp (cheap) | 5 / 5 | 3 · 2 · 4 | 0.60 | 0.43 | 3/8 | 0.00002 | 719 | 0.0013 |
+| joel (cheap) | 0 / 1 | 0 · 0 · 0 | — | — | 1/9 | 0.00002 | 598 | 0.0012 |
+| pcdocs (cheap) | 0 / 0 | 0 · 0 · 0 | — | — | — | 0.00003 | 1 417 | 0.0005 |
+| caveman (cheap) | 6 / 1 | 6 · 0 · 2 | 1.00 | 0.75 | 0/2 | 0.00002 | 690 | 0.0008 |
+| **all (cheap)** | 11 / 7 | 9 · 2 · 6 | **0.82** | **0.60** | 4/19 | **0.00002** | ~740 | **0.0038** |
+
+`cheap` = `openrouter/qwen/qwen3-30b-a3b-instruct-2507`, 2026-08-22, same prompt,
+same batches, zero parse failures over 24 calls. **Haiku vs cheap:** same
+precision (0.83 vs 0.82), a little less recall (0.67 vs 0.60 — it keeps
+`managers.md` and `privacy.md`, drops `shapeup__0.1-foreword.md` as "browser
+warning only"), and it almost never says `low` (4/19 vs 12/19) — the soft
+signal is gone. Latency 740 vs 550 ms/page; cost 30× lower ($0.004 vs $0.112
+for the four sites).
 
 What it catches and misses: every empty/auth/banner/legal-by-URL page (same
 set as A); it **misses duplicates** (no cross-page view — A has it), it
@@ -185,7 +211,7 @@ the price. Zero JSON parse failures over 24 haiku calls.
 
 ### C · LLM cleanup of kept pages — `06-option-c.mjs` (haiku)
 
-Run on pcdocs (6 pages completed before the outage; pages > 6 000 tokens skipped):
+Run on pcdocs with haiku (6 pages completed before the outage; pages > 6 000 tokens skipped):
 
 | mode | pages | tokens in → out | cut | sentences checked | not near-copies (violations) | $/page | s/page |
 |---|---|---|---|---|---|---|---|
@@ -206,11 +232,34 @@ near-copy can be verified sentence by sentence.
 
 Cost is dominated by output tokens (a clean page is re-emitted whole): 3–10×
 B or D per page, and 8–28 s per page. On a docs site that had almost nothing
-to clean it removed 7 % of tokens — not worth it as a default.
-**Not measured:** retrieval after C on the three other sites (outage); the
-pcdocs A+C KB was built from a variant in which 11/17 docs were empty (the
-gateway's silent failure, see §5) and its numbers are discarded.
-Re-run: `node scripts/research/06-option-c.mjs basecamp joel caveman pcdocs --mode=clean && node scripts/research/04-retrieval.mjs <site> A+C`.
+to clean it removed 7 % of tokens — not worth it as a default. (The haiku
+pcdocs A+C retrieval KB was built from a variant with 11/17 empty docs — the
+gateway's silent failure, §5 — and its numbers are discarded.)
+
+**Clean with the cheap model, all four sites** (`06-option-c.mjs … --mode=clean --model=cheap`,
+2026-08-22, same prompt and cap; variant `A+C.cheap`, then `04-retrieval.mjs <site> A+C.cheap`):
+
+| site | pages (skipped) | tokens in → out | cut | sentences checked | violations (pages) | $/page | s/page | retrieval A+C.cheap ans · MRR · junk — vs A |
+|---|---|---|---|---|---|---|---|---|
+| basecamp | 50 (2 over cap) | 77 432 → 76 414 | 1.3 % | 2 594 | 29 (3) | 0.00033 | 21.6 | 10 · 0.933 · 2 — = |
+| joel | 58 | 12 230 → 12 016 | 1.7 % | 362 | 2 (2) | 0.00006 | 5.2 | 9 · 0.850 · 2 — = (the bio question stays lost) |
+| pcdocs | 16 (1) | 32 298 → 30 480 | 5.6 % | 107 | 1 (1) | 0.0005 | 22.4 | 9 · **0.825** · 0 — "How do I install the SDK?" 1 → 4 |
+| caveman | 29 | 35 788 → 35 760 | 0.1 % | 1 025 | 18 (7) | 0.00028 | 14.1 | 9 · 0.900 · 1 — "what data do you collect" 2 → 1; 10 → 9 answered (the A+C KB no longer returns `signup.md`, same as A's loss) |
+
+**Haiku vs cheap on C** (pcdocs is the only overlap: haiku 6 pages, 7.3 % cut,
+0/50 violations, $0.0101, 15 s/page; cheap 16 pages, 5.6 % cut, 1/107,
+$0.0005, 22 s/page): 20× cheaper, slower, and **less faithful in a way the
+check does not see**. Read by hand, the 29 basecamp "violations" are
+re-flowed testimonial blockquotes (formatting, 27) plus two real edits; but on
+`pricing.md` (25.8 % cut, 1 flagged sentence of 42) the model **deleted the
+tooltip explanations** ("Archived or deleted projects don't count against
+your total", five "coming soon" qualifiers) — fact-bearing text gone with no
+violation, because the containment check only looks at what the output
+*adds*, never at what it *drops*. On joel it stripped links and corrected
+"it's" → "its". Retrieval did not improve anywhere and lost a rank on pcdocs.
+The guard for a C lane therefore needs the reverse check too (input sentences
+missing from the output → reject), and even then C stays the lane with no
+measured upside on these sites.
 
 ### D · LLM enrichment for retrieval — `07-option-d.mjs` (haiku, JSON: title, breadcrumb, one-line summary, 3–5 questions, 5–12 keywords → header under the frontmatter; body untouched)
 
@@ -218,7 +267,11 @@ Re-run: `node scripts/research/06-option-c.mjs basecamp joel caveman pcdocs --mo
 |---|---|---|---|---|---|---|
 | pcdocs | 17/17 | 173 | 9/17 | 0.0040 | 3.1 | 9/10 · MRR 0.900 — **unchanged** (no headroom: raw was already 0.900) |
 | caveman | 10/29 (partial — outage) | 170 | 8/10 | 0.0025 | 2.7 | **10/10 · MRR 0.950** vs A 9/10 · 0.850: "How do I sign up?" came back at rank 2 through the enriched `enterprise.md`/`pricing.md` headers, "What do you collect?" moved rank 2 → 1 |
-| basecamp, joel | not measured (outage) | | | | | re-run: `node scripts/research/07-option-d.mjs basecamp joel --base=A && node scripts/research/04-retrieval.mjs <site> A+D` |
+| basecamp, joel (haiku) | not measured (outage) — measured with the cheap model below | | | | | |
+| basecamp (cheap) | 52/52 | 174 | 48/52 | 0.00011 | 3.6 | 10/10 · MRR **0.803** · junk 2 vs A 10/10 · 0.933 · 2: pricing 1 → 2, "contact support" 3 → 5, "which books" 1 → 3 — the rewritten title + header of `handbook.md`/`accessibility.md` outrank the page that holds the answer |
+| joel (cheap) | 58/58 | 182 | 58/58 | 0.00006 | 3.6 | **10/10 · MRR 0.883 · junk 0** vs A 9/10 · 0.850 · 2: "What companies did Joel found?" back at rank 3 (the header of `1999/12/24` asks "Where did Joel work before his sabbatical?"), the manifest out of the top-5 on both questions, "compensated" 2 → 1 |
+| pcdocs (cheap) | 17/17 | 178 | 17/17 | 0.00015 | 3.8 | 9/10 · 0.900 · 0 — same as haiku |
+| caveman (cheap) | 29/29 | 188 | 29/29 | 0.0001 | 4.2 | 10/10 · 0.950 · 1 — same as haiku's partial run, now on all 29 pages |
 
 Sample output (caveman `index.md`): title "the token-efficient stack for
 agent-native development" → "Caveman: Token-Efficient Stack for Agent-Native
@@ -227,19 +280,43 @@ Development"; questions "How much can Caveman reduce my agent's token usage?",
 moved a retrieval number, on a *partial* variant, at $0.004/page — and it is
 exactly the mechanism the knowledge-base skill's troubleshooting table
 describes (an overview that *describes* rather than lists, BM25 seeing the
-words users say). Joel's 59 date-titles are the obvious next test.
+words users say). Joel's 59 date-titles were the obvious next test, and with
+the cheap model they passed: every date became a descriptive title
+("1999/12/24" → "Joel Spolsky's Sabbatical and Future Writing Plans") and the
+lost answer came back.
+
+**Haiku vs cheap on D** (pcdocs, caveman overlap): identical retrieval (0.900 /
+0.950, same junk), 25–40× cheaper ($0.0001 vs $0.004 per page), ~1 s/page
+slower (3.6–4.2 vs 2.7–3.1). The one behavioural difference: haiku rewrote
+9/17 titles on pcdocs, the cheap model rewrites **every** title (156/156),
+and on basecamp — marketing pages whose titles were already good — that cost
+0.13 MRR. The lane must keep the original title as the doc title and put the
+rewritten one in the header, or rewrite only when the title is a date, empty
+or generic.
 
 ### E · Site-level overview — `08-option-e.mjs`
 
-**Not measured**: the gateway was down before it ran. The script is written
-(kept pages, shallowest six whole, the rest as 250-word excerpts, ≤ 40 k input
-tokens → `_overview.md`). Cost estimate (a guess from the token budget and
-list prices): haiku ≈ $0.05–0.06 per site, sonnet ≈ $0.15–0.20; one call,
-20–40 s. The "list everything" questions in the probe (2 per site) were
-already answered by raw retrieval on every site, so E's measurable upside
-needs a site whose list is spread over many pages (a restaurant menu across
-category pages, a clinic's services) — none of the four is that site.
-Re-run: `node scripts/research/08-option-e.mjs <site> --base=A+D && node scripts/research/04-retrieval.mjs <site> A+D+E`.
+Measured 2026-08-22 with the cheap model on top of `A+D.cheap` (kept pages,
+shallowest six whole, the rest as 250-word excerpts, ≤ 40 k input tokens →
+`_overview.md`; `08-option-e.mjs … --base=A+D.cheap --model=cheap`):
+
+| site | pages used | tokens in → out | s | $ | retrieval A+D.cheap+E.cheap vs A+D.cheap | `_overview.md` in the top-5 |
+|---|---|---|---|---|---|---|
+| basecamp | 52 | 23 419 → 3 000 (**hit `max_tokens`**, site map cut) | 85 | 0.0017 | 10/10 · MRR 0.817 (+0.014: "contact support" 5 → 3) · junk 2 | 4 questions, ranks 4–5 |
+| joel | 58 | 21 623 → 1 617 | 19 | 0.0013 | 10/10 · 0.883 · 0 (=) | 5 questions, ranks 2–4 |
+| pcdocs | 17 | 15 291 → 761 | 18 | 0.0009 | 9/10 · 0.900 · 0 (=) | 4 questions, ranks 4–5 |
+| caveman | 29 | 17 555 → 885 | 12 | 0.0010 | 10/10 · 0.950 · 1 (=) | 2 questions, rank 3 |
+
+The overviews are good documents (read by hand: correct product lists, plans,
+get-started steps; nothing invented was found) and they do carry answers —
+the overview chunk *matches* the expected answer on 2–5 questions per site —
+but always **behind** the page that already had it, so no question moved
+from unanswered to answered and MRR moved on one site by 0.014. As predicted:
+the "list everything" questions were already answered by the pages, so E's
+upside needs a site whose list is spread over many pages (a restaurant menu
+across category pages, a clinic's services); the four sites are not that.
+$0.001–0.002 per site, 12–85 s, one call; with the cheap model a
+3 000-token cap truncates a 50-page site (use 4–5 k).
 
 ### All variants side by side
 
@@ -248,9 +325,11 @@ Re-run: `node scripts/research/08-option-e.mjs <site> --base=A+D && node scripts
 | raw (today) | 10 · 1.000 · 4 | 10 · 0.883 · 2 | 9 · 0.900 · 0 | 10 · 0.950 · 4 | 39/40, 5 % junk |
 | A | 10 · 0.933 · 2 | 9 · 0.850 · 2 | 9 · 0.900 · 0 | 9 · 0.850 · 1 | 37/40, 2.5 % junk, 2 answers lost |
 | A+H | 9 · 0.833 · 2 | 9 · 0.750 · 2 | 9 · 0.900 · 0 | 9 · 0.900 · 1 | mechanical H1 hurts |
-| A+D | not run | not run | 9 · 0.900 · 0 | 10 · 0.950 · 1 (10/29 enriched) | recovers what A lost |
-| A+C | not run | not run | invalid (empty docs) | not run | — |
-| A+D+E | not run | not run | not run | not run | — |
+| A+D (haiku) | — | — | 9 · 0.900 · 0 | 10 · 0.950 · 1 (10/29 enriched) | recovers what A lost |
+| A+D (cheap) | 10 · **0.803** · 2 | **10** · 0.883 · **0** | 9 · 0.900 · 0 | 10 · 0.950 · 1 | 39/40, 1.5 % junk; recovers joel, costs basecamp ranks |
+| A+C (haiku) | — | — | invalid (empty docs) | — | — |
+| A+C (cheap) | 10 · 0.933 · 2 | 9 · 0.850 · 2 | 9 · 0.825 · 0 | 9 · 0.900 · 1 | 37/40, = A except one rank lost on pcdocs, one gained on caveman |
+| A+D+E (cheap) | 10 · 0.817 · 2 | 10 · 0.883 · 0 | 9 · 0.900 · 0 | 10 · 0.950 · 1 | = A+D.cheap + 0.014 on one site |
 
 ---
 
@@ -260,7 +339,7 @@ Re-run: `node scripts/research/08-option-e.mjs <site> --base=A+D && node scripts
 |---|---|---|
 | works today | yes — same `PINECALL_API_KEY`, gateway gated to paid plans (402 otherwise) | no — needs playground/voice-server cards |
 | who pays latency | the user's terminal (B: ~1 min / 100 pages at 8-page batches; D: ~5 min sequential, ~80 s at concurrency 4; C: 25 min / 6 min) | nobody visible; reindex is already async |
-| who pays money | Pinecall's Anthropic bill through the gateway — needs per-org metering (usage record per call) before it is a default | same bill, centralised budget, easier to meter |
+| who pays money | Pinecall's gateway bill (OpenRouter for the `cheap` default, Anthropic for `haiku`/`sonnet`) — needs per-org metering (usage record per call) before it is a default | same bill, centralised budget, easier to meter |
 | cross-page context | yes — the CLI holds the whole plan (boilerplate, dups, overview) | only at reindex over the whole KB; not at push |
 | idempotence | **cache every LLM artefact by content hash in the manifest**: `pages[path].llm = { hash, model, verdict, reason, score, title, questions[], keywords[] }` — `syncTap` reuses it when the page hash is unchanged, so an unchanged page costs zero LLM calls and the doc text is byte-identical across syncs (no spurious re-push). The overview is regenerated only when ≥ 1 page hash moved, and stored with the list of hashes it was built from. `temperature: 0`. | the server would hold the same cache keyed by doc hash |
 | failure mode | must degrade to no-LLM with a warning — today (2026-08-21) the gateway answered 200 + `done {0,0}` with no text for an hour (§5); a tap must not write empty docs or stall | same |
@@ -273,25 +352,33 @@ are enabled.
 
 ## 5 · Cost, and what this research spent
 
-**Measured list prices, haiku-4.5 ($1 / $5 per M tokens in/out), per 100 pages of
-~1 300 tokens (the 4-site mean, 232 k tokens / 174 pages):**
+**Measured list prices per 100 pages of ~1 300 tokens (the 4-site mean,
+232 k tokens / 174 pages).** `haiku` = claude-haiku-4-5 ($1 / $5 per M in/out);
+`cheap` = openrouter/qwen/qwen3-30b-a3b-instruct-2507 ($0.048 / $0.193), the
+gateway default since 2026-08-21:
 
-| lane | $/100 pages | wall time (sequential · concurrency 4) | measured on |
-|---|---|---|---|
-| A deterministic | 0 | < 1 s | 174 pages |
-| B triage (batch 8) | **0.07** | 52 s · 15 s | 174 pages |
-| D enrichment | **0.40** | 5 min · 80 s | 27 pages |
-| C clean (≤ 6 k-token pages) | **1.0** | 25 min · 6 min | 6 pages |
-| E overview | ~0.06 (guess) | 30 s | not run |
-| **default LLM pass B + D** | **≈ 0.5** | ≈ 2 min at concurrency 4 | |
-| everything (B + C + D + E) | ≈ 1.5 | ≈ 8 min | |
+| lane | $/100 pages haiku | $/100 pages **cheap** | wall time cheap (sequential · concurrency 4) | measured on (haiku · cheap) |
+|---|---|---|---|---|
+| A deterministic | 0 | 0 | < 1 s | 174 pages |
+| B triage (batch 8) | 0.07 | **0.002** | 74 s · 19 s | 174 · 174 pages |
+| D enrichment | 0.40 | **0.010** | 6.3 min · 95 s | 27 · 156 pages |
+| C clean (≤ 6 k-token pages) | 1.0 | **0.024** | 23 min · 6 min | 6 · 153 pages |
+| E overview (per site, one call) | ~0.06 (guess) | **0.001–0.002** | 12–85 s | 0 · 4 sites |
+| **default LLM pass B + D** | ≈ 0.5 | **≈ 0.012** | ≈ 2 min at concurrency 4 | |
+| everything (B + C + D + E) | ≈ 1.5 | ≈ 0.04 | ≈ 8 min | |
 
-Sonnet multiplies B by 2.7 with no accuracy gain measured.
+The cheap model makes money a non-argument: a 100-page tap with every lane on
+costs four cents; B + D cost about a cent. What is left is latency (the
+cheap model is 1.3–1.5× slower per page than haiku; C is 14–22 s per page
+either way) and quality (same P/R on B, same retrieval on D with the
+over-rewriting caveat, C less faithful). Sonnet multiplies B by 2.7 with no
+accuracy gain measured; there is no reason left to route a tap lane to it.
 
-**Spent by this card on the gateway:** $0.41 (ledger `.research-data/llm-ledger.jsonl`:
+**Spent by tk-818bd3 on the gateway:** $0.41 (ledger `.research-data/llm-ledger.jsonl`:
 B haiku $0.112, B sonnet $0.113, D $0.093, C clean $0.061, C summarize $0.034);
-KB operations: 16 dev KBs created and deleted, none left (`pinecall knowledge`
-shows only the pre-existing ones).
+16 dev KBs created and deleted.
+**Spent by tk-903a6d (the cheap re-run, 337 calls):** **$0.060** — B $0.004,
+D $0.015, C clean $0.036, E $0.005; 12 dev KBs created and deleted, none left.
 
 **The outage.** At ~20:41 UTC every gateway call started returning
 `data: {"type":"done","usage":{"input_tokens":0,"output_tokens":0}}` and no
@@ -313,13 +400,30 @@ back to the un-enriched doc. Both are in the card plan.
 5. **Overview (E) opt-in** (`--overview`), regenerated on delta, frontmatter-marked as generated, measured on a real business site before it is suggested by default.
 6. **Phase 3, server side**: move D/E to reindex time on the voice server (centralised cost, per-org metering, invisible latency), keep A in the client (it needs the crawl).
 
-Risks and mitigations: hallucination (C/E) → containment check, generated-doc
-marker, no summaries; cost run-away → per-tap budget (`--llm-budget`), cache by
-hash, haiku only by default; non-determinism → `temperature 0` + cache, so a
+**Revised 2026-08-22, after the cheap-model re-run.** The recommendation
+stands; three things change. (a) The LLM lane's default model is the
+gateway default (`cheap`), not haiku: B keeps its precision, D keeps its
+retrieval, and B + D cost ≈ $0.01 / 100 pages — cost is no longer the reason
+to keep the lane opt-in, the two-customer measurement (phase 2) is. (b) D
+must **not replace the doc title** by default — the cheap model rewrites every
+title and that cost basecamp 0.13 MRR; the rewritten title lives in the
+header, and replaces the title only when the original is a date, empty or a
+bare site name (joel is the case it fixes). (c) C's guard needs a
+**deletion check** (input sentences ≥ 5 words missing from the output →
+reject the page) on top of the containment check; the cheap model dropped
+fact-bearing tooltip text on `pricing.md` without tripping the existing one,
+and C moved no retrieval number up on any site. E is confirmed cheap and
+harmless (+0.014 on one site, nothing lost) and stays opt-in until a site
+with a spread-out list shows it moving a number.
+
+Risks and mitigations: hallucination (C/E) → containment check + deletion
+check, generated-doc marker, no summaries; cost run-away → per-tap budget
+(`--llm-budget`), cache by hash, the cheap default model only by default; non-determinism → `temperature 0` + cache, so a
 sync never re-pushes an unchanged page; gateway outage → detect "no tokens",
 retry ×3, degrade with a warning, never write an empty doc (we did, once);
-privacy → customer site text leaves the client for Anthropic via the gateway —
-say so in `docs/guides/tap.md`, keep it opt-in.
+privacy → customer site text leaves the client for OpenRouter (cheap) or
+Anthropic (haiku/sonnet) via the gateway — say so in `docs/guides/tap.md`,
+keep it opt-in.
 
 ---
 
@@ -377,7 +481,7 @@ key the stream carries the error frame (curl test in the card).
 
 **1.1 `src/tap/llm.ts`: gateway client + cache.** SSE client (retry ×3 with
 backoff on "no tokens"/429/5xx, `temperature: 0`, `max_tokens` per lane, cost
-accounting from `usage`), `LlmLaneOptions { lanes: ("triage"|"enrich"|"clean")[], model?: "haiku"|"sonnet", concurrency?: 4, budgetUsd?: number }`;
+accounting from `usage`), `LlmLaneOptions { lanes: ("triage"|"enrich"|"clean")[], model?: "cheap"|"haiku"|"sonnet" (default "cheap" — the gateway default; send no model), concurrency?: 4, budgetUsd?: number }`;
 manifest entry `pages[path].llm` (hash-keyed artefacts, see §4); `TapPhase`
 gains `"llm"`, events carry `message: "triage 12/60 · $0.01"`; `TapReport`
 gains `llm: { calls, usd, cached, failed }`. Tests with a fake gateway.
@@ -393,11 +497,14 @@ pages ≤ $0.10 in the report line.
 
 **1.3 enrich (D).** `07-option-d.mjs` prompt and header format; applied with
 `--llm=enrich`; title also replaces `frontmatter.title` and the KB doc title;
-pages > 12 k chars are excerpted for the prompt. Acceptance: cached header is
-byte-identical across syncs; `docs/guides/tap.md` documents the header and
-the privacy note.
+pages > 12 k chars are excerpted for the prompt; **the doc title is replaced
+only when the original is a date, empty or a bare site name** (§3 D: the
+cheap model rewrites every title and cost basecamp 0.13 MRR), otherwise the
+rewritten title stays in the header. Acceptance: cached header is
+byte-identical across syncs; basecamp `A+D` MRR ≥ A's 0.933 with the rule on;
+`docs/guides/tap.md` documents the header and the privacy note.
 
-**1.4 overview (E).** `--overview` (haiku default, `--overview-model=sonnet`);
+**1.4 overview (E).** `--overview` (cheap default, `--overview-model=haiku|sonnet`, `max_tokens` ≥ 4 k — 3 k truncated a 50-page site);
 `_overview.md` with frontmatter `generated: true, fromHashes: [...]`;
 regenerated only on delta; never on a plan under 3 kept pages. Acceptance:
 e2e on a business site with services spread across pages; the "list
@@ -414,16 +521,17 @@ in the summary line; `docs/guides/tap.md`, `docs/reference/cli.md`, `CHANGELOG.m
 A vs A+D (+E) on two real business sites (restaurant/clinic-like: services,
 hours, prices across pages) with 10 questions each written from the site;
 decide default-on for `enrich` and suggest-on for `overview` from the numbers.
-Also finish the unmeasured cells of §3 (C on three sites, D on basecamp/joel,
-E everywhere) — the commands are in each subsection.
+(The formerly unmeasured cells of §3 were filled by tk-903a6d with the cheap
+model; no haiku re-run is planned.)
 
 ### Phase 3 — server side
 
 **3.1 enrich/overview at reindex.** Voice server: an optional enrichment step
 in the megabrain index hook keyed by doc hash, per-org metering into usage,
 `index: false` honoured; CLI `--llm=enrich` becomes a no-op when the server
-reports `serverEnrich: true`. **3.2 clean (C) guarded**, server or client,
-only if phase 2 shows a site where it moves a number.
+reports `serverEnrich: true`. **3.2 clean (C) guarded** (containment **and**
+deletion check), server or client, only if phase 2 shows a site where it
+moves a number.
 
 ---
 
@@ -439,11 +547,17 @@ node scripts/research/02-baseline.mjs basecamp joel pcdocs caveman   # §2 table
 node scripts/research/03-option-a.mjs basecamp joel pcdocs caveman   # A + the raw variant
 node scripts/research/03b-option-a-heading.mjs …                     # A+H
 node scripts/research/04-retrieval.mjs <site> <variant>               # dev KB, 10 questions, k=5, deletes the KB
-node scripts/research/05-option-b.mjs … --model=haiku                 # B
-node scripts/research/06-option-c.mjs … --mode=clean|summarize        # C
-node scripts/research/07-option-d.mjs … --base=A                      # D
-node scripts/research/08-option-e.mjs … --base=A+D                    # E
+node scripts/research/05-option-b.mjs … --model=cheap|haiku|sonnet    # B → variants/<site>/B-<model>
+node scripts/research/06-option-c.mjs … --mode=clean|summarize --model=cheap   # C → A+C.cheap (haiku: A+C)
+node scripts/research/07-option-d.mjs … --base=A --model=cheap        # D → A+D.cheap (haiku: A+D)
+node scripts/research/08-option-e.mjs … --base=A+D.cheap --model=cheap  # E → A+D.cheap+E.cheap
 ```
+
+`--model=cheap` is the gateway default (`openrouter/qwen/qwen3-30b-a3b-instruct-2507`
+on 2026-08-22; `GET /api/llm/models` says what it resolves to today, and every
+summary JSON records `modelId`). The scripts' `lib.mjs` prices `cheap` at
+$0.048 / $0.193 per M tokens and treats the gateway's `{type:"error",code,status}`
+frames as failures (retrying only rate limits).
 
 Corpora, variants, retrieval results and the LLM cost ledger land in
 `.research-data/` (gitignored); labels and questions are committed under

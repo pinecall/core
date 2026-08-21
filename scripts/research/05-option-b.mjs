@@ -4,15 +4,15 @@
  * a reason and a usefulness score. Compared with the manual labels; cost and
  * latency logged per page.
  *
- *   node scripts/research/05-option-b.mjs <site>… [--model=haiku|sonnet] [--batch=8]
+ *   node scripts/research/05-option-b.mjs <site>… [--model=cheap|haiku|sonnet]   (cheap = the gateway default, the OpenRouter qwen3-30b) [--batch=8]
  */
 import { join } from "node:path";
 import {
-    loadCorpus, labelsFor, isJunkLabel, llm, parseJson, logCost, writeJson, variantDir, countWords,
+    loadCorpus, labelsFor, isJunkLabel, llm, parseJson, logCost, writeJson, variantDir, countWords, MODEL_ID,
 } from "./lib.mjs";
 
 const args = process.argv.slice(2);
-const model = (args.find((a) => a.startsWith("--model=")) ?? "--model=haiku").slice(8);
+const model = (args.find((a) => a.startsWith("--model=")) ?? "--model=cheap").slice(8);
 const batch = Number((args.find((a) => a.startsWith("--batch=")) ?? "--batch=8").slice(8)) || 8;
 const sites = args.filter((a) => !a.startsWith("--"));
 if (!sites.length) { console.error("usage: 05-option-b.mjs <site>… [--model=] [--batch=]"); process.exit(1); }
@@ -59,7 +59,7 @@ for (const site of sites) {
     const lowAgree = labeled.filter((r) => r.label === "low" && r.verdict !== "keep").length;
     const lowTotal = labeled.filter((r) => r.label === "low").length;
     const s = {
-        site, model, pages: pages.length, calls, parseFails,
+        site, model, modelId: MODEL_ID[model] ?? model, pages: pages.length, calls, parseFails,
         drop: rows.filter((r) => r.verdict === "drop").length, low: rows.filter((r) => r.verdict === "low").length,
         tp, fp, fn, precision: tp + fp ? (tp / (tp + fp)).toFixed(2) : "n/a", recall: tp + fn ? (tp / (tp + fn)).toFixed(2) : "n/a",
         lowCaught: `${lowAgree}/${lowTotal}`,
