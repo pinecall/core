@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`pc.audio.speech()` / `pc.audio.voices()`** — standalone text-to-speech,
+  no agent and no call. `speech({ input, voice, language?, model?, format?,
+  sampleRate?, speed?, timestamps?, signal? })` POSTs `/v1/audio/speech` and
+  resolves as soon as the headers arrive with a `SpeechResult`: `audio` (a
+  `ReadableStream<Uint8Array>` of raw bytes as they are produced — never
+  buffered), `words` (an async iterable of `{ word, start, end }` when
+  `timestamps: true`), `done` (`{ characters, audioMs }`), `cancel()` (aborts
+  the request and the synthesis behind it), plus `arrayBuffer()` and the
+  Node-only `toFile(path)`. Refusals arrive as a typed `AudioApiError` with
+  `status` + `code` (`BAD_VOICE`, `INSUFFICIENT_CREDITS`, `RATE_LIMITED`, …).
+  `voices()` lists what `speech()` accepts via `GET /v1/audio/voices`. Both are
+  also exported top-level as `speech()` / `fetchAudioVoices()`, bound to
+  nothing. Needs a voice server that serves the endpoint.
 - **`stt.turn` for Soniox** — who ends the turn. `"native"` (default) lets
   Soniox's semantic endpointing decide, as Flux does for itself; `"smart_turn"`
   keeps Soniox as transcriber and hands the turn to the local SmartTurn model.

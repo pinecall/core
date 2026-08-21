@@ -11,9 +11,21 @@ export interface HttpOptions {
     apiKey?: string;
 }
 
+export interface ApiFetchOptions extends HttpOptions {
+    query?: Record<string, string>;
+    /** HTTP method. Defaults to GET (POST when a `body` is given). */
+    method?: string;
+    /** JSON body — serialised and sent as `application/json`. */
+    body?: unknown;
+    /** Aborts the request (and, for streaming endpoints, the work behind it). */
+    signal?: AbortSignal;
+    /** Extra request headers. Authorization is injected from `apiKey`. */
+    headers?: Record<string, string>;
+}
+
 export async function apiFetch(
     path: string,
-    opts: HttpOptions & { query?: Record<string, string> } = {},
+    opts: ApiFetchOptions = {},
 ): Promise<Response> {
     const base = opts.apiUrl ?? DEFAULT_API_URL;
     const url = new URL(path, base);
@@ -23,9 +35,17 @@ export async function apiFetch(
         }
     }
 
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...(opts.headers ?? {}) };
     if (opts.apiKey) headers["Authorization"] = `Bearer ${opts.apiKey}`;
 
-    const res = await fetch(url.toString(), { headers });
+    const hasBody = opts.body !== undefined;
+    if (hasBody) headers["Content-Type"] = "application/json";
+
+    const res = await fetch(url.toString(), {
+        method: opts.method ?? (hasBody ? "POST" : "GET"),
+        headers,
+        ...(hasBody ? { body: JSON.stringify(opts.body) } : {}),
+        ...(opts.signal ? { signal: opts.signal } : {}),
+    });
     return res;
 }
