@@ -17,7 +17,9 @@ without a conversation.
 - **Billing** — per **character** of input, on your credits. With your own
   provider key configured ([BYOK](/reference/managed-vs-byok)) the characters are
   **not** charged; the provider bills you directly.
-- **Where it runs** — Node ≥ 18 and Electron main. The request is a plain
+- **Where it runs** — Node ≥ 18 and Electron main; a web page or a mobile app
+  goes through your own backend (recipes for web, desktop and mobile
+  [below](#getting-the-bytes-to-the-player)). The request is a plain
   `fetch`, the result is a Web `ReadableStream`. Keep it **server-side / main
   process**: it needs your API key.
 - **Wire contract** — [Audio API reference](/reference/audio-api). The endpoint is
@@ -88,15 +90,164 @@ const r = await speech({ apiKey, input, voice });   // apiUrl defaults to https:
 
 ---
 
-## Streaming playback in a desktop app
+## Streaming playback
 
 The point of a stream is to **start playing on the first chunk**. Ask for `pcm`
 (no container, no decoder), hand each chunk to the audio thread as it lands.
+Two things are the same whatever you build:
 
-### Electron: main holds the key, the renderer plays
+- **The API key never reaches the page or the app.** A browser tab, a webview
+  or a mobile bundle can be read by anyone who has it; the key must stay on a
+  machine you control — your backend, or the Electron main process. The UI
+  talks to *that*, and *that* talks to Pinecall.
+- **Playback is the same code everywhere there is Web Audio.** One small
+  `AudioWorklet` ring buffer takes s16le chunks and plays them with no gaps;
+  the only thing that changes per platform is how the bytes reach it.
+
+### The player: an AudioWorklet ring buffer
+
+s16le in, floats out, silence when it runs dry — this is the whole worklet:
+
+```js
+// pcm-player.worklet.js
+class PcmPlayer extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.queue = [];      // Float32Array chunks
+    this.offset = 0;      // read position inside queue[0]
+    this.port.onmessage = ({ data }) => {
+      if (data === "flush") { this.queue = []; this.offset = 0; return; }
+      const s16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength >> 1);
+      const f32 = new Float32Array(s16.length);
+      for (let i = 0; i < s16.length; i++) f32[i] = s16[i] / 32768;
+      this.queue.push(f32);
+    };
+  }
+  process(_inputs, outputs) {
+    const out = outputs[0][0];
+    let i = 0;
+    while (i < out.length && this.queue.length) {
+      const head = this.queue[0];
+      const n = Math.min(out.length - i, head.length - this.offset);
+      out.set(head.subarray(this.offset, this.offset + n), i);
+      i += n; this.offset += n;
+      if (this.offset >= head.length) { this.queue.shift(); this.offset = 0; }
+    }
+    for (; i < out.length; i++) out[i] = 0;   // underrun → silence, never a click
+    return true;
+  }
+}
+registerProcessor("pcm-player", PcmPlayer);
+```
+
+```ts
+// player.ts — used as-is by the web, Electron and Capacitor recipes below
+let ctx: AudioContext | undefined;
+let node: AudioWorkletNode | undefined;
+
+export async function player(sampleRate: number) {
+  if (ctx && ctx.sampleRate === sampleRate) return node!;
+  ctx = new AudioContext({ sampleRate });            // match the stream — no resampling
+  await ctx.audioWorklet.addModule("pcm-player.worklet.js");
+  node = new AudioWorkletNode(ctx, "pcm-player", { outputChannelCount: [1] });
+  node.connect(ctx.destination);
+  return node;
+}
+export const play = (chunk: Uint8Array) => node?.port.postMessage(chunk, [chunk.buffer]);
+export const flush = () => node?.port.postMessage("flush");
+export const resume = () => ctx?.resume();          // call from a click/tap — autoplay policy
+```
+
+Latency budget: the first chunk arrives a few hundred ms after the request; the
+worklet starts playing it on the next 128-frame quantum. Keep the
+`AudioContext.sampleRate` equal to `r.sampleRate` so nothing is resampled, and
+create/resume the context from a user gesture (browsers and iOS webviews refuse
+to start audio otherwise).
+
+### Getting the bytes to the player
+
+Pick your platform — the player above is the same in all three.
+
+<details>
+<summary><strong>Web — a plain browser page</strong>: your backend holds the key and streams the audio through</summary>
+
+The page never sees the key: it asks **your** server, which calls
+`pc.audio.speech()` and pipes the body straight through. Two ways to play it.
+
+**Simplest — `mp3` and an `<audio>` element.** The browser streams and decodes
+it natively; good for notifications, read-aloud, anything where 300–500 ms of
+start-up is fine.
+
+```ts
+// server.ts (Express; Hono/Fastify are the same three lines)
+import express from "express";
+import { Readable } from "node:stream";
+import { Pinecall } from "@pinecall/sdk";
+
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
+const app = express();
+
+app.get("/tts", async (req, res) => {
+  const r = await pc.audio.speech({
+    input: String(req.query.text ?? "").slice(0, 5000),
+    voice: "elevenlabs/sarah",
+    language: "es",
+    format: "mp3",
+    signal: AbortSignal.any([AbortSignal.timeout(60_000)]),
+  });
+  res.setHeader("Content-Type", "audio/mpeg");
+  res.setHeader("Cache-Control", "no-store");
+  req.on("close", () => r.cancel());                 // tab closed → stop paying for synthesis
+  Readable.fromWeb(r.audio as any).pipe(res);
+});
+app.listen(3000);
+```
+
+```html
+<button id="say">Say it</button>
+<audio id="out" preload="none"></audio>
+<script>
+  say.onclick = () => {
+    out.src = "/tts?text=" + encodeURIComponent("Tu pedido está listo para retirar.");
+    out.play();                                      // inside the click → allowed by autoplay policy
+  };
+</script>
+```
+
+**Lowest latency — `pcm` and the worklet.** Same route with `format: "pcm",
+sampleRate: 24000` and `Content-Type: audio/pcm`; the page reads the response
+body as a stream and feeds the player:
+
+```ts
+import { player, play, flush, resume } from "./player.js";
+
+say.onclick = async () => {
+  await player(24000); await resume();
+  const res = await fetch("/tts?text=" + encodeURIComponent(text));
+  const reader = res.body!.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    play(value);                                     // first chunk plays ~300 ms after the click
+  }
+};
+stop.onclick = () => flush();                        // and abort the fetch to stop the synthesis
+```
+
+Per-user auth, rate limits and "who may synthesize what" belong in that route —
+it is *your* endpoint. The Pinecall credits are yours too, so cap `text` length
+and require a session.
+
+</details>
+
+<details>
+<summary><strong>Desktop — Electron</strong>: main holds the key, the renderer plays</summary>
 
 The main process owns the API key and the request; the renderer only ever sees
-audio bytes over IPC.
+audio bytes over IPC. (Tauri: same shape — the Rust side calls the
+[raw endpoint](#raw-http-any-language) with `response_format: "pcm"` and pushes
+`i16` frames into a `rodio::Sink` or `cpal` ring buffer; the webview never sees
+the key.)
 
 ```ts
 // main.ts
@@ -141,73 +292,59 @@ contextBridge.exposeInMainWorld("tts", {
 });
 ```
 
-The renderer feeds an **AudioWorklet ring buffer**. This is the whole worklet —
-s16le in, floats out, silence when it runs dry:
-
-```js
-// pcm-player.worklet.js
-class PcmPlayer extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.queue = [];      // Float32Array chunks
-    this.offset = 0;      // read position inside queue[0]
-    this.port.onmessage = ({ data }) => {
-      if (data === "flush") { this.queue = []; this.offset = 0; return; }
-      const s16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength >> 1);
-      const f32 = new Float32Array(s16.length);
-      for (let i = 0; i < s16.length; i++) f32[i] = s16[i] / 32768;
-      this.queue.push(f32);
-    };
-  }
-  process(_inputs, outputs) {
-    const out = outputs[0][0];
-    let i = 0;
-    while (i < out.length && this.queue.length) {
-      const head = this.queue[0];
-      const n = Math.min(out.length - i, head.length - this.offset);
-      out.set(head.subarray(this.offset, this.offset + n), i);
-      i += n; this.offset += n;
-      if (this.offset >= head.length) { this.queue.shift(); this.offset = 0; }
-    }
-    for (; i < out.length; i++) out[i] = 0;   // underrun → silence, never a click
-    return true;
-  }
-}
-registerProcessor("pcm-player", PcmPlayer);
-```
-
 ```ts
 // renderer.ts
-let ctx: AudioContext | undefined;
-let node: AudioWorkletNode | undefined;
-
-async function player(sampleRate: number) {
-  if (ctx && ctx.sampleRate === sampleRate) return node!;
-  ctx = new AudioContext({ sampleRate });            // match the stream — no resampling
-  await ctx.audioWorklet.addModule("pcm-player.worklet.js");
-  node = new AudioWorkletNode(ctx, "pcm-player", { outputChannelCount: [1] });
-  node.connect(ctx.destination);
-  return node;
-}
+import { player, play, flush } from "./player.js";
 
 window.tts.on("start", async ({ sampleRate }) => { await player(sampleRate); });
-window.tts.on("chunk", ({ chunk }) => node?.port.postMessage(chunk, [chunk.buffer]));
+window.tts.on("chunk", ({ chunk }) => play(chunk));
 window.tts.on("error", ({ message }) => console.error("tts:", message));
 
 document.querySelector("#say")!.addEventListener("click", () => {
   window.tts.speak(crypto.randomUUID(), "Your order is ready.", "elevenlabs/sarah");
 });
-// Stop: window.tts.cancel(id) in main + node.port.postMessage("flush") here.
+// Stop: window.tts.cancel(id) in main + flush() here.
 ```
 
-Latency budget: the first chunk arrives a few hundred ms after the request; the
-worklet starts playing it on the next 128-frame quantum. Keep the
-`AudioContext.sampleRate` equal to `r.sampleRate` so nothing is resampled.
+</details>
 
-**Tauri / native** — same shape: the Rust side calls the
-[raw endpoint](#raw-http-any-language) with `response_format: "pcm"` and pushes
-`i16` frames into a `rodio::Sink` (or `cpal` ring buffer); the webview never sees
-the key.
+<details>
+<summary><strong>Mobile — Ionic / Capacitor and React Native</strong>: the web recipe behind a backend, or a file</summary>
+
+A mobile bundle is as public as a web page, so the key lives on your backend
+exactly as in the **Web** recipe; the app calls *your* `/tts` route.
+
+**Ionic / Capacitor** — it is a webview, so the **Web** recipe works unchanged:
+`<audio src="/tts?text=…">` for mp3, or `fetch` + the worklet for pcm. Two
+mobile specifics: start the `AudioContext` (or the first `play()`) inside the
+tap handler — iOS refuses audio that does not begin in a user gesture — and
+set the Capacitor audio session to playback so it is not muted by the silent
+switch (`@capacitor-community/native-audio` or the `AVAudioSession` category in
+`AppDelegate`). Background playback needs the `audio` background mode.
+
+**React Native** — there is no Web Audio, so play from a URL or a file:
+
+```ts
+// expo-av: stream the mp3 straight from your backend
+import { Audio } from "expo-av";
+await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+const { sound } = await Audio.Sound.createAsync(
+  { uri: `${API}/tts?text=${encodeURIComponent(text)}` },
+  { shouldPlay: true },
+);
+// sound.unloadAsync() when done; react-native-track-player works the same way for background audio.
+```
+
+For the shortest start-up on RN fetch the pcm/wav into a file and play it with
+`expo-av` from `FileSystem.documentDirectory`; for true streaming with word
+timestamps use a native module that accepts raw PCM (e.g. `react-native-audio-api`
+or `react-native-pcm-player`) and feed it the chunks from the response stream.
+
+A native CallKit-style experience (a real call to an agent, not TTS playback)
+is a different product — see [@pinecall/ionic](/mobile/ionic-overview) and
+[@pinecall/react-native](/mobile/react-native).
+
+</details>
 
 ### Node without a UI
 

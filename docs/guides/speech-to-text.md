@@ -20,7 +20,9 @@ desktop app.
   your own provider key
   configured ([BYOK](/reference/managed-vs-byok)) the minutes are **not**
   charged; the provider bills you directly.
-- **Where it runs** — Node ≥ 18 and Electron main. `transcribe()` is a plain
+- **Where it runs** — Node ≥ 18 and Electron main; a web page or a mobile app
+  goes through your own backend (recipes for web, desktop and mobile
+  [below](#capturing-the-microphone)). `transcribe()` is a plain
   `fetch` with a multipart body; `transcribeStream()` needs the `ws` package
   (Node only — the key travels in the `Authorization` header, never in the
   URL). Keep both **server-side / main process**: they need your API key.
@@ -183,11 +185,14 @@ it. Either way `close` fires last, with the socket's close code (`1000` after
 `done`, `1008` after an auth/argument refusal, `1011` after an upstream
 failure).
 
-### From a desktop app (Electron)
+### Capturing the microphone
 
-The renderer captures the microphone and turns it into **PCM16 chunks**; the
-main process holds the API key and owns the stream; partials and finals travel
-back over IPC. The mirror image of the [TTS playback section](/guides/text-to-speech#electron-main-holds-the-key-the-renderer-plays).
+Whatever the platform, the recipe is the mirror image of
+[TTS playback](/guides/text-to-speech#getting-the-bytes-to-the-player): the UI
+captures **PCM16 chunks**, something that holds the API key owns the
+`transcribeStream()`, and partials/finals travel back to the UI. The capture
+side is one small `AudioWorklet`; what changes per platform is who holds the
+key and how the chunks reach it.
 
 The capture worklet — floats in from the mic, s16le out over the port, in
 ~100 ms chunks:
@@ -219,24 +224,102 @@ registerProcessor("pcm-capture", PcmCapture);
 ```
 
 ```ts
-// renderer.ts
+// capture.ts — used as-is by the web, Electron and Capacitor recipes below
 let ctx: AudioContext | undefined;
-let node: AudioWorkletNode | undefined;
-let micStream: MediaStream | undefined;
+let mic: MediaStream | undefined;
 
-async function startListening() {
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+export async function startCapture(onChunk: (pcm: Uint8Array) => void) {
+  mic = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
   ctx = new AudioContext({ sampleRate: 16000 });          // match the stream — the worklet sees 16 kHz floats
   await ctx.audioWorklet.addModule("pcm-capture.worklet.js");
-  node = new AudioWorkletNode(ctx, "pcm-capture", { numberOfOutputs: 0 });
-  node.port.onmessage = ({ data }) => window.stt.audio(new Uint8Array(data));   // ArrayBuffer → IPC
-  ctx.createMediaStreamSource(micStream).connect(node);
+  const node = new AudioWorkletNode(ctx, "pcm-capture", { numberOfOutputs: 0 });
+  node.port.onmessage = ({ data }) => onChunk(new Uint8Array(data));
+  ctx.createMediaStreamSource(mic).connect(node);
+}
+export async function stopCapture() {
+  mic?.getTracks().forEach((t) => t.stop());
+  await ctx?.close();
+}
+```
+
+At 16 kHz a 100 ms chunk is 3200 bytes; the first partial lands a few hundred
+ms after speech starts. Keep the `AudioContext.sampleRate` equal to
+`sampleRate` so no resampling happens in between. (`getUserMedia` at 16 kHz
+works on Chromium / Electron; a browser that refuses the rate hands you 48 kHz
+floats — downsample in the worklet, or pass `sampleRate: 48000` and let the
+server do it.)
+
+<details>
+<summary><strong>Web — a plain browser page</strong>: your backend owns the stream, the page relays the mic</summary>
+
+The key stays on your server. The page opens a WebSocket to **your** backend
+and sends the capture worklet's chunks; the backend forwards them into
+`transcribeStream()` and relays `partial`/`final` back. (For a recorded
+message rather than live speech, skip all of this: `MediaRecorder` → `POST`
+the blob to a route that calls `pc.audio.transcribe(buffer)`.)
+
+```ts
+// server.ts — Node `ws` + @pinecall/sdk; one Pinecall stream per browser socket
+import { WebSocketServer } from "ws";
+import { Pinecall } from "@pinecall/sdk";
+
+const pc = new Pinecall({ apiKey: process.env.PINECALL_API_KEY! });
+const wss = new WebSocketServer({ port: 3001 });            // put it behind your auth / cookie check
+
+wss.on("connection", (ws, req) => {
+  const q = new URL(req.url!, "http://x").searchParams;
+  const s = pc.audio.transcribeStream({ sampleRate: 16000, language: q.get("lang") ?? undefined, diarize: q.get("diarize") === "1" });
+  s.on("partial", (text) => ws.send(JSON.stringify({ type: "partial", text })));
+  s.on("final", (seg) => ws.send(JSON.stringify({ type: "final", ...seg })));
+  s.on("error", (err) => ws.send(JSON.stringify({ type: "error", code: err.code, message: err.message })));
+  ws.on("message", (data, isBinary) => {
+    if (isBinary) s.write(data as Buffer);                 // PCM16 from the page
+    else if (String(data) === "stop") s.end().then((d) => { ws.send(JSON.stringify({ type: "done", ...d })); ws.close(); });
+  });
+  ws.on("close", () => s.close());
+});
+```
+
+```ts
+// page.ts
+import { startCapture, stopCapture } from "./capture.js";
+
+const ws = new WebSocket(`wss://${location.host}/stt?lang=es`);
+ws.binaryType = "arraybuffer";
+ws.onmessage = ({ data }) => {
+  const m = JSON.parse(data);
+  if (m.type === "partial") draft.textContent = m.text;
+  if (m.type === "final") { draft.textContent = ""; transcript.append(Object.assign(document.createElement("p"), { textContent: m.speaker ? `[${m.speaker}] ${m.text}` : m.text })); }
+};
+ws.onopen = () => startCapture((pcm) => ws.send(pcm));   // inside a click handler — mic permission + autoplay policy
+stop.onclick = async () => { await stopCapture(); ws.send("stop"); };
+```
+
+Your route is where per-user auth, rate limits and the "who may transcribe"
+decision live; the Pinecall credits are yours, so require a session and cap the
+session length.
+
+</details>
+
+<details>
+<summary><strong>Desktop — Electron</strong>: the renderer captures, main owns the stream</summary>
+
+The renderer captures with the worklet above; the main process holds the API key
+and owns the stream; partials and finals travel back over IPC. (Tauri: same shape
+— the Rust side opens the [WebSocket](#raw-http-any-language) with the
+`Authorization` header, writes `i16` frames from `cpal`, and forwards
+`partial`/`final` JSON to the webview; the key never leaves the native side.)
+
+```ts
+// renderer.ts
+import { startCapture, stopCapture } from "./capture.js";
+
+async function startListening() {
+  await startCapture((pcm) => window.stt.audio(pcm));      // Uint8Array → IPC
   await window.stt.start({ language: "es", diarize: false });
 }
-
 async function stopListening() {
-  micStream?.getTracks().forEach((t) => t.stop());
-  await ctx?.close();
+  await stopCapture();
   const { audioSeconds } = await window.stt.stop();       // resolves on the server's `done`
   console.log(`${audioSeconds.toFixed(1)} s transcribed`);
 }
@@ -288,17 +371,43 @@ ipcMain.handle("stt:stop", async () => {
 });
 ```
 
-Latency: at 16 kHz a 100 ms chunk is 3200 bytes; the first partial lands a few
-hundred ms after speech starts. Keep the `AudioContext.sampleRate` equal to
-`sampleRate` so no resampling happens in between. (`getUserMedia` at 16 kHz
-works on Chromium / Electron; a browser that refuses the rate hands you 48 kHz
-floats — downsample in the worklet, or pass `sampleRate: 48000` and let the
-server do it.)
+</details>
 
-**Tauri / native** — same shape: the Rust side opens the
-[WebSocket](#raw-http-any-language) with the `Authorization` header, writes
-`i16` frames from `cpal`, and forwards `partial` / `final` JSON to the webview;
-the key never leaves the native side.
+<details>
+<summary><strong>Mobile — Ionic / Capacitor and React Native</strong>: capture natively or in the webview, stream through your backend</summary>
+
+The key stays on your backend, as in the **Web** recipe; the app sends PCM to
+*your* WebSocket (or a recorded file to *your* upload route).
+
+**Ionic / Capacitor** — the webview runs the **Web** recipe unchanged
+(`getUserMedia` + the capture worklet + your WebSocket). Ask for the microphone
+permission in the native project (`NSMicrophoneUsageDescription` on iOS,
+`RECORD_AUDIO` on Android), start capture inside a tap, and expect 48 kHz from
+iOS's `getUserMedia` — pass `sampleRate: 48000` to `transcribeStream()` on the
+backend for those clients, or downsample in the worklet. For a recorded note,
+`@capacitor-community/voice-recorder` gives you a file to `POST` to a route that
+calls `pc.audio.transcribe()`.
+
+**React Native** — no Web Audio, so capture with a native module and relay
+the frames:
+
+```ts
+// react-native-live-audio-stream: raw PCM16 chunks as base64 → your backend WebSocket
+import LiveAudioStream from "react-native-live-audio-stream";
+import { Buffer } from "buffer";
+
+const ws = new WebSocket(`wss://api.example.com/stt?lang=es`);
+LiveAudioStream.init({ sampleRate: 16000, channels: 1, bitsPerSample: 16, audioSource: 6, bufferSize: 3200 });
+LiveAudioStream.on("data", (b64) => ws.readyState === 1 && ws.send(Buffer.from(b64, "base64")));
+ws.onmessage = ({ data }) => { const m = JSON.parse(data); /* partial / final / done as in the Web recipe */ };
+LiveAudioStream.start();
+// stop: LiveAudioStream.stop(); ws.send("stop");
+```
+
+For a voice note, record to a file with `expo-av` (`Audio.Recording`) and upload
+it to a route that calls `pc.audio.transcribe(buffer, { diarize })`.
+
+</details>
 
 ### Node without a UI
 
