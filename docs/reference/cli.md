@@ -55,6 +55,7 @@ Every command at a glance (run `pinecall --help` for the same list):
 | `pinecall phones` | List phone numbers |
 | `pinecall phone request` / `search` | Provision / search managed numbers |
 | `pinecall voices` | List TTS voices (`voices play` to preview) |
+| `pinecall tts "<text>"` | Text-to-speech to a file (`-o`) or stdout; `--words` for timestamps |
 | `pinecall calls` | Call history (duration, credits, cost) |
 | `pinecall conversations` | List saved conversation transcripts (`conversations get <id>` for one) |
 | `pinecall usage` | Credit usage breakdown (alias of `account usage`) |
@@ -237,6 +238,41 @@ pinecall voices play elevenlabs/sarah
 ```
 
 The audio plays through your system speakers with a real-time progress bar. Works on macOS (afplay) and Linux (mpv).
+
+### `pinecall tts`
+
+Synthesize speech from text — no agent, no call — through [`pc.audio.speech()`](/guides/text-to-speech).
+
+```bash
+pinecall tts "<text>" [--voice elevenlabs/sarah] [--model provider/model] [--lang es]
+                      [--format pcm|wav|mp3] [--rate 16000|24000] [-o out.wav] [--words]
+```
+
+```bash
+pinecall tts "Hola, tu pedido está listo." --voice elevenlabs/sarah --lang es -o listo.wav
+echo "Build finished" | pinecall tts -o done.mp3                    # text from stdin
+pinecall tts "Testing" --format wav | ffplay -nodisp -autoexit -    # raw bytes to a pipe
+pinecall tts "Twinkle twinkle" --words -o t.pcm                      # word timestamps on stderr
+```
+
+| Flag | Meaning |
+|---|---|
+| `--voice <provider/alias>` | Voice — default `elevenlabs/sarah`; browse with `pinecall voices` |
+| `--model <provider/model>` | TTS model; `provider/auto` or omit to pick by language |
+| `--lang <code>` | ISO-639-1 language, e.g. `es` |
+| `--format pcm\|wav\|mp3` | Default: `wav` for `-o *.wav`, `mp3` for `*.mp3`, else `pcm` (s16le mono) |
+| `--rate 16000\|24000` | Sample rate for pcm/wav (default 16000) |
+| `-o <file>` | Write the audio to a file |
+| `--words` | Request word timestamps; prints `start<TAB>end<TAB>word` lines to stderr as they arrive |
+
+- Text comes from the argument or, when absent, from stdin.
+- Without `-o` the raw bytes go to stdout **only if stdout is not a TTY**; on a
+  terminal the command prints usage and refuses — audio is never dumped to a
+  terminal.
+- Everything that is not audio goes to stderr: the timestamps, the closing
+  summary (`✓ listo.wav · wav 16000 Hz · 31 chars · 1840 ms audio · 910 ms · req_…`)
+  and errors — the `AudioApiError` code plus a one-line fix (402 →
+  "top up credits / upgrade at platform.pinecall.io").
 
 ### `pinecall chat [agent]`
 

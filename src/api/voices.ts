@@ -63,12 +63,16 @@ export async function fetchVoices(opts: FetchVoicesOptions = {}): Promise<Voice[
     return voices;
 }
 
-function mapVoice(provider: string): (raw: Record<string, unknown>) => Voice {
+/**
+ * Map a raw server voice to the SDK shape. `provider` is the fallback; a
+ * voice that names its own provider (as `/v1/audio/voices` rows do) wins.
+ */
+export function mapVoice(provider: string): (raw: Record<string, unknown>) => Voice {
     return (v) => ({
         id: (v.id ?? v.voice_id ?? "") as string,
         name: (v.name ?? "Unknown") as string,
         alias: v.alias as string | undefined,
-        provider,
+        provider: (typeof v.provider === "string" && v.provider) || provider,
         gender: v.gender as string | undefined,
         style: v.style as string | undefined,
         languages: Array.isArray(v.languages) ? v.languages.map(mapLanguage) : [],

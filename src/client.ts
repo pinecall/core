@@ -58,6 +58,21 @@ import type { ServerResponse } from "node:http";
 // REST API
 import { createToken as createTokenApi } from "./api/tokens.js";
 import type { TokenScopeOptions } from "./api/tokens.js";
+import { speech as speechApi, fetchAudioVoices } from "./api/audio.js";
+import type { SpeechOptions, SpeechResult, FetchAudioVoicesOptions } from "./api/audio.js";
+import type { Voice } from "./api/voices.js";
+
+/**
+ * `pc.audio` — standalone text-to-speech bound to this client's key and URL.
+ * No agent, no call: `speech()` streams one utterance, `voices()` lists what
+ * it accepts. See `src/api/audio.ts` for the wire contract.
+ */
+export interface AudioNamespace {
+    /** Synthesise `input` with `voice`; resolves on headers, audio streams. */
+    speech(opts: SpeechOptions): Promise<SpeechResult>;
+    /** Voices `speech()` accepts, optionally filtered by provider/language. */
+    voices(opts?: Omit<FetchAudioVoicesOptions, "apiKey" | "apiUrl">): Promise<Voice[]>;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -123,6 +138,12 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     readonly #wsUrl: string;
     readonly #autoReconnect: boolean;
     readonly #promptsDir: string;
+
+    /** Standalone TTS — `pc.audio.speech()` / `pc.audio.voices()`. */
+    readonly audio: AudioNamespace = {
+        speech: (opts) => speechApi({ ...opts, apiKey: this.#apiKey, apiUrl: this.#apiUrl }),
+        voices: (opts = {}) => fetchAudioVoices({ ...opts, apiKey: this.#apiKey, apiUrl: this.#apiUrl }),
+    };
 
     readonly #agents = new Map<string, Agent>();
     readonly #reconnector: Reconnector;

@@ -173,6 +173,18 @@ export type { ReconnectOptions } from "./transport/reconnect.js";
 export { fetchVoices } from "./api/voices.js";
 export type { Voice, VoiceLanguage, FetchVoicesOptions } from "./api/voices.js";
 
+export { speech, fetchAudioVoices, AudioApiError } from "./api/audio.js";
+export type {
+    SpeechOptions,
+    SpeechResult,
+    SpeechWord,
+    SpeechDone,
+    SpeechFormat,
+    SpeechApiOptions,
+    FetchAudioVoicesOptions,
+} from "./api/audio.js";
+export type { AudioNamespace } from "./client.js";
+
 export { fetchPhones } from "./api/phones.js";
 export type { Phone as PhoneInfo, FetchPhonesOptions } from "./api/phones.js";
 
