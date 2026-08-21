@@ -30,6 +30,16 @@
         "default": "./dist/log/index.cjs"
       }
     },
+    "./console": {
+      "import": {
+        "types": "./dist/console/index.d.ts",
+        "default": "./dist/console/index.js"
+      },
+      "require": {
+        "types": "./dist/console/index.d.cts",
+        "default": "./dist/console/index.cjs"
+      }
+    },
     "./tap": {
       "import": {
         "types": "./dist/tap.d.ts",

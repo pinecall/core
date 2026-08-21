@@ -40,6 +40,9 @@ export default defineConfig([
         external: ["ws", "speaker"],
     },
     // ── Runner display (for `pinecall run`) ──────────────────────────────
+    // `shims: true` so the console server can resolve dist/ui from __dirname
+    // in BOTH formats — the ESM bundle gets the import.meta.url shim, the CJS
+    // one already has __dirname.
     {
         entry: ["src/runner.ts"],
         format: ["esm", "cjs"],
@@ -47,10 +50,30 @@ export default defineConfig([
         splitting: false,
         sourcemap: false,
         clean: false,
+        shims: true,
         target: "es2020",
         define,
         minify: false,
         external: ["ws"],
+    },
+    // ── Console contract (@pinecall/sdk/console) ─────────────────────────
+    // The transcript reducer + calls model only: the ONE state machine the
+    // terminal view, the console server and the browser app all run on. No
+    // `external` — this subpath must stay dependency-free and browser-clean.
+    {
+        entry: { "console/index": "src/cli/console/index.ts" },
+        format: ["esm", "cjs"],
+        dts: true,
+        splitting: false,
+        sourcemap: true,
+        clean: false,
+        treeshake: true,
+        target: "es2020",
+        define,
+        minify: false,
+        outExtension({ format }) {
+            return { js: format === "cjs" ? ".cjs" : ".js" };
+        },
     },
     // ── Call Log contract (@pinecall/sdk/log) ────────────────────────────
     // Its own build block so the existing "." bundle is untouched. Object
