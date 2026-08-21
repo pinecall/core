@@ -85,6 +85,29 @@ interface Live {
     lastBot: string;
     /** Opened without a call.started / chat.started. */
     implicit: boolean;
+    /** `event:messageId` pairs already applied — a re-sent SSE frame must never produce a second bubble. */
+    applied: Set<string>;
+    /** `text -> ts` for messageId-less `user.message` (chat) — dedupes a re-sent frame within 2s. */
+    recentUserText: Map<string, number>;
+}
+
+/**
+ * True (and records it) when (event, messageId) was already applied for this
+ * call — belt-and-braces against a duplicated SSE frame. A messageId-less
+ * `user.message` (chat has none) falls back to callId+text within 2s.
+ */
+function alreadyApplied(l: Live, event: string, messageId: string, text: string, now: number): boolean {
+    if (messageId) {
+        const key = `${event}:${messageId}`;
+        if (l.applied.has(key)) return true;
+        l.applied.add(key);
+        return false;
+    }
+    if (event !== "user.message") return false;
+    const last = l.recentUserText.get(text);
+    if (last !== undefined && now - last < 2000) return true;
+    l.recentUserText.set(text, now);
+    return false;
 }
 
 export interface ConsoleState {
@@ -103,7 +126,10 @@ export function seed(calls: CallSnapshot[]): ConsoleState {
     return { calls: calls.map(normalize), live };
 }
 
-const freshLive = (): Live => ({ announced: "", words: 0, lastChunkAt: 0, lastBot: "", implicit: false });
+const freshLive = (): Live => ({
+    announced: "", words: 0, lastChunkAt: 0, lastBot: "", implicit: false,
+    applied: new Set(), recentUserText: new Map(),
+});
 
 const normalize = (c: CallSnapshot): CallSnapshot => ({ ...c, lines: c.lines ?? [], draft: c.draft ?? {} });
 
@@ -168,10 +194,13 @@ export function apply(state: ConsoleState, event: ConsoleEvent): ConsoleState {
 
         case "user.message": {
             let next = open(state, id, agent, data, at, true);
+            const text = str(data.text);
+            const messageId = str(data.messageId);
+            const l = next.live[id];
+            if (l && alreadyApplied(l, "user.message", messageId, text, at)) return next;
             const call = find(next, id)!;
             // A text reply still in flight: the user replied, so it is done.
             if (isTextual(call)) next = finishAgentLine(next, id, at, false);
-            const text = str(data.text);
             next = patch(next, id, (c) => ({
                 ...c,
                 lines: text ? [...c.lines, { who: "caller", text, at, final: true }] : c.lines,
@@ -240,9 +269,13 @@ export function apply(state: ConsoleState, event: ConsoleEvent): ConsoleState {
             return withLive(next, id, (li) => ({ ...li, announced, words: li.words + 1 }));
         }
 
-        case "bot.finished":
+        case "bot.finished": {
             if (!known(state, id)) return state;
+            const l = state.live[id];
+            const messageId = str(data.messageId);
+            if (l && messageId && alreadyApplied(l, "bot.finished", messageId, "", at)) return state;
             return patch(finishAgentLine(state, id, at, false), id, (c) => ({ ...c, state: "listening" }));
+        }
 
         case "bot.interrupted":
             if (!known(state, id)) return state;

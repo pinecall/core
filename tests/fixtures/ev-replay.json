@@ -1,0 +1,65 @@
+{
+  "note": "Non-audio.metrics frames from a real GET /events capture during a WebRTC call against dev-acme (see tk-476280). user.message (messageId 1b23f589…) and message.confirmed (msg_8b396e012697) each arrived TWICE for the same call — this is the exact duplication this fixture replays. bot.speaking's text was empty in the original capture (the reply played word-by-word); it is filled in here with the confirmed reply so a reducer replay produces a real agent line to assert on. Everything else is verbatim.",
+  "frames": [
+    {
+      "event": "call.started",
+      "data": { "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "speech.started",
+      "data": { "event": "speech.started", "sessionId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "turnId": 1, "confidence": 0.7299923896789551, "seq": 122, "ts": 1787352105.7065616, "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "user.speaking",
+      "data": { "event": "user.speaking", "sessionId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "turnId": 0, "text": "Hello?", "confidence": 1, "seq": 131, "ts": 1787352106.0751133, "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "user.message",
+      "data": { "event": "user.message", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "messageId": "1b23f589690b499292d2e7cad7f66ca2", "text": "Hello?", "confidence": 1, "lagMs": 0, "turnId": 1, "seq": 132, "ts": 1787352106.1439269, "phoneNumber": "session:5cc5f7ae", "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "eager.turn",
+      "data": { "id": 1, "messageId": "1b23f589690b499292d2e7cad7f66ca2", "text": "Hello?", "confidence": 0, "probability": 0, "latencyMs": 0, "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "speech.ended",
+      "data": { "event": "speech.ended", "sessionId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "turnId": 1, "durationMs": 691, "seq": 140, "ts": 1787352106.397995, "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "user.message",
+      "data": { "event": "user.message", "callId": "test-mt3janpy-t6jv", "messageId": "", "text": "Hi! Do you offer deep cleaning for offices?", "confidence": 1, "turnId": 0, "from": "chat", "to": "dev-acme", "direction": "inbound", "transport": "chat", "agent": "dev-acme" }
+    },
+    {
+      "event": "user.message",
+      "data": { "event": "user.message", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "messageId": "1b23f589690b499292d2e7cad7f66ca2", "text": "Hello?", "confidence": 1, "lagMs": 449, "turnId": 1, "seq": 145, "ts": 1787352106.6447062, "phoneNumber": "session:5cc5f7ae", "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "turn.end",
+      "data": { "id": 1, "messageId": "1b23f589690b499292d2e7cad7f66ca2", "text": "Hello?", "confidence": 1, "probability": 0.9767435789108276, "latencyMs": 164, "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "bot.speaking",
+      "data": { "event": "bot.speaking", "sessionId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "messageId": "msg_8b396e012697", "text": "Hello! Thanks for calling Acme Cleaners. How can I help you with your cleaning needs today?", "seq": 178, "ts": 1787352108.1040535, "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "bot.speaking",
+      "data": { "event": "bot.speaking", "callId": "test-mt3janpy-t6jv", "messageId": "", "text": "Hi! Yes, we do offer deep cleaning for offices. Our deep cleaning service is an intensive, top-to-bottom cleaning that restores spaces to like-new condition, going beyond the surface to address grime, neglected corners, and hidden areas. It's perfect for a thorough refresh of your office space. Would you like a price estimate or more details? 😊", "from": "chat", "to": "dev-acme", "direction": "inbound", "transport": "chat", "agent": "dev-acme" }
+    },
+    {
+      "event": "message.confirmed",
+      "data": { "event": "message.confirmed", "sessionId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "messageId": "msg_8b396e012697", "text": "Hello! Thanks for calling Acme Cleaners. How can I help you with your cleaning needs today?", "seq": 213, "ts": 1787352108.776598, "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "bot.finished",
+      "data": { "event": "bot.finished", "sessionId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "messageId": "msg_8b396e012697", "durationMs": 1913, "seq": 214, "ts": 1787352108.7772503, "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "message.confirmed",
+      "data": { "event": "message.confirmed", "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "messageId": "msg_8b396e012697", "text": "Hello! Thanks for calling Acme Cleaners. How can I help you with your cleaning needs today?", "seq": 213, "ts": 1787352108.776598, "phoneNumber": "session:5cc5f7ae", "agentId": "dev-acme", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "agent": "dev-acme" }
+    },
+    {
+      "event": "call.ended",
+      "data": { "callId": "5cc5f7ae-6fb7-4baf-a45b-33401194f7e9", "from": "webrtc", "to": "webrtc", "direction": "inbound", "transport": "webrtc", "duration": 13.244634628295898, "reason": "disconnected", "agent": "dev-acme" }
+    }
+  ]
+}
