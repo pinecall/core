@@ -39,6 +39,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `soniox/stt-rt-v5`; `sampleRate` 8000|16000 (default)|24000|48000,
   `encoding` linear16 (default)|mulaw. Also exported top-level as
   `transcribeStream()`.
+- **`pinecall stt <file>` / `pinecall stt --stream`** — speech-to-text from the
+  terminal over `pc.audio.transcribe()` / `transcribeStream()`. File mode:
+  `--format text|json|verbose_json|srt|vtt` (default `text`; `srt`/`vtt` are
+  built from the segments, or from the words in 8-word cues cut on speaker
+  change), `--diarize` (`[speaker N] …` per segment — `text` fetches
+  `verbose_json` under the hood), `--model`, `--lang`, `-o out`; the
+  transcript goes to stdout or the file, the summary (request id, audio
+  seconds, model, elapsed) and errors to stderr. Stream mode: raw s16le mono
+  PCM on stdin (`sox -d -r 16000 -c 1 -b 16 -e signed -t raw - | pinecall stt
+  --stream`, or the ffmpeg equivalent), `--model`, `--lang`, `--rate
+  8000|16000|24000|48000`, `--diarize`; partials rewrite one line on a TTY
+  stderr, every final is one line on stdout (`[speaker N] text` when
+  diarized); stdin EOF or Ctrl-C ends the stream and prints the audio seconds
+  and billed minutes. Refusals become the `AudioApiError` code plus a one-line
+  fix (`FILE_TOO_LARGE`, `DIARIZE_UNSUPPORTED`, `INSUFFICIENT_CREDITS`, …).
+- **Docs** — `guides/speech-to-text` (batch, diarization, live streaming from
+  an Electron app with the capture worklet and IPC glue, choosing a model,
+  errors, `pinecall stt`, raw HTTP / `openai` client); `reference/audio-api`
+  gains `POST /v1/audio/transcriptions` and `WS /v1/audio/transcriptions/stream`
+  (frames, close codes) plus the SDK surface; `reference/cli` gains `pinecall stt`.
 
 ---
 

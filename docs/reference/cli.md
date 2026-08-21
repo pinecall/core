@@ -56,6 +56,7 @@ Every command at a glance (run `pinecall --help` for the same list):
 | `pinecall phone request` / `search` | Provision / search managed numbers |
 | `pinecall voices` | List TTS voices (`voices play` to preview) |
 | `pinecall tts "<text>"` | Text-to-speech to a file (`-o`) or stdout; `--words` for timestamps |
+| `pinecall stt <file>` / `--stream` | Speech-to-text from a file (text/json/srt/vtt, `--diarize`) or live PCM on stdin |
 | `pinecall calls` | Call history (duration, credits, cost) |
 | `pinecall conversations` | List saved conversation transcripts (`conversations get <id>` for one) |
 | `pinecall usage` | Credit usage breakdown (alias of `account usage`) |
@@ -273,6 +274,55 @@ pinecall tts "Twinkle twinkle" --words -o t.pcm                      # word time
   summary (`✓ listo.wav · wav 16000 Hz · 31 chars · 1840 ms audio · 910 ms · req_…`)
   and errors — the `AudioApiError` code plus a one-line fix (402 →
   "top up credits / upgrade at platform.pinecall.io").
+
+### `pinecall stt`
+
+Transcribe an audio file, or a live PCM stream on stdin — no agent, no call —
+through [`pc.audio.transcribe()` / `pc.audio.transcribeStream()`](/guides/speech-to-text).
+
+```bash
+pinecall stt <file> [--model provider/model] [--lang es] [--diarize]
+                    [--format text|json|verbose_json|srt|vtt] [-o out]
+pinecall stt --stream [--model deepgram/nova-3] [--lang es] [--rate 16000] [--diarize]   # raw s16le mono PCM on stdin
+```
+
+```bash
+pinecall stt meeting.m4a                                    # plain text on stdout
+pinecall stt call.wav --diarize                             # [speaker 0] … / [speaker 1] … per segment
+pinecall stt talk.mp3 --format srt -o talk.srt              # subtitles from the segments (srt | vtt)
+pinecall stt memo.wav --format verbose_json --lang es       # words + segments as JSON
+sox -d -r 16000 -c 1 -b 16 -e signed -t raw - | pinecall stt --stream            # live, from the mic
+ffmpeg -f avfoundation -i :0 -ac 1 -ar 16000 -f s16le - | pinecall stt --stream   # same with ffmpeg (macOS; -f alsa -i default on Linux)
+```
+
+| Flag | Meaning |
+|---|---|
+| `<file>` | Audio file — wav, mp3, m4a, webm, ogg, flac; max 25 MB |
+| `--stream` | Live mode: raw s16le mono PCM on stdin; finals on stdout, partials on stderr |
+| `--model <provider/model>` | File: `elevenlabs/scribe_v1` (default), `deepgram/nova-3`, `deepgram/nova-2`, `soniox/stt-async-preview`. Stream: `deepgram/nova-3` (default), `elevenlabs/scribe_v2_realtime`, `soniox/stt-rt-v5` |
+| `--lang <code>` | ISO-639-1 language, e.g. `es`; default auto-detect |
+| `--diarize` | Speaker labels — `[speaker N]` in front of each segment (file) or final (stream) |
+| `--format <f>` | File mode: `text` (default) \| `json` \| `verbose_json` \| `srt` \| `vtt` |
+| `--rate <hz>` | Stream mode: sample rate of the PCM on stdin — `8000` \| `16000` (default) \| `24000` \| `48000` |
+| `-o <file>` | File mode: write the transcript to a file instead of stdout |
+
+- **File mode** prints the transcript on stdout (or writes `-o`). `text` is the
+  plain transcript; with `--diarize` it becomes one `[speaker N] …` line per
+  segment (`verbose_json` is fetched under the hood). `json` / `verbose_json`
+  print the wire object. `srt` / `vtt` are built from the segments (or from the
+  words, in 8-word cues cut on speaker change, when the model returns no
+  segments) — `[speaker N]` is prepended to each cue when diarized.
+- **Stream mode** reads raw PCM from stdin (it refuses a terminal and prints the
+  `sox` line). Each final is one line on stdout; partials rewrite one line on
+  stderr only when stderr is a TTY, so `… | pinecall stt --stream > notes.txt`
+  gets clean finals. stdin EOF or Ctrl-C sends `stop`, waits for the server's
+  `done`, and prints the audio seconds and billed minutes; a second Ctrl-C
+  closes the socket at once (exit 130).
+- Everything that is not the transcript goes to stderr: the summary
+  (`✓ stdout · text · 12.4 s audio · elevenlabs/scribe_v1 · es · 910 ms · req_…`)
+  and errors — the `AudioApiError` code plus a one-line fix (413 → "max 25 MB —
+  trim or compress the file", 400 `DIARIZE_UNSUPPORTED` → "drop --diarize or pick
+  soniox / deepgram").
 
 ### `pinecall chat [agent]`
 
