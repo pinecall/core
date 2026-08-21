@@ -4,16 +4,16 @@
  * page for the shallowest 6) → `_overview.md`, pushed next to the pages. Aimed
  * at the "list everything" questions the chunk retriever misses.
  *
- *   node scripts/research/08-option-e.mjs <site>… [--base=A+D] [--model=haiku|sonnet]
- * Writes variants/<site>/<base>+E/
+ *   node scripts/research/08-option-e.mjs <site>… [--base=A+D] [--model=cheap|haiku|sonnet]
+ * Writes variants/<site>/<base>+E/ (haiku) or <base>+E.<model>/
  */
 import { join } from "node:path";
-import { readVariant, writeVariant, variantDir, writeJson, llm, logCost, estimateTokens, frontmatter } from "./lib.mjs";
+import { readVariant, writeVariant, variantDir, writeJson, llm, logCost, estimateTokens, frontmatter, MODEL_ID } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const opt = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) ?? `--${k}=${d}`).slice(k.length + 3);
 const base = opt("base", "A+D");
-const model = opt("model", "haiku");
+const model = opt("model", "cheap");
 const sites = args.filter((a) => !a.startsWith("--"));
 if (!sites.length) { console.error("usage: 08-option-e.mjs <site>…"); process.exit(1); }
 
@@ -41,8 +41,9 @@ for (const site of sites) {
     const startUrl = (pages[0]?.text.match(/^url: (https?:\/\/[^/\n]+)/m) ?? [])[1] ?? "";
     const text = frontmatter({ url: startUrl, title: "Site overview", hash: "overview", fetchedAt: new Date().toISOString() }) + res.text.trim();
     const docs = [...B.docs, { path: "_overview.md", title: "Site overview", text }];
-    writeVariant(site, `${base}+E`, docs, { base, model });
-    const summary = { site, base, model, pagesUsed: parts.length, inTok: res.usage.input_tokens, outTok: res.usage.output_tokens, overviewTokens: estimateTokens(res.text), ms: res.ms, costUSD: Number(res.cost.toFixed(4)) };
-    writeJson(join(variantDir(site, `${base}+E`), "overview.json"), { summary, overview: res.text });
+    const variant = `${base}+E` + (model === "haiku" ? "" : `.${model}`);
+    writeVariant(site, variant, docs, { base, model });
+    const summary = { site, base, model, modelId: MODEL_ID[model] ?? model, pagesUsed: parts.length, inTok: res.usage.input_tokens, outTok: res.usage.output_tokens, overviewTokens: estimateTokens(res.text), ms: res.ms, costUSD: Number(res.cost.toFixed(4)) };
+    writeJson(join(variantDir(site, variant), "overview.json"), { summary, overview: res.text });
     console.log(JSON.stringify(summary));
 }

@@ -7,19 +7,19 @@
  * input sentence (word 4-gram containment >= 0.6, or a substring after
  * normalisation). Sentences that are not → "violations", listed per page.
  *
- *   node scripts/research/06-option-c.mjs <site>… [--mode=clean|summarize] [--model=haiku] [--max=N pages] [--cap=6000 tokens]
- * Writes variants/<site>/A+C/ (or A+Csum/) docs.json + cleanup.json
+ *   node scripts/research/06-option-c.mjs <site>… [--mode=clean|summarize] [--model=cheap|haiku] [--max=N pages] [--cap=6000 tokens]
+ * Writes variants/<site>/A+C/ (or A+Csum/) docs.json + cleanup.json — A+C.cheap/ when --model=cheap
  */
 import { join } from "node:path";
 import {
     readVariant, writeVariant, variantDir, writeJson, llm, logCost, estimateTokens, countWords,
-    sentencesOf, shingles, normLine,
+    sentencesOf, shingles, normLine, MODEL_ID,
 } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const opt = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) ?? `--${k}=${d}`).slice(k.length + 3);
 const mode = opt("mode", "clean");
-const model = opt("model", "haiku");
+const model = opt("model", "cheap");
 const maxPages = Number(opt("max", "0")) || Infinity;
 const cap = Number(opt("cap", "6000"));
 const sites = args.filter((a) => !a.startsWith("--"));
@@ -58,7 +58,8 @@ function fidelity(input, output) {
 
 for (const site of sites) {
     const A = readVariant(site, "A");
-    const variant = mode === "clean" ? "A+C" : "A+Csum";
+    // haiku (the 2026-08-21 first run) keeps the bare name; any other model gets a `.model` suffix
+    const variant = (mode === "clean" ? "A+C" : "A+Csum") + (model === "haiku" ? "" : `.${model}`);
     const docs = [];
     const rows = [];
     let cost = 0, ms = 0, n = 0;
@@ -94,7 +95,7 @@ for (const site of sites) {
     }
     const done = rows.filter((r) => r.tokensOut);
     const summary = {
-        site, mode, model, pages: done.length, skipped: rows.length - done.length,
+        site, mode, model, modelId: MODEL_ID[model] ?? model, pages: done.length, skipped: rows.length - done.length,
         tokensIn: done.reduce((a, r) => a + r.tokensIn, 0), tokensOut: done.reduce((a, r) => a + r.tokensOut, 0),
         sentencesChecked: done.reduce((a, r) => a + r.checked, 0), violations: done.reduce((a, r) => a + r.violations, 0),
         pagesWithViolations: done.filter((r) => r.violations > 0).length,

@@ -78,13 +78,25 @@ export function sentencesOf(text) {
 }
 
 // ── LLM gateway ─────────────────────────────────────────────────────────
-/** Anthropic list prices (USD per 1M tokens), 2026-08 — used for the cost column. */
+/**
+ * List prices (USD per 1M tokens), 2026-08 — used for the cost column.
+ * `cheap` is the gateway's default since 2026-08-21: GET /api/llm/models →
+ * openrouter/qwen/qwen3-30b-a3b-instruct-2507 ($0.048 / $0.193 on OpenRouter).
+ */
 export const PRICE = {
     haiku: { in: 1.0, out: 5.0 },
     sonnet: { in: 3.0, out: 15.0 },
+    cheap: { in: 0.048, out: 0.193 },
+    "openrouter/qwen/qwen3-30b-a3b-instruct-2507": { in: 0.048, out: 0.193 },
+};
+/** Resolve the gateway alias to the model id it routes to (what the tables record). */
+export const MODEL_ID = {
+    haiku: "claude-haiku-4-5",
+    sonnet: "claude-sonnet-4-6",
+    cheap: "openrouter/qwen/qwen3-30b-a3b-instruct-2507",
 };
 export function costOf(model, usage) {
-    const p = PRICE[model] ?? PRICE.haiku;
+    const p = PRICE[model] ?? PRICE.cheap;
     return ((usage.input_tokens ?? 0) * p.in + (usage.output_tokens ?? 0) * p.out) / 1e6;
 }
 
@@ -96,7 +108,10 @@ export function costOf(model, usage) {
 export async function llm(opts) {
     // The gateway occasionally answers 200 with an EMPTY stream (no token, no
     // done frame) when Anthropic is overloaded — seen 2026-08-21 with four
-    // spikes running in parallel. Treat that as a failure and retry.
+    // spikes running in parallel. Treat that as a failure and retry. Since the
+    // OpenRouter routing (2026-08-21) upstream failures arrive as
+    // {type:"error",code,status,error} frames — llmOnce throws on those; only
+    // rate limits (UPSTREAM_RATE_LIMITED / 429) are retried.
     let lastErr;
     for (let attempt = 0; attempt < 4; attempt++) {
         try {
@@ -106,12 +121,13 @@ export async function llm(opts) {
         } catch (e) {
             lastErr = e;
             if (/llm 4\d\d/.test(e.message) && !/429/.test(e.message)) throw e;
+            if (/llm upstream/.test(e.message) && !/RATE_LIMITED|429/.test(e.message)) throw e;
         }
         await new Promise((res) => setTimeout(res, 1500 * 2 ** attempt));
     }
     throw lastErr;
 }
-async function llmOnce({ system, user, model = "haiku", maxTokens = 1024, format, temperature = 0 }) {
+async function llmOnce({ system, user, model = "cheap", maxTokens = 1024, format, temperature = 0 }) {
     const started = Date.now();
     const body = {
         model,
@@ -149,7 +165,7 @@ async function llmOnce({ system, user, model = "haiku", maxTokens = 1024, format
                 try { evt = JSON.parse(data); } catch { continue; }
                 if (evt.type === "token") text += evt.content;
                 else if (evt.type === "done") usage = evt.usage ?? usage;
-                else if (evt.type === "error") error = evt.error;
+                else if (evt.type === "error") error = `${evt.code ?? "UPSTREAM_ERROR"}${evt.status ? ` ${evt.status}` : ""}: ${evt.error}`;
             }
         }
     }

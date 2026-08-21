@@ -4,16 +4,16 @@
  * line — prepended as a header under the frontmatter (BM25 sees the words users
  * actually say; the dense lane sees the questions). Content untouched.
  *
- *   node scripts/research/07-option-d.mjs <site>… [--base=A|A+C] [--model=haiku]
- * Writes variants/<site>/<base>+D/
+ *   node scripts/research/07-option-d.mjs <site>… [--base=A|A+C] [--model=cheap|haiku]
+ * Writes variants/<site>/<base>+D/ (haiku) or <base>+D.<model>/
  */
 import { join } from "node:path";
-import { readVariant, writeVariant, variantDir, writeJson, llm, parseJson, logCost, estimateTokens } from "./lib.mjs";
+import { readVariant, writeVariant, variantDir, writeJson, llm, parseJson, logCost, estimateTokens, MODEL_ID } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const opt = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) ?? `--${k}=${d}`).slice(k.length + 3);
 const base = opt("base", "A");
-const model = opt("model", "haiku");
+const model = opt("model", "cheap");
 const sites = args.filter((a) => !a.startsWith("--"));
 if (!sites.length) { console.error("usage: 07-option-d.mjs <site>…"); process.exit(1); }
 
@@ -59,13 +59,14 @@ for (const site of sites) {
     }
     const done = rows.filter((r) => r.title);
     const summary = {
-        site, base, model, pages: done.length, errors: rows.length - done.length,
+        site, base, model, modelId: MODEL_ID[model] ?? model, pages: done.length, errors: rows.length - done.length,
         headerTokens: done.reduce((a, r) => a + r.headerTokens, 0),
         titlesChanged: done.filter((r) => r.title && r.title !== r.oldTitle).length,
         costUSD: Number(cost.toFixed(4)), costPerPage: done.length ? Number((cost / done.length).toFixed(5)) : 0, msPerPage: done.length ? Math.round(ms / done.length) : 0,
         inTok: done.reduce((a, r) => a + (r.usage?.input_tokens ?? 0), 0), outTok: done.reduce((a, r) => a + (r.usage?.output_tokens ?? 0), 0),
     };
-    writeVariant(site, `${base}+D`, docs, { base, model });
-    writeJson(join(variantDir(site, `${base}+D`), "enrich.json"), { summary, rows });
+    const variant = `${base}+D` + (model === "haiku" ? "" : `.${model}`);
+    writeVariant(site, variant, docs, { base, model });
+    writeJson(join(variantDir(site, variant), "enrich.json"), { summary, rows });
     console.log(JSON.stringify(summary));
 }
