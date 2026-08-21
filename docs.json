@@ -109,6 +109,7 @@
       {
         "group": "Develop & Ship",
         "pages": [
+          "guides/run-console",
           "guides/testing-agents",
           "guides/mcp",
           "security"

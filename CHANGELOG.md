@@ -57,6 +57,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page. The transcript is driven by the same reducer semantics as the terminal
   live view, so the two views can never disagree.
 
+- **Docs: [The run console](/guides/run-console).** A new guide covering what
+  `pinecall run` gives you now — the terminal live view, the web console (what
+  each column shows, calling the agent from the page, watching a phone call,
+  the events drawer, `--ui-host 0.0.0.0` and the per-run key for testing from a
+  phone), the HTTP surface, and the security model — plus **"One bus, three
+  observers"**: the agent process is the subject, and the terminal view, the
+  console (over `pc.stream()`) and your own code observe the same typed events,
+  with a ten-line fourth observer to prove it. `reference/cli.md` gains the
+  `pinecall run` flags (`--open`, `--no-ui`, `--ui-port`, `--ui-host`,
+  `--events`) and keys (`p` / `c` / `e` / `q`); `build-a-live-call-app` opens
+  with a pointer to the console.
+
 ### Changed
 - `src/cli/live-view.ts` no longer decides *what* was said — only how to draw
   it. The state machine moved to `src/cli/console/transcript-reducer.ts` and
