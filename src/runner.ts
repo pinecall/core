@@ -2,37 +2,45 @@
  * Runner — auto-attach display for `pinecall run`.
  *
  * When PINECALL_CLI_RUN=1, the Pinecall constructor calls attachRunner()
- * which hooks into agent creation and call lifecycle to display a
- * beautiful terminal UI:
+ * which hooks into agent creation and call lifecycle to display a live
+ * terminal UI:
  *
  *   ⚡ booting nova  ·  gpt-4.1-mini · cartesia/sonic
  *   ☎ listening on +1 415 555 0177 …
  *
- *   ☎  incoming call — connecting…
+ *   ☎  incoming call — +14155550177 · phone — 14:02:11
  *   caller › Hey, where's my order?
  *   nova   › Happy to check — what's the order number?
  *   caller › It's 48213.
  *           ⚡ lookupOrder({ id: "48213" })
- *           → shipped · UPS · ETA today 5:00pm
+ *           ✓ shipped · UPS · ETA today 5:00pm
+ *   ● listening t+14.2s                      ← the live last line (TTY)
+ *
+ * All rendering lives in src/cli/live-view.ts (one view shared by every
+ * agent of the process, so multi-agent files get prefixed lines). This file
+ * only decides the mode — TTY / colour / debug — from the environment, prints
+ * the boot banner, and wraps tool execution so results land inline.
+ *
+ *   PINECALL_RUN_EVENTS=1   (or `pinecall run --events`) prints every event
+ *                           name + payload summary, in both renderers.
  */
 
 import type { Agent } from "./domain/agent.js";
-import type { Call } from "./domain/call.js";
-import type { ToolCallEvent, ToolCallItem } from "./protocol/events.js";
+import { createLiveView, type LiveView } from "./cli/live-view.js";
 
-// ── ANSI helpers (inline — zero deps) ────────────────────────────────────
+// ── Mode from the environment ────────────────────────────────────────────
 
-const hasTTY = process.stdout.isTTY !== false && process.env.NO_COLOR === undefined;
-const esc = (open: string, close: string) =>
-    hasTTY ? (s: string) => `${open}${s}${close}` : (s: string) => s;
+const tty = process.stdout.isTTY === true;
+const color = tty && process.env.NO_COLOR === undefined;
+const events = process.env.PINECALL_RUN_EVENTS === "1";
 
-const dim    = esc("\x1b[2m", "\x1b[22m");
-const bold   = esc("\x1b[1m", "\x1b[22m");
-const green  = esc("\x1b[32m", "\x1b[39m");
-const cyan   = esc("\x1b[36m", "\x1b[39m");
-const purple = esc("\x1b[35m", "\x1b[39m");
-const yellow = esc("\x1b[33m", "\x1b[39m");
-const red    = esc("\x1b[31m", "\x1b[39m");
+let view: LiveView | null = null;
+
+/** The process-wide view — created lazily so importing this module has no side effects. */
+function getView(): LiveView {
+    if (!view) view = createLiveView({ out: process.stdout, tty, color, events });
+    return view;
+}
 
 // ── Short model names ────────────────────────────────────────────────────
 
@@ -56,8 +64,6 @@ function shortVoice(voice: string | Record<string, unknown> | undefined): string
     return voice;
 }
 
-
-
 // ── Runner attach ────────────────────────────────────────────────────────
 
 /**
@@ -71,6 +77,8 @@ export function attachRunner(): (agent: Agent) => void {
 }
 
 function attachAgentDisplay(agent: Agent): void {
+    const v = getView();
+    const { c } = v;
     const config = agent.getConfig();
     const model = shortModel(config.llm);
     const voice = shortVoice(config.voice);
@@ -85,129 +93,43 @@ function attachAgentDisplay(agent: Agent): void {
     }
 
     // ── Boot banner ──────────────────────────────────────────────────
-    console.log("");
-    console.log(`  ${purple("⚡")} ${bold("booting")} ${bold(agent.id)}  ${dim("·")}  ${cyan(model)} ${dim("·")} ${cyan(voice)}`);
+    v.print("");
+    v.print(`  ${c.purple("⚡")} ${c.bold("booting")} ${c.bold(agent.id)}  ${c.dim("·")}  ${c.cyan(model)} ${c.dim("·")} ${c.cyan(voice)}`);
 
     const toolNames = (config.tools ?? []).map((t) => t.name);
     if (toolNames.length > 0) {
-        console.log(`  ${dim("⚙")} ${dim("tools:")} ${dim(toolNames.join(", "))}`);
+        v.print(`  ${c.dim("⚙")} ${c.dim("tools:")} ${c.dim(toolNames.join(", "))}`);
     }
 
     if (phone) {
-        console.log(`  ${green("☎")} listening on ${bold(phone)} ${dim("…")}`);
+        v.print(`  ${c.green("☎")} listening on ${c.bold(phone)} ${c.dim("…")}`);
     } else {
-        console.log(`  ${green("☎")} listening ${dim("(no phone — webrtc/chat only)")}`);
+        v.print(`  ${c.green("☎")} listening ${c.dim("(no phone — webrtc/chat only)")}`);
     }
-    console.log("");
+    if (events) {
+        v.print(`  ${c.dim("·")} ${c.dim("events: on — every event is printed (PINECALL_RUN_EVENTS=1)")}`);
+    }
+    v.print("");
 
-    // ── Pad the label for aligned output ─────────────────────────────
-    const agentLabel = agent.id.length <= 8 ? agent.id.padEnd(8) : agent.id;
+    // ── Live transcript: calls, speech, turns, bot words, tool calls ──
+    v.attach(agent);
 
-    // ── Call lifecycle ───────────────────────────────────────────────
-
-    agent.on("call.started", (call: Call) => {
-        const dir = call.direction === "outbound" ? "outgoing" : "incoming";
-        const peer = call.direction === "outbound" ? call.to : call.from;
-        console.log(`  ${green("☎")}  ${dir} call ${dim("—")} ${bold(peer || "unknown")} ${dim("— connecting…")}`);
-    });
-
-    agent.on("call.ended", (call: Call, reason: string) => {
-        const dur = call.duration ? `${Math.round(call.duration)}s` : "";
-        console.log(`  ${dim("☎")}  call ended ${dim("—")} ${dim(reason)} ${dur ? dim(`(${dur})`) : ""}`);
-        console.log("");
-    });
-
-    // ── Live transcript ──────────────────────────────────────────────
-
-    agent.on("user.message", (event, _call) => {
-        const text = (event as any).text || "";
-        if (text) {
-            console.log(`  ${cyan("caller")} ${dim("›")} ${text}`);
-        }
-    });
-
-    agent.on("message.confirmed", (event, _call) => {
-        const text = (event as any).text || "";
-        if (text) {
-            console.log(`  ${purple(agentLabel)} ${dim("›")} ${text}`);
-        }
-    });
-
-    // ── Tool calls ───────────────────────────────────────────────────
-
-    agent.on("llm.toolCall", (event: ToolCallEvent, _call: Call) => {
-        const items: ToolCallItem[] = (event as any).tool_calls || (event as any).tools || [];
-        for (const item of items) {
-            const name = item.name || "unknown";
-            const args = item.arguments || {};
-            const argsStr = colorizeJson(args, true);
-            console.log(`          ${yellow("⚡")} ${yellow(bold(name))}(${argsStr})`);
-        }
-    });
-
-    // Listen for tool results via the internal tool handler
-    // The SDK auto-executes tools and emits bot.speaking with the result.
-    // We intercept at the tool level by wrapping the execute function.
-    wrapToolResults(agent);
+    // Tool results come from the SDK's auto-execution, not from an event —
+    // wrap each tool's execute so the result lands inline under its call.
+    wrapToolResults(agent, v);
 }
 
 /**
  * Wrap each tool's execute function to display results inline.
  */
-function wrapToolResults(agent: Agent): void {
+function wrapToolResults(agent: Agent, v: LiveView): void {
     const tools = agent._getTools();
     for (const tool of tools) {
         const originalExecute = tool.execute;
         (tool as any).execute = async (args: any, call: any) => {
             const result = await originalExecute(args, call);
-            const display = colorizeJson(result);
-            if (display) {
-                console.log(`          ${green("✓")} ${display}`);
-            }
+            v.toolResult(agent, call ?? undefined, result);
             return result;
         };
     }
-}
-
-// ── JSON colorizer ──────────────────────────────────────────────────────
-
-/**
- * Colorize a JSON value for terminal display.
- * Keys in cyan, strings in green, numbers in yellow, booleans in purple.
- * Inline mode (compact) for tool args, pretty mode for results.
- */
-function colorizeJson(value: unknown, inline = false): string {
-    if (value === null || value === undefined) return dim("null");
-    if (typeof value === "string") return green(`"${value}"`);
-    if (typeof value === "number") return yellow(String(value));
-    if (typeof value === "boolean") return purple(String(value));
-
-    if (Array.isArray(value)) {
-        if (value.length === 0) return dim("[]");
-        const items = value.map(v => colorizeJson(v, inline));
-        if (inline) return `[${items.join(dim(", "))}]`;
-        return `[${items.join(dim(", "))}]`;
-    }
-
-    if (typeof value === "object") {
-        const entries = Object.entries(value as Record<string, unknown>);
-        if (entries.length === 0) return dim("{}");
-
-        if (inline) {
-            // Compact: { city: "New York" }
-            const parts = entries.map(([k, v]) =>
-                `${cyan(k)}${dim(":")} ${colorizeJson(v, true)}`
-            );
-            return parts.join(dim(", "));
-        }
-
-        // Pretty: multiline indented
-        const parts = entries.map(([k, v]) => {
-            const val = colorizeJson(v, false);
-            return `            ${cyan(k)}${dim(":")} ${val}`;
-        });
-        return `\n${parts.join("\n")}`;
-    }
-
-    return String(value);
 }
