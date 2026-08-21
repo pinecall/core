@@ -28,13 +28,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`PINECALL_RUN_OPEN=1`, opens the browser on boot).
 - **Keyboard shortcuts in a TTY:** `p` opens the console, `e` turns the
   every-event debug mode on and off *at runtime*, `q` / Ctrl-C quits
-  gracefully (the server closes, the client disconnects), `c` is reserved for
-  the terminal chat prompt. With stdin piped nothing is touched.
+  gracefully (the server closes, the client disconnects), `c` opens the
+  terminal chat prompt. With stdin piped nothing is touched.
 - **`@pinecall/sdk/console`** — the transcript reducer and the calls model, the
   ONE event → conversation state machine the terminal view, the console server
   and the browser app all run on. Pure, dependency-free and browser-clean
   (`CallSnapshot`, `TranscriptLine`, `createTranscriptStore`,
   `createCallsModel`).
+- **A terminal chat prompt (`c`).** In a TTY, `c` opens a one-line
+  `you ›` prompt pinned under the live transcript: type, Enter sends, Esc or an
+  empty line closes it, Ctrl-U clears the line, backspace edits. The message
+  goes out as an `llm.chat` frame on the agent's OWN socket, so the reply comes
+  back as ordinary agent events (`chat.started`, `user.message`,
+  `bot.speaking`) and the terminal live view, the web console and your own
+  `pc.stream()` all render it with no special casing. The prompt and the
+  shortcuts take turns owning stdin, so neither swallows the other's keys, and
+  the transcript keeps scrolling above the prompt while you type. With several
+  agents in one file, `c` asks which one (or use `--agent <id>`). Off a TTY it
+  is inert — nothing is read and stdin is never touched.
+- **`--call <number>` — the agent rings you.** `pinecall run agent.mjs --call
+  +34600000000` (or `PINECALL_RUN_CALL`) places one outbound call through
+  `agent.dial` as soon as the agent is registered server-side, with
+  `{ console: true }` metadata, and the call then shows up in both observers.
+  Refusals are one line with the fix: a number that is not E.164 never reaches
+  the carrier, an agent with no phone channel is told to add `phoneNumber`, and
+  `busy` / `no-answer` / `failed` / a plan gate come back in the carrier's own
+  words instead of a stack trace.
+- **`--agent <id>`** (`PINECALL_RUN_AGENT`) — which agent `c` and `--call` talk
+  to when one file runs several.
+- **`canCall` on `GET /api/agents`** — true exactly when the agent has a phone
+  number to dial FROM, so the web console can offer a "ring me" button that
+  agrees with what `--call` would do.
 
 ### Security
 - The console binds loopback by default. On any other interface every request
@@ -58,6 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   live view, so the two views can never disagree.
 
 ### Changed
+- `--no-ui` no longer means "no terminal shortcuts": with the web console off,
+  `c` (chat), `e` (events) and `q` (quit) still work — only `p` has nothing to
+  open.
 - `src/cli/live-view.ts` no longer decides *what* was said — only how to draw
   it. The state machine moved to `src/cli/console/transcript-reducer.ts` and
   the view paints the effects it emits, so the terminal, the web console and
