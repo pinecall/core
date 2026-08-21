@@ -153,7 +153,17 @@ Two lines in `sdk-server` (`emit_to_client` now stamps `agent_id` exactly like
 `emit_to_call`), a test, a deploy. The lesson is the method, not the fix: **when the
 events do not arrive, log the wire before you touch the handlers.**
 
-Three smaller things the same call taught:
+**And the first *phone* call showed the greeting twice.** One solid bubble with the
+whole greeting, and under it a faded one growing word by word with the same text. The
+phone transport sends `bot.speaking` *with the full text up front* (WebRTC sends it
+empty), and the agent was treating "`bot.speaking` with text" as a final line — a rule
+generalised from chat, where it is the only signal there is. The clean rule is the one
+the official widget already follows: **the bot's line is what has been said.** On voice,
+`bot.speaking` opens a draft, `bot.word` grows it, `bot.finished` closes it from
+`call.currentBotText`; on chat, `bot.speaking` is the line. Keyed on `call.transport`,
+and the `messageId` de-duplication set that papered over the symptom goes away.
+
+Three smaller things the same calls taught:
 
 - **An English voice speaking Spanish sounds like a tourist.** `elevenlabs/sarah` with
   `language: "es"` is exactly that. The default is now a native es-ES voice

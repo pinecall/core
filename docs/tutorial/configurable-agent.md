@@ -261,10 +261,13 @@ Phone the number, and the page shows "📞 En llamada", the patient's words, the
 replies, and — when the agent books — the new row in the agenda. No polling, no
 refresh.
 
-Two details worth knowing. The bot's transcript line comes from **`bot.finished` +
-`call.currentBotText`** on voice (TTS streams the reply word by word, so the full text
-only exists at the end) and from **`bot.speaking`** on chat (where the whole reply
-arrives at once); the agent listens to both and de-duplicates by `messageId`. And the
+Two details worth knowing. **The bot's line is what has been *said*.** On voice,
+`bot.speaking` may carry the whole text up front — the phone does, for the greeting —
+but it is not shown until the audio plays: `bot.word` grows a draft, and
+`bot.finished` closes it as the line, from `call.currentBotText`. Chat has no audio and
+no words, so there `bot.speaking` *is* the line. One rule, keyed on `call.transport`;
+showing `bot.speaking.text` early puts the greeting on screen twice — once before it is
+spoken and once while it is — which is exactly what the first phone call did. And the
 **tool calls are part of the transcript**: the tools are ours, so a tiny wrapper logs
 what was asked and what came back as a `tool` line —
 
