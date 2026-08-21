@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for turns that do not go the way you expect.
 
 ### Fixed
+- `pinecall run` showed no `caller ›` / `agent ›` lines for a chat session
+  that never sent `call.started` (`pinecall chat`, the MCP `chat` tool, any
+  `llm.chat` client): the view now opens an implicit context on the first
+  `user.message` / `bot.speaking`, listens to `chat.started` /
+  `whatsapp.started`, and fixes a text reply once its chunks settle (300 ms)
+  or the next event arrives — streamed chunks still coalesce into one line.
 - `pinecall run` printed no tool calls: the display read `tool_calls` /
   `tools` off the `llm.toolCall` event, whose payload is `toolCalls` with
   JSON-string `arguments`. Now parsed and rendered as `⚡ name(args)`.

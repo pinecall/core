@@ -9,7 +9,7 @@
  * line per final event with no escape codes at all.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createLiveView, summarize } from "../src/cli/live-view.js";
 
 // ── Fakes ────────────────────────────────────────────────────────────────
@@ -325,6 +325,180 @@ describe("live view — non-TTY", () => {
         expect(raw).toMatch(/· user\.speaking \{text:"partial",confidence:0\.8\}/);
         expect(raw).toMatch(/· bot\.word \{messageId:"m1",word:"hi",wordIndex:0\}/);
         expect(raw).not.toContain("\x1b");
+    });
+});
+
+// ── Sessions nobody announced (pinecall chat, MCP chat tool, llm.chat) ─────
+
+describe("live view — chat sessions without call.started", () => {
+    afterEach(() => vi.useRealTimers());
+
+    /** The exact sequence seen in the pty repro: no call.started, no chat.started, messageId "". */
+    function playMcpChat(agent: FakeAgent, view: ReturnType<typeof createLiveView>) {
+        agent.emit("user.message", { event: "user.message", callId: "chat-x", messageId: "", text: "Hello, anything free on Monday?", confidence: 1, turnId: 0 }, undefined);
+        agent.emit("llm.toolCall", { callId: "chat-x", msgId: "", toolCalls: [{ id: "1", name: "checkAvailability", arguments: '{"date":"2026-08-24"}' }] }, undefined);
+        view.toolResult(agent, undefined, { date: "2026-08-24", slots: ["10:00", "11:30"] });
+        agent.emit("bot.speaking", { event: "bot.speaking", callId: "chat-x", messageId: "", text: "Yes — Monday has availability at 10:00 and 11:30." }, undefined);
+    }
+
+    it("TTY: renders caller › and agent › around the tool lines, once each, after the reply settles", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: true, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        playMcpChat(agent, view);
+        // before the settle the reply is live (last line), not yet fixed
+        expect(screen(out.raw).at(-1)).toMatch(/pines {2}› Yes — Monday has availability at 10:00 and 11:30\. · ● speaking/);
+        vi.advanceTimersByTime(300);
+        const frame = screen(out.raw);
+        const i = frame.findIndex((l) => l.includes("caller › Hello, anything free on Monday?"));
+        const j = frame.findIndex((l) => l.includes('⚡ checkAvailability(date: "2026-08-24")'));
+        const k = frame.findIndex((l) => l.includes("✓") && l.includes("slots"));
+        const m = frame.findIndex((l) => l.includes("pines  › Yes — Monday has availability at 10:00 and 11:30."));
+        expect([i, j, k, m].every((n) => n > -1)).toBe(true);
+        expect(i < j && j < k && k < m).toBe(true);
+        expect(frame.filter((l) => l.includes("caller ›"))).toHaveLength(1);
+        expect(frame.filter((l) => l.includes("pines  ›"))).toHaveLength(1);
+        expect(frame.some((l) => l.includes("☎  session — chat"))).toBe(true);
+        expect(frame.at(-1)).toMatch(/● listening/);
+    });
+
+    it("non-TTY: one plain line each, in order, no escapes", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: false, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        playMcpChat(agent, view);
+        vi.advanceTimersByTime(300);
+        expect(out.raw).not.toContain("\x1b");
+        expect(out.raw).not.toContain("\r");
+        const lines = out.raw.split("\n").filter((l) => l.trim());
+        expect(lines.map((l) => l.trim())).toEqual([
+            "t+0.0s   ☎  session — chat · unknown",
+            "t+0.0s   caller › Hello, anything free on Monday?",
+            't+0.0s           ⚡ checkAvailability(date: "2026-08-24")',
+            't+0.0s           ✓ date: "2026-08-24", slots: ["10:00", "11:30"]',
+            "t+0.0s   pines  › Yes — Monday has availability at 10:00 and 11:30.",
+        ]);
+    });
+
+    it("coalesces streamed chunks — deltas or growing text — into ONE agent line", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: false, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        // deltas
+        for (const t of ["Yes, ", "Monday ", "works."]) {
+            agent.emit("bot.speaking", { messageId: "", text: t }, undefined);
+            vi.advanceTimersByTime(100); // each chunk re-arms the settle
+        }
+        vi.advanceTimersByTime(300);
+        // growing text
+        for (const t of ["And", "And Tuesday", "And Tuesday too."]) {
+            agent.emit("bot.speaking", { messageId: "", text: t }, undefined);
+            vi.advanceTimersByTime(100);
+        }
+        vi.advanceTimersByTime(300);
+        const lines = out.raw.split("\n").filter((l) => l.includes("pines  ›")).map((l) => l.trim());
+        expect(lines).toEqual([
+            "t+0.0s   pines  › Yes, Monday works.",
+            "t+0.0s   pines  › And Tuesday too.",
+        ]);
+    });
+
+    it("the next user.message fixes a pending reply immediately", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: false, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        agent.emit("bot.speaking", { messageId: "", text: "Hi there." }, undefined);
+        agent.emit("user.message", { messageId: "", text: "hello" }, undefined);
+        const lines = out.raw.split("\n").filter((l) => l.trim()).map((l) => l.trim());
+        expect(lines.indexOf("t+0.0s   pines  › Hi there.")).toBeLessThan(lines.indexOf("t+0.0s   caller › hello"));
+    });
+
+    it("an unannounced session that turns out to be voice shows what was heard, not the announced text", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: true, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        const c = { id: "call_unknown", transport: "unknown" };
+        agent.emit("bot.speaking", { messageId: "m1", text: "Hello there, how can I help?" }, c);
+        vi.advanceTimersByTime(100);
+        for (const w of ["Hello", "there,"]) agent.emit("bot.word", { messageId: "m1", word: w }, c);
+        vi.advanceTimersByTime(1000); // settle must NOT fire once words arrived
+        expect(screen(out.raw).at(-1)).toMatch(/pines {2}› Hello there, · ● speaking/);
+        agent.emit("bot.interrupted", { messageId: "m1" }, c);
+        const frame = screen(out.raw);
+        expect(frame.filter((l) => l.includes("pines  ›"))).toHaveLength(1);
+        expect(frame.find((l) => l.includes("pines  ›"))).toContain("Hello there, ⏏");
+        expect(frame.some((l) => l.includes("how can I help"))).toBe(false);
+    });
+
+    it("does not print a re-sent or cumulative reply twice (agentic tool loop)", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: false, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        const c = call("chat-9", "chat", { from: "chat" });
+        agent.emit("chat.started", c);
+        agent.emit("user.message", { text: "book it" }, c);
+        agent.emit("bot.speaking", { messageId: "", text: "Checking the slot." }, c);
+        vi.advanceTimersByTime(400); // tool round trip — the first reply settles
+        agent.emit("bot.speaking", { messageId: "", text: "Checking the slot.\nBooked for 10:00." }, c);
+        vi.advanceTimersByTime(400);
+        agent.emit("bot.speaking", { messageId: "", text: "Checking the slot." }, c); // re-sent
+        vi.advanceTimersByTime(400);
+        const lines = out.raw.split("\n").filter((l) => l.includes("pines  ›")).map((l) => l.trim());
+        expect(lines).toEqual([
+            "t+0.0s   pines  › Checking the slot.",
+            "t+0.0s   pines  › Booked for 10:00.",
+        ]);
+        // a NEW turn may legitimately repeat the text
+        agent.emit("user.message", { text: "again" }, c);
+        agent.emit("bot.speaking", { messageId: "", text: "Checking the slot." }, c);
+        vi.advanceTimersByTime(400);
+        expect(out.raw.split("\n").filter((l) => l.includes("pines  › Checking the slot."))).toHaveLength(2);
+    });
+
+    it("continues a multi-line reply under the label", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: true, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        agent.emit("bot.speaking", { messageId: "", text: "Line one.\nLine two." }, undefined);
+        vi.advanceTimersByTime(300);
+        const frame = screen(out.raw);
+        const i = frame.findIndex((l) => l === "  pines  › Line one.");
+        expect(i).toBeGreaterThan(-1);
+        expect(frame[i + 1]).toBe("           Line two.");
+    });
+
+    it("chat.started opens the context like call.started (transport chat)", () => {
+        vi.useFakeTimers();
+        const out = new FakeStream();
+        const view = createLiveView({ out, tty: false, color: false, clock: () => 0 });
+        const agent = new FakeAgent("pines");
+        view.attach(agent);
+        const c = call("chat-9", "chat", { from: "chat" });
+        agent.emit("chat.started", c);
+        agent.emit("user.message", { text: "hola" }, c);
+        agent.emit("bot.speaking", { messageId: "", text: "¡Hola!" }, c);
+        vi.advanceTimersByTime(300);
+        const lines = out.raw.split("\n").filter((l) => l.trim()).map((l) => l.trim());
+        expect(lines).toEqual([
+            "t+0.0s   ☎  incoming chat — chat · chat",
+            "t+0.0s   caller › hola",
+            "t+0.0s   pines  › ¡Hola!",
+        ]);
+        expect(lines.filter((l) => l.includes("session —"))).toHaveLength(0);
     });
 });
 
