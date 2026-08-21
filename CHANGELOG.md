@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A call's events could be written twice on `pc.stream()`/`agent.stream()`
+  and the console's `GET /events`.** A duplicated wire frame from the server
+  (or a call-proxy re-emit under a race) could reach an agent listener twice
+  for the same logical message; `createAgentStream`/`createMultiAgentStream`
+  (`src/sse/stream.ts`) now guard every SSE connection against writing the
+  same `(event, callId, messageId)` frame twice — confirmed against a real
+  capture where a WebRTC call's `user.message` and `message.confirmed` each
+  arrived twice with the same `messageId`. `src/cli/console/transcript-
+  reducer.ts` and `ui/src/state/transcript-reducer.ts` (the web console) got
+  the same idempotency guard directly, since both also consume agent events
+  independently of the SSE stream: a re-sent `user.message` / `bot.finished`
+  whose `(callId, messageId)` was already applied no longer produces a second
+  bubble; a messageId-less `user.message` (chat) falls back to deduping on
+  `callId` + text within a 2s window.
+
 ---
 
 ## [0.12.0] — 2026-08-21 — pinecall run grows a console: the terminal goes live and the browser joins in

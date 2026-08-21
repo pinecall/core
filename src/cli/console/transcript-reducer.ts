@@ -175,6 +175,29 @@ interface Internal {
     implicit: boolean;
     /** Everything the agent said this turn — a re-sent or cumulative bot.speaking must not print it twice. */
     lastBot: string;
+    /** `event:messageId` pairs already applied — a re-sent wire/SSE frame must never produce a second bubble. */
+    applied: Set<string>;
+    /** `text -> ts` for messageId-less `user.message` (chat) — dedupes a re-sent frame within 2s. */
+    recentUserText: Map<string, number>;
+}
+
+/**
+ * True (and records it) when (event, messageId) was already applied for this
+ * call — belt-and-braces against a duplicated wire/SSE frame. A messageId-less
+ * `user.message` (chat has none) falls back to callId+text within 2s.
+ */
+function alreadyApplied(i: Internal, event: string, messageId: string, text: string, now: number): boolean {
+    if (messageId) {
+        const key = `${event}:${messageId}`;
+        if (i.applied.has(key)) return true;
+        i.applied.add(key);
+        return false;
+    }
+    if (event !== "user.message") return false;
+    const last = i.recentUserText.get(text);
+    if (last !== undefined && now - last < 2000) return true;
+    i.recentUserText.set(text, now);
+    return false;
 }
 
 const DEFAULT_TIMERS: TranscriptTimers = {
@@ -221,6 +244,7 @@ export function createTranscriptStore(opts: TranscriptStoreOptions = {}): Transc
         live.set(cs.id, cs);
         internals.set(cs.id, {
             bot: null, botAnnounced: "", words: 0, settle: null, implicit, lastBot: "",
+            applied: new Set(), recentUserText: new Map(),
         });
         emit({ kind: "session.started", agent: agentId, call: cs, implicit });
         emit({ kind: "draft", agent: agentId, call: cs });
@@ -370,6 +394,8 @@ export function createTranscriptStore(opts: TranscriptStoreOptions = {}): Transc
             case "user.message": {
                 const cs = contextFor(agentId, second);
                 const text = typeof first?.text === "string" ? first.text : "";
+                const messageId = typeof first?.messageId === "string" ? first.messageId : "";
+                if (alreadyApplied(inner(cs), "user.message", messageId, text, clock())) return;
                 // A text reply still open (chat / unknown channel): the user replied, so it is done.
                 if (isTextual(cs)) finishBot(cs);
                 cs.draft.caller = undefined;
@@ -451,6 +477,8 @@ export function createTranscriptStore(opts: TranscriptStoreOptions = {}): Transc
             case "bot.finished": {
                 const cs = second ? live.get(second.id) : undefined;
                 if (!cs) return;
+                const messageId = typeof first?.messageId === "string" ? first.messageId : "";
+                if (messageId && alreadyApplied(inner(cs), "bot.finished", messageId, "", clock())) return;
                 finishBot(cs);
                 setState(cs, "listening");
                 return;

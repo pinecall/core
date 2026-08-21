@@ -276,6 +276,25 @@ describe("console server — /events", () => {
         expect(messages).toHaveLength(1);
         expect(messages[0]).toMatchObject({ agent: "nova", text: "from nova" });
     });
+
+    it("writes an (event, callId, messageId) frame once, even re-sent — tk-476280", async () => {
+        // The call proxy an Agent wires with `forwardCallEvents` (or a re-sent
+        // wire frame from the server) can put the SAME logical event on the
+        // agent bus twice. `pc.stream()`/`/events` must still write it once.
+        const { base, agents } = await boot();
+        const c = call("call_dup", "webrtc");
+        agents[0]!.emit("call.started", c);
+
+        const res = await fetch(`${base}/events`);
+        const got = await readEvents(res, 4, () => {
+            agents[0]!.emit("message.confirmed", { text: "Hi there", messageId: "msg_1" }, c);
+            agents[0]!.emit("message.confirmed", { text: "Hi there", messageId: "msg_1" }, c); // re-sent
+            agents[0]!.emit("call.ended", c, "done");
+        });
+
+        const confirmed = got.filter((e) => e.event === "message.confirmed");
+        expect(confirmed).toHaveLength(1);
+    });
 });
 
 // ── /token and /chat-token ───────────────────────────────────────────────
