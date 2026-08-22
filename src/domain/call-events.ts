@@ -25,6 +25,7 @@ import type {
     AudioMetricsEvent,
     SessionTimeoutEvent,
     ToolCallEvent,
+    CallDtmfReceivedEvent,
 } from "../protocol/events.js";
 
 // ─── Call-scoped event map ───────────────────────────────────────────────
@@ -51,6 +52,8 @@ export interface CallEvents {
     "call.unheld": () => void;
     "call.muted": () => void;
     "call.unmuted": (mutedTranscript: string | null) => void;
+    /** The caller pressed a key. Phone only — a browser has no keypad. */
+    "call.dtmf_received": (event: CallDtmfReceivedEvent) => void;
     "llm.toolCall": (event: ToolCallEvent) => void;
     "skill.loaded": (event: SkillEvent) => void;
     "skill.unloaded": (event: SkillEvent) => void;

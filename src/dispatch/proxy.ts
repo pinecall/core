@@ -31,6 +31,7 @@ export const CALL_PROXY_EVENTS = [
     "call.unheld",
     "call.muted",
     "call.unmuted",
+    "call.dtmf_received",
     "llm.toolCall",
     "skill.loaded",
     "skill.unloaded",

@@ -44,7 +44,7 @@ agent.on("event.name", (event, call) => {
 | [Tools](#tools) | `llm.toolCall` | All |
 | [Session](#session) | `session.idleWarning`, `session.timeout`, `session.paused`, `session.resumed` | Voice, WebRTC |
 | [Hold & mute](#hold--mute) | `call.held`, `call.unheld`, `call.muted`, `call.unmuted` | Voice, WebRTC |
-| [DTMF](#dtmf) | `call.dtmf_sent` | Voice |
+| [DTMF](#dtmf) | `call.dtmf_received`, `call.dtmf_sent` | Voice |
 | [WhatsApp](#whatsapp) | `whatsapp.message`, `whatsapp.response`, `whatsapp.status`, `whatsapp.sessionEnded` | WhatsApp |
 | [Billing](#billing) | `credits.rejected`, `credits.exhausted` | All |
 | [Audio](#audio-metrics) | `audio.metrics` | Voice, WebRTC |
@@ -594,9 +594,51 @@ agent.on("call.unmuted", (event, call) => {
 
 ## DTMF
 
+Two events, and the direction is the whole difference: `call.dtmf_received` is
+the CALLER's finger on their keypad, `call.dtmf_sent` is us playing tones down
+the line. Phone only — a browser has no keypad.
+
+### `call.dtmf_received`
+
+The caller pressed a key. This is what a menu is built on: it arrives before the
+caller has said a word, which is the one window an inbound greeting has.
+
+```javascript
+agent.on("call.dtmf_received", (event, call) => {
+  // event.digit  — this press ("1")
+  // event.digits — every press so far on this call ("204"), so a menu
+  //                collecting an entry does not have to buffer them itself
+});
+```
+
+Nothing is fed to the STT or the model: a keypress is not speech, and the point
+of a menu is that it is decided in code.
+
+**A language menu**, mid-call and without dropping the line — `call.update()`
+hot-reloads the voice, the TTS language and the STT for THIS call only:
+
+```javascript
+const MENU = { "1": "es", "2": "en" };
+
+agent.on("call.started", (call) => {
+  call.say("Para español, marque uno. For English, press two.");
+});
+
+agent.on("call.dtmf_received", (event, call) => {
+  const lang = MENU[event.digit];
+  if (!lang) return;                       // an unmapped key is not an error
+  call.update({ language: lang, voice: VOICES[lang], stt: { language: lang } });
+  call.say(GREETING[lang]);                // takes effect on the NEXT utterance
+});
+```
+
+Order matters: `call.update()` applies to the next utterance, so update first
+and speak second — greeting first says that line in the old voice.
+
 ### `call.dtmf_sent`
 
-DTMF tones were sent on the call (via `call.sendDTMF()`).
+DTMF tones were sent on the call (via `call.sendDTMF()`) — navigating somebody
+else's menu, not receiving one.
 
 ```javascript
 agent.on("call.dtmf_sent", (event, call) => {

@@ -123,6 +123,9 @@ export interface AgentEvents {
     "session.idleWarning": (event: any, call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent, call: Call) => void;
 
+    // Keypad — phone only; a browser has no keypad to press.
+    "call.dtmf_received": (event: import("../protocol/events.js").CallDtmfReceivedEvent, call: Call) => void;
+
     // LLM / Tool calls
     "llm.toolCall": (event: ToolCallEvent, call: Call) => void;
 

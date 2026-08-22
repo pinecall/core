@@ -230,6 +230,23 @@ export interface CallDtmfSentEvent {
     digits: string;
 }
 
+/**
+ * The CALLER pressed a key on a live phone call.
+ *
+ * The inbound twin of `call.dtmf_sent`, and named apart from it on purpose:
+ * `call.dtmf` is the command that plays tones DOWN the line, so an event
+ * called `call.dtmf` could not say whose finger it was.
+ *
+ * `digit` is this press. `digits` is every press so far on this call, so a
+ * menu collecting an entry ("extension 204#") does not have to buffer them.
+ */
+export interface CallDtmfReceivedEvent {
+    event: "call.dtmf_received";
+    callId: string;
+    digit: string;
+    digits: string;
+}
+
 // ─── Config responses ────────────────────────────────────────────────────
 
 export interface ConfigUpdatedEvent {
