@@ -42,9 +42,12 @@ import { SystemHandler } from "./dispatch/handlers/system.js";
 import { FallbackHandler } from "./dispatch/handlers/fallback.js";
 import { PreparingHandler } from "./dispatch/handlers/preparing.js";
 import { MemoryHandler } from "./dispatch/handlers/memory.js";
+import { LineHandler } from "./dispatch/handlers/line.js";
 
 // Domain
 import { Agent } from "./domain/agent.js";
+import { PhoneLine, prepareLine } from "./domain/line.js";
+import type { LineOptions } from "./domain/line.js";
 import type { AgentConfig, ChannelConfig } from "./config/agent.js";
 import type { TokenResponse } from "./api/tokens.js";
 import type { Turn } from "./domain/turn.js";
@@ -163,6 +166,8 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
     };
 
     readonly #agents = new Map<string, Agent>();
+    /** Phone lines, by number. Kept apart from #agents: a line is not an agent. */
+    readonly #lines = new Map<string, PhoneLine>();
     readonly #reconnector: Reconnector;
     readonly #resolver: StandardAgentIdResolver;
     readonly #dispatcher: Dispatcher;
@@ -220,6 +225,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             new ChannelHandler(),
             new ChatHandler(),
             new LifecycleHandler(),
+            new LineHandler(),
             new SpeechHandler(),
             new TurnHandler(),
             new BotHandler(),
@@ -279,6 +285,11 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         return this.#agents.get(id);
     }
 
+    /** Phone lines registered on this client, by number. */
+    get lines(): ReadonlyMap<string, PhoneLine> {
+        return this.#lines;
+    }
+
     // ── Connect / Disconnect ─────────────────────────────────────────────
 
     async connect(): Promise<void> {
@@ -335,9 +346,12 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
 
         this.#clearAllRegisterRetries();
 
-        // End all calls across all agents
+        // End all calls across all agents and lines
         for (const agent of this.#agents.values()) {
             agent._endAllCalls("client_disconnect");
+        }
+        for (const line of this.#lines.values()) {
+            line._endAllCalls("client_disconnect");
         }
 
         if (this.#transport) {
@@ -428,6 +442,40 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         }
 
         return agent;
+    }
+
+    /**
+     * Claim a phone number as a programmable LINE — its own STT and TTS, no
+     * model. It answers first, resolves the dialled extension, speaks and
+     * listens in code, and hands the LIVE call to an agent when the code says
+     * so (`call.routeTo`). The destination agent does not have to be online for
+     * the number to answer.
+     *
+     * Idempotent per number, like `pc.agent()`. `llm`/`prompt`/`tools`/
+     * `greeting` are refused here and now: a line has no model.
+     *
+     * @example
+     * const line = pc.line("+12186633772", { stt: "soniox", voice: "elevenlabs/sarah" });
+     * line.extensions({ "10": "pres-restaurantes", "11": "pres-hoteles" });
+     * line.on("call", async (call) => {
+     *   const a = await call.ask("Press one for sales.", { digits: 1, timeout: 5000 });
+     *   if (a.by === "keypad" && a.digit === "1") await call.routeTo("ventas");
+     * });
+     */
+    line(number: string, opts: LineOptions = {}): PhoneLine {
+        const normalized = prepareLine(number, opts);
+        const existing = this.#lines.get(normalized);
+        if (existing) return existing;
+
+        const line = new PhoneLine(normalized, opts, (data) => this.#send(data));
+        this.#lines.set(normalized, line);
+
+        // If already connected, claim the number immediately
+        if (this.#connected) {
+            line._register();
+        }
+
+        return line;
     }
 
     removeAgent(id: string): boolean {
@@ -668,10 +716,17 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         // Build dispatch context
         const ctx: DispatchContext = {
             agent: (wireId: string) => {
-                // Try direct match first
+                // Lines share this namespace on purpose: registered under
+                // `line:<number>`, every existing handler routes to one
+                // without knowing lines exist.
                 const localKeys = new Set(this.#agents.keys());
+                for (const line of this.#lines.values()) localKeys.add(line.id);
                 const resolved = this.#resolver.resolve(wireId, localKeys);
-                return resolved ? this.#agents.get(resolved) ?? null : null;
+                if (!resolved) return null;
+                if (resolved.startsWith("line:")) {
+                    return this.#lines.get(resolved.slice("line:".length))?._agent ?? null;
+                }
+                return this.#agents.get(resolved) ?? null;
             },
             call: (agent, callId) => agent._getCall(callId),
             logger: this.#logger,
@@ -683,6 +738,13 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
                 // Register all pre-created agents
                 for (const agent of this.#agents.values()) {
                     this.#registerAgent(agent);
+                }
+
+                // And re-claim every line's number. A line that comes back
+                // from a reconnect without re-sending `line.create` strands
+                // its number exactly like an unregistered agent would.
+                for (const line of this.#lines.values()) {
+                    line._register();
                 }
 
                 // Start ping interval
@@ -708,6 +770,7 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             emitClientEvent: (event, ...args) => this._emitWire(event, ...args),
             allAgents: () => this._allAgents(),
             whatsappSession: (id) => this._getWhatsAppHandler().getSession(id),
+            lines: () => [...this.#lines.values()],
         };
 
         this.#dispatcher.dispatch(wire, ctx);
@@ -731,6 +794,10 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
         for (const agent of this.#agents.values()) {
             agent._endAllCalls(reason);
             agent._markUnregistered();
+        }
+        for (const line of this.#lines.values()) {
+            line._endAllCalls(reason);
+            line._markUnregistered();
         }
 
         this.emit("disconnected", reason);

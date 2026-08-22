@@ -26,6 +26,8 @@ import type {
     SessionTimeoutEvent,
     ToolCallEvent,
     CallDtmfReceivedEvent,
+    CallRoutedEvent,
+    CallRouteFailedEvent,
 } from "../protocol/events.js";
 
 // ─── Call-scoped event map ───────────────────────────────────────────────
@@ -54,6 +56,10 @@ export interface CallEvents {
     "call.unmuted": (mutedTranscript: string | null) => void;
     /** The caller pressed a key. Phone only — a browser has no keypad. */
     "call.dtmf_received": (event: CallDtmfReceivedEvent) => void;
+    /** A phone line handed this call to an agent. `routeTo()` resolves on the same fact. */
+    "call.routed": (event: CallRoutedEvent) => void;
+    /** The hand-over did not happen; the line is still the owner. */
+    "call.route_failed": (event: CallRouteFailedEvent) => void;
     "llm.toolCall": (event: ToolCallEvent) => void;
     "skill.loaded": (event: SkillEvent) => void;
     "skill.unloaded": (event: SkillEvent) => void;

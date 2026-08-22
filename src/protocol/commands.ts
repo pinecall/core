@@ -196,6 +196,53 @@ export interface SessionConfigureCommand {
     stt?: string | Record<string, unknown>;
 }
 
+// ─── Phone lines (pc.line) ───────────────────────────────────────────────
+
+/**
+ * Claim a phone number as a programmable LINE — no model, no prompt.
+ *
+ * `config` is the line's own pipeline, resolved through the same shortcuts an
+ * agent's config is; `llm`/`prompt`/`tools` are refused server-side and are
+ * refused in `pc.line()` before they ever reach the socket.
+ */
+export interface LineCreateCommand {
+    event: "line.create";
+    number: string;
+    config: {
+        stt?: string | Record<string, unknown>;
+        voice?: string | Record<string, unknown>;
+        language?: string;
+        turn_detection?: string | Record<string, unknown>;
+        /** How long after connect to collect post-dial digits. 0 disables. */
+        extension_window_ms?: number;
+    };
+}
+
+/** Release the number. */
+export interface LineDestroyCommand {
+    event: "line.destroy";
+    number: string;
+}
+
+/**
+ * Hand the LIVE call to an agent — the owner swap. No re-dial, no drop: the
+ * server rebuilds STT/TTS/turn on the same stream and the agent sees a normal
+ * `call.started` with `routed_from`.
+ */
+export interface CallRouteCommand {
+    event: "call.route";
+    call_id: string;
+    agent: string;
+    language?: string;
+    voice?: string | Record<string, unknown>;
+    stt?: string | Record<string, unknown>;
+    greeting?: string;
+    prompt_vars?: Record<string, string>;
+    context?: Record<string, unknown>;
+    /** Prime the agent with what the line heard. Default true. */
+    history?: boolean;
+}
+
 // ─── Union ───────────────────────────────────────────────────────────────
 
 export type ClientCommand =
@@ -225,4 +272,7 @@ export type ClientCommand =
     | ChannelAddCommand
     | ChannelConfigureCommand
     | ChannelRemoveCommand
-    | SessionConfigureCommand;
+    | SessionConfigureCommand
+    | LineCreateCommand
+    | LineDestroyCommand
+    | CallRouteCommand;
