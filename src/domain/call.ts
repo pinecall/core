@@ -23,6 +23,9 @@ import type {
     TurnContinuedEvent,
     BotSpeakingEvent,
     BotWordEvent,
+    BotFinishedEvent,
+    BotInterruptedEvent,
+    LineTranscriptEntry,
 } from "../protocol/events.js";
 import { CallHistoryRecorder } from "./call-history.js";
 import { streamCallSSE } from "../sse/call-stream.js";
@@ -34,6 +37,37 @@ import type { HistoryStore } from "../history.js";
 // from here, so they keep travelling through it.
 export type { SSEResponse, StreamSSEOptions };
 export type { CallEvents, PreparingTimeoutEvent, SkillEvent, ReplyOptions, ForwardOptions } from "./call-events.js";
+export type { LineTranscriptEntry } from "../protocol/events.js";
+
+/**
+ * What a `call.started` carries into a `Call`.
+ *
+ * Named because `Agent._createCall()` hands it on: a `PhoneLine` builds a
+ * `LineCall` from exactly this, so the shape had to stop being an inline
+ * literal on one constructor.
+ */
+export interface CallInit {
+    call_id: string;
+    from: string;
+    to: string;
+    direction: "inbound" | "outbound";
+    transport?: "webrtc" | "phone" | "chat" | "whatsapp" | "unknown";
+    metadata?: Record<string, unknown>;
+    language?: string;
+    /** The extension dialled after the number, when a line resolved one. */
+    extension?: string | null;
+    /** Who is driving this session — a line, or an agent. */
+    owner?: "line" | "agent";
+    /** The line that handed this call over, `line:<number>`. */
+    routed_from?: string;
+    /** What the line heard and said before the hand-over. */
+    line_transcript?: Array<{ who: "caller" | "line"; text: string; at?: number }>;
+}
+
+/** What an awaited `say()` reports: whether the caller talked over it. */
+export interface SayResult {
+    interrupted: boolean;
+}
 
 // ─── Call class ──────────────────────────────────────────────────────────
 
@@ -74,6 +108,27 @@ export class Call extends TypedEventBus<CallEvents> {
     _setLanguage(lang: string): void {
         this.#language = lang;
     }
+
+    /**
+     * The extension the caller dialled after the number ("33"), or null.
+     *
+     * Set by a phone line (`pc.line()`), and carried through `routeTo` so the
+     * agent knows which door the call came through. Always null on a call that
+     * no line answered.
+     */
+    readonly extension: string | null;
+
+    /**
+     * The line that handed this call over — `line:<number>` — or null when the
+     * call came straight to the agent.
+     */
+    readonly routedFrom: string | null;
+
+    /**
+     * What the line heard and said before it routed the call here. Empty on a
+     * call no line answered.
+     */
+    readonly lineTranscript: readonly LineTranscriptEntry[];
 
     /** Auto-tracked from the latest user.message. Used as default `in_reply_to`. */
     lastMessageId: string | null = null;
@@ -159,15 +214,7 @@ export class Call extends TypedEventBus<CallEvents> {
     }
 
     constructor(
-        data: {
-            call_id: string;
-            from: string;
-            to: string;
-            direction: "inbound" | "outbound";
-            transport?: "webrtc" | "phone" | "chat" | "whatsapp" | "unknown";
-            metadata?: Record<string, unknown>;
-            language?: string;
-        },
+        data: CallInit,
         send: (data: Record<string, unknown>) => void,
     ) {
         super();
@@ -178,6 +225,15 @@ export class Call extends TypedEventBus<CallEvents> {
         this.transport = data.transport ?? "unknown";
         this.metadata = data.metadata ?? {};
         this.#language = data.language ?? "";
+        this.extension = data.extension ?? null;
+        this.routedFrom = data.routed_from ?? null;
+        this.lineTranscript = (data.line_transcript ?? []).map((e) => ({
+            who: e.who,
+            text: e.text,
+            at: e.at ?? Date.now(),
+            role: e.who === "caller" ? "user" as const : "assistant" as const,
+            content: e.text,
+        }));
         this.#send = send;
         this.#requests = new CallRequests(this.id, send);
     }
@@ -191,15 +247,59 @@ export class Call extends TypedEventBus<CallEvents> {
      * LLM conversation history as an assistant message, so the model knows
      * what was said and won't repeat it.
      */
-    say(text: string, opts?: { addToHistory?: boolean }): void {
+    say(text: string, opts?: { addToHistory?: boolean }): Promise<SayResult> {
+        const messageId = generateId("msg");
         this.#send({
             event: "bot.reply",
             call_id: this.id,
-            message_id: generateId("msg"),
+            message_id: messageId,
             text,
             in_reply_to: "",
             ...(opts?.addToHistory ? { add_to_history: true } : {}),
         });
+        return this._awaitPlayback(messageId);
+    }
+
+    /**
+     * @internal Resolve when the audio for `messageId` stopped coming out of
+     * the speaker — finished, interrupted, or the call ended under it.
+     *
+     * NEVER rejects. `say()` has always been fire-and-forget and stays that
+     * way: an un-awaited call cannot produce an unhandled rejection, because
+     * there is nothing to reject.
+     */
+    protected _awaitPlayback(messageId: string): Promise<SayResult> {
+        if (this.status === "ended") return Promise.resolve({ interrupted: true });
+        return new Promise<SayResult>((resolve) => {
+            const settle = (interrupted: boolean) => {
+                this.off("bot.finished", onFinished);
+                this.off("bot.interrupted", onInterrupted);
+                this.off("ended", onEnded);
+                resolve({ interrupted });
+            };
+            // A server that omits message_id is answering about the only reply
+            // in flight — ours.
+            const onFinished = (e: BotFinishedEvent) => {
+                if (!e?.messageId || e.messageId === messageId) settle(false);
+            };
+            const onInterrupted = (e: BotInterruptedEvent) => {
+                if (!e?.messageId || e.messageId === messageId) settle(true);
+            };
+            const onEnded = () => settle(true);
+            this.on("bot.finished", onFinished);
+            this.on("bot.interrupted", onInterrupted);
+            this.on("ended", onEnded);
+        });
+    }
+
+    /**
+     * @internal One raw frame out on this call's socket.
+     *
+     * The private `#send` cannot cross a subclass boundary, and `LineCall`
+     * has verbs of its own to send (`call.route`, `set_context`).
+     */
+    protected _sendRaw(data: Record<string, unknown>): void {
+        this.#send(data);
     }
 
     /** Reply to the latest user message (auto-tracks in_reply_to). */

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`call.dtmf_received` — the caller's keypad on a live phone call.** Twilio
+  already sent a `dtmf` frame on every press and the voice server had no branch
+  for it, so an inbound keypress was dropped on the floor and an IVR ("press 1
+  for Spanish") could not be built on a streamed call. The server now emits
+  `call.dtmf_received` with `digit` (this press) and `digits` (every press so
+  far on the call), and the SDK types it on both `call.on()` and `agent.on()`.
+  Only the inbound track counts — echoing our own `call.dtmf` tones back as
+  caller input would be a loop. Requires a voice server from 2026-08-22 or
+  later. See `guides/events.md` → DTMF for a language menu built on it.
+
 ---
 
 ## [0.12.1] — 2026-08-22 — one frame per event: no more duplicate bubbles

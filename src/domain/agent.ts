@@ -11,6 +11,7 @@
 
 import { TypedEventBus } from "../kernel/event-bus.js";
 import { Call } from "./call.js";
+import type { CallInit } from "./call.js";
 import { RingingCall } from "./ringing-call.js";
 import { buildShortcutPayload } from "../protocol/shortcuts.js";
 import { createAgentStream } from "../sse/stream.js";
@@ -122,6 +123,9 @@ export interface AgentEvents {
     // Session limits
     "session.idleWarning": (event: any, call: Call) => void;
     "session.timeout": (event: SessionTimeoutEvent, call: Call) => void;
+
+    // Keypad — phone only; a browser has no keypad to press.
+    "call.dtmf_received": (event: import("../protocol/events.js").CallDtmfReceivedEvent, call: Call) => void;
 
     // LLM / Tool calls
     "llm.toolCall": (event: ToolCallEvent, call: Call) => void;
@@ -770,6 +774,18 @@ export class Agent extends TypedEventBus<AgentEvents> {
     /** @internal True when the app is listening for the pre-turn hook. */
     _hasPreparingListener(): boolean {
         return this.listenerCount("call.preparing") > 0;
+    }
+
+    /**
+     * @internal Build the `Call` for an inbound session.
+     *
+     * A seam, not a factory pattern for its own sake: a `PhoneLine` registers
+     * under `line:<number>` so that every dispatch handler routes to it
+     * unchanged, and this is the one place it has to differ — the object the
+     * handler hands out is a `LineCall`, with `say`/`listen`/`ask`/`routeTo`.
+     */
+    _createCall(data: CallInit, send: (data: Record<string, unknown>) => void): Call {
+        return new Call(data, send);
     }
 
     /** @internal Get a call by ID. */

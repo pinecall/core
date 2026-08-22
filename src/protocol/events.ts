@@ -15,6 +15,36 @@ export interface CallStartedEvent {
     to: string;
     direction: "inbound" | "outbound";
     metadata?: Record<string, unknown>;
+    /**
+     * The extension the caller dialled after the number ("33"), or null.
+     * Phone lines only — see `pc.line()`; an agent that a line routed to
+     * receives the same value so it knows which door the call came through.
+     */
+    extension?: string | null;
+    /** Who owns the session right now: the line that answered, or an agent. */
+    owner?: "line" | "agent";
+    /** Set on a call handed over by `line.routeTo()`: the line's id, `line:<number>`. */
+    routedFrom?: string;
+    /** What the line heard and said before it handed the call over. */
+    lineTranscript?: LineTranscriptEntry[];
+}
+
+/**
+ * One line in a phone line's own transcript — what the CALLER said and what
+ * the LINE said back, before any model was involved.
+ *
+ * It carries `role`/`content` as well so anything that reads a plain `Call`
+ * transcript keeps working on a line's.
+ */
+export interface LineTranscriptEntry {
+    who: "caller" | "line";
+    text: string;
+    /** Epoch milliseconds. */
+    at: number;
+    /** `who`, in the shape a plain Call transcript uses. */
+    role: "user" | "assistant";
+    /** `text`, in the shape a plain Call transcript uses. */
+    content: string;
 }
 
 export interface CallRingingEvent {
@@ -230,6 +260,23 @@ export interface CallDtmfSentEvent {
     digits: string;
 }
 
+/**
+ * The CALLER pressed a key on a live phone call.
+ *
+ * The inbound twin of `call.dtmf_sent`, and named apart from it on purpose:
+ * `call.dtmf` is the command that plays tones DOWN the line, so an event
+ * called `call.dtmf` could not say whose finger it was.
+ *
+ * `digit` is this press. `digits` is every press so far on this call, so a
+ * menu collecting an entry ("extension 204#") does not have to buffer them.
+ */
+export interface CallDtmfReceivedEvent {
+    event: "call.dtmf_received";
+    callId: string;
+    digit: string;
+    digits: string;
+}
+
 // ─── Config responses ────────────────────────────────────────────────────
 
 export interface ConfigUpdatedEvent {
@@ -323,6 +370,46 @@ export interface CallUnmutedEvent {
     mutedTranscript: string | null;
 }
 
+// ─── Phone lines (pc.line) ───────────────────────────────────────────────
+
+/** The server registered a line and it now owns the number. */
+export interface LineCreatedEvent {
+    event: "line.created";
+    number: string;
+}
+
+/** The registration was refused. `code` says which of the four cases it is. */
+export interface LineErrorEvent {
+    event: "line.error";
+    number: string;
+    code: "LINE_CONFLICT" | "LINE_CONFIG_ERROR" | "PHONE_NOT_IN_ORG" | "UNAUTHORIZED";
+    error: string;
+}
+
+/** Ack of `line.destroy` — the number is released. */
+export interface LineDestroyedEvent {
+    event: "line.destroyed";
+    number: string;
+}
+
+/**
+ * The owner swap succeeded: the agent is now driving this call, on the same
+ * audio stream. A `call.ended` with reason `"routed"` follows, for the line.
+ */
+export interface CallRoutedEvent {
+    event: "call.routed";
+    callId: string;
+    agent: string;
+}
+
+/** The owner swap did not happen. The line is still the owner; nothing was dropped. */
+export interface CallRouteFailedEvent {
+    event: "call.route_failed";
+    callId: string;
+    agent: string;
+    reason: "offline" | "unknown" | "no_phone_config" | "capacity" | "swap_failed";
+}
+
 // ─── Union ───────────────────────────────────────────────────────────────
 
 export type ServerEvent =
@@ -363,4 +450,9 @@ export type ServerEvent =
     | CallMutedEvent
     | CallUnmutedEvent
     | CallRingingEvent
-    | CallRejectedEvent;
+    | CallRejectedEvent
+    | LineCreatedEvent
+    | LineErrorEvent
+    | LineDestroyedEvent
+    | CallRoutedEvent
+    | CallRouteFailedEvent;
