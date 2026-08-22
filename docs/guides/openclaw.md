@@ -1,242 +1,148 @@
 ---
-title: "OpenClaw & OpenAI-compatible LLMs"
-description: "Give any /v1/chat/completions endpoint a voice — phone, WebRTC or chat — with the @pinecall/openclaw plugin."
+title: "OpenClaw"
+description: "Give the agent running on your own machine a phone number, with @pinecall/openclaw."
 ---
 
-# OpenClaw & OpenAI-compatible LLMs
+# OpenClaw
 
-`@pinecall/openclaw` puts a voice in front of an LLM you already run. It talks to any
-`/v1/chat/completions` endpoint with plain `fetch` — **zero dependencies** — so it works
-with a local [OpenClaw](https://openclaw.ai) gateway, OpenAI, or any provider that speaks
-the same wire format.
+[OpenClaw](https://openclaw.ai) is an agent runtime you host yourself. It can hold several
+agents at once, and each one has its own workspace, identity, memory, tools and session
+store — it is somebody, not an endpoint.
 
-> **This is the client-side LLM path.** The plugin runs the model in *your* process: it owns the
-> history, the streaming and the tool loop, and the voice server only does STT, TTS and turn
-> detection. If you want the server to run the model instead, set `llm` on the agent and read
-> [Server vs client LLM](/concepts/server-vs-client-llm).
-
-## Quick start
-
-It is its own package, on top of the SDK:
+**`@pinecall/openclaw` gives one of them a phone number.** Somebody calls, and *your* agent,
+on *your* computer, answers.
 
 ```bash
 npm i @pinecall/openclaw
 ```
 
-```typescript
-import { PinecallOpenClaw } from "@pinecall/openclaw";
-
-const voice = new PinecallOpenClaw({
-    apiKey: process.env.PINECALL_API_KEY!,
-    llm: { model: "gpt-4.1-mini" },            // defaults to OpenAI + OPENAI_API_KEY
-    phone: "+13186330963",
-    voice: "elevenlabs/sarah",
-    greeting: "Hey! How can I help?",
-    prompt: "You are a helpful voice assistant.",
-});
-
-await voice.start();
+```
+   caller ──📞── Pinecall cloud ──ws── your machine
+                 (telephony,            ├── the SDK client (@pinecall/openclaw)
+                  STT, TTS)             └── OpenClaw gateway  127.0.0.1:18789
+                                             └── agent "voice"  ← the brain
 ```
 
-That is the whole program. `start()` registers the phone number (plus the WebRTC and chat
-channels, unless you turn them off), connects, and from then on every user turn goes to the
-model and streams back as speech.
+Pinecall does only the parts that have to live in a datacentre: the phone line,
+speech-to-text, text-to-speech, turn detection. **The thinking never leaves your machine** —
+the gateway is on loopback and the plugin talks to it from the same computer.
 
-## Point it at a local OpenClaw gateway
-
-`openclawGateway()` resolves the URL, the token and the model for you — no hand-written
-config block:
+## The whole program
 
 ```typescript
 import { PinecallOpenClaw, openclawGateway } from "@pinecall/openclaw";
 
 const voice = new PinecallOpenClaw({
-    apiKey: process.env.PINECALL_API_KEY!,
-    llm: openclawGateway(),
+    gateway: openclawGateway({ agent: "voice" }),   // which agent answers
     phone: "+13186330963",
     voice: "elevenlabs/sarah",
+    language: "es",
 });
 
 await voice.start();
 ```
 
-Each field is resolved independently, first hit wins:
+That is all of it. **There is no prompt, no model and no tools in this config, and that is
+the point** — your agent already has all three. See [What it never
+sends](#what-it-never-sends).
 
-| Order | Source |
+## Which agent answers
+
+OpenClaw treats the OpenAI `model` field as an **agent target**, not a provider model id:
+
+| value | who answers |
 |---|---|
-| 1 | The argument — `openclawGateway({ url, key, model })` |
-| 2 | The environment — `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_MODEL` |
-| 3 | The config file — `$OPENCLAW_CONFIG`, else `~/.openclaw/openclaw.json` (`gateway.port`, `gateway.auth.token`, `agents.defaults.model.primary`) |
-| 4 | The defaults — `http://127.0.0.1:18789/v1`, no token, `openclaw/default` |
+| `openclaw` · `openclaw/default` | the gateway's default agent |
+| `openclaw/<agentId>` | that agent, by its id in `agents.list` |
 
-> **A missing or malformed config file is not an error.** The file is read lazily, inside the
-> call, and any problem reading or parsing it falls straight through to the next source. The
-> token is never logged and never appears in an error message.
-
-It throws in exactly two cases, both with the fix in the message: when no token could be found
-**and** the resolved URL is not loopback (a tokenless gateway on a public address is an open LLM),
-and when the config file explicitly says `gateway.http.endpoints.chatCompletions.enabled: false`
-— better a clear error at startup than a 404 mid-call.
+`openclawGateway()` builds it from `~/.openclaw/openclaw.json`, so you name the agent and
+nothing else:
 
 ```typescript
-// Overrides compose with the resolution — everything else still comes from the file.
-llm: openclawGateway({ model: "openai/gpt-5.4" }),
+openclawGateway({ agent: "voice" })   // → { url, key, model: "openclaw/voice" }
 ```
 
-## The proxy assistant — a fast voice, a slow brain
+It resolves each field independently — argument, then environment
+(`OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_AGENT`), then the config file,
+then the documented defaults. An agent id the config does not declare is refused at startup,
+naming the ones it does — a typo you want to hear about now, not mid-call.
 
-The pattern that makes this worth doing: a small fast model does the talking, and hands the
-genuinely hard turns to a slower, smarter backend while the caller hears hold music. Declare it
-with `proxy` and the plugin wires the tool, the hold and the timeout for you:
+> **It never reads `agents.defaults.model.primary`.** That is the provider model an agent
+> runs on. Sending it as `model` asks the gateway for an agent by that name, and there is no
+> such agent. The model an agent runs on is **its** business; to override it per request use
+> `backendModel`, which becomes the `x-openclaw-model` header.
 
-```typescript
-const voice = new PinecallOpenClaw({
-    apiKey: process.env.PINECALL_API_KEY!,
-    llm: openclawGateway(),                    // fast model that talks
-    phone: "+13186330963",
-    voice: "elevenlabs/sarah",
-    greeting: "Hey! How can I help?",
-    proxy: {
-        ask: async (task, call, signal) => {
-            const answer = await myBackendAI(task, { signal });   // slow but smart
-            return answer;
-        },
-        name: "ask_backend",                   // optional — this is the default
-        description: "Delegate anything that needs real thinking.",
-        hold: true,                            // hold music while it thinks (default)
-        timeoutMs: 30_000,
-    },
-});
+## What it never sends
 
-await voice.start();
-```
+This package is a **voice transport**. Per turn it sends exactly one thing — what the caller
+just said — and streams back whatever the agent answers. Three things it deliberately does
+not send, because your agent already has them:
 
-What happens on a delegated turn:
-
-```
-User speaks → Pinecall STT → fast model (streaming, <1s)
-                                 │ simple → answers straight away
-                                 │ hard   → calls ask_backend
-                                          → call.hold()      🎵
-                                          → your backend
-                                          → call.unhold()    🔊
-                                          → fast model speaks the summary
-```
-
-Nothing new goes on the wire — the proxy is an ordinary tool in the same OpenAI tool list.
-Three guarantees are worth knowing:
-
-- **The hold always lifts.** `unhold()` runs in a `finally`, so a backend that throws, times
-  out or gets aborted can never leave a caller stranded on hold music.
-- **A barge-in kills the backend call.** The `signal` handed to `ask` aborts with the turn, so
-  the moment the caller talks over the agent, the pending request is cancelled.
-- **A timeout still speaks.** On timeout the model receives `timeoutMessage` as the tool result
-  and apologizes in its own words, instead of leaving a dead line.
-
-It composes with your own tools: the proxy tool is appended to `tools`, and a name collision
-with one of them is refused at construction time rather than silently overriding it.
-
-## Your own tools
-
-Tools are plain OpenAI function definitions, executed by `onToolCall`:
-
-```typescript
-const voice = new PinecallOpenClaw({
-    apiKey: process.env.PINECALL_API_KEY!,
-    llm: { model: "gpt-4.1-mini" },
-    phone: "+13186330963",
-    prompt: "You are a helpful assistant.",
-    tools: [{
-        name: "lookup",
-        description: "Look up an order by id.",
-        parameters: {
-            type: "object",
-            properties: { id: { type: "string" } },
-            required: ["id"],
-        },
-    }],
-    onToolCall: async (name, args, call) => {
-        call.hold();
-        const result = await fetchFromBackend(String(args.id));
-        call.unhold();
-        return result;                          // string or object — objects are JSON.stringify'd
-    },
-    on: {
-        onCallStarted: (call) => console.log(`📞 ${call.from}`),
-        onCallEnded: (_call, reason) => console.log(`📴 ${reason}`),
-    },
-});
-```
-
-The loop runs until the model answers in words, or `maxToolLoops` (default 5) is spent.
-
-## Take the whole turn
-
-`onTurn` switches the plugin off: no prompt, no history, no tool loop. You get the turn, the
-call, a [`ReplyStream`](/api/reply-stream) and an `AbortSignal` that fires when the caller
-interrupts.
-
-```typescript
-const voice = new PinecallOpenClaw({
-    apiKey: process.env.PINECALL_API_KEY!,
-    phone: "+13186330963",
-    onTurn: async (turn, call, stream, signal) => {
-        for await (const token of myCustomPipeline(turn.text, { signal })) {
-            if (stream.aborted) break;
-            stream.write(token);
-        }
-        stream.end();
-    },
-});
-```
-
-Forgetting `stream.end()` is safe — the plugin ends the stream when your handler returns.
-
-## Options
-
-| Option | Type | Default | What it does |
-|---|---|---|---|
-| `apiKey` | `string` | — | Pinecall API key |
-| `url` | `string` | `wss://voice.pinecall.io` | Voice server override |
-| `llm.url` | `string` | `https://api.openai.com/v1` | LLM base URL |
-| `llm.key` | `string` | `OPENAI_API_KEY` | LLM API key |
-| `llm.model` | `string` | `gpt-4.1-mini` | Model name |
-| `prompt` | `string` | a concise voice-assistant prompt | System prompt |
-| `phone` | `string \| string[]` | — | Phone number(s) to answer on |
-| `webrtc` | `boolean` | `true` | Register the WebRTC channel |
-| `chat` | `boolean` | `true` | Register the chat channel |
-| `voice` | `VoiceShortcut` | — | TTS voice, e.g. `"elevenlabs/sarah"` |
-| `language` | `string` | — | Language code |
-| `stt` | `STTShortcut` | — | STT override |
-| `interruption` | `InterruptionShortcut` | — | Barge-in config |
-| `greeting` | `string` | — | Spoken by the server on call start |
-| `name` | `string` | `"openclaw-voice"` | Agent id |
-| `tools` | `ToolDef[]` | — | Tool definitions (OpenAI format) |
-| `onToolCall` | `function` | — | Tool executor |
-| `maxToolLoops` | `number` | `5` | Max tool iterations per turn |
-| `proxy` | `ProxyConfig` | — | The slow, smart backend (see above) |
-| `onTurn` | `function` | — | Take over the turn entirely |
-| `maxHistory` | `number` | `50` | Max history messages per call |
-| `on` | `OpenClawEventHandlers` | — | `onCallStarted`, `onCallEnded`, `onTurnCompleted`, `onError` |
-
-## Surface
-
-| Member | What |
+| not sent | why |
 |---|---|
-| `start()` | Register channels and connect |
-| `stop()` | Disconnect |
-| `dial(to, from, greeting?)` | Place an outbound call (starts first if needed) |
-| `agent` | The underlying [`Agent`](/api/agent) — add events, tools, channels |
-| `pinecall` | The underlying [`Pinecall`](/api/pinecall) client |
+| **A system prompt** | The agent's prompt is built from its own workspace — `SOUL.md`, `IDENTITY.md`, `AGENTS.md`, `MEMORY.md`. Measured against a real gateway that is ~19,000 tokens of who it is. A "you are a helpful voice assistant" from us would arrive as a second system message fighting all of it: overwriting a personality with a worse one. |
+| **Conversation history** | The agent keeps the thread itself. Each call is pinned to one OpenClaw session with the `x-openclaw-session-key` header (the call id), so it keeps context across the turns of a call and two simultaneous callers never share one. Re-sending our own transcript would give it two sources of truth for one conversation. |
+| **Tools** | The agent has its own, from `TOOLS.md` and its tools profile. A second, parallel tool system it knows nothing about is not help. |
 
-> **History is per call and lives in memory.** It is seeded with the system prompt (and the
-> greeting, so the model does not greet twice), trimmed to `maxHistory` with the system message
-> always preserved, and dropped when the call ends. For history that outlives a call, use
-> [conversation history](/guides/conversation-history) on the agent itself.
+If you want the agent to behave differently on the phone — shorter answers, no markdown,
+because a list read aloud by TTS is noise — **put that in the agent's own workspace**, where
+the rest of its instructions live. That is the honest place for it. For a quick test there is
+an opt-in `voiceStyle` string that prepends one system line, but it is off by default on
+purpose.
 
-## Errors never take the call down
+## Try it in 60 seconds
 
-An HTTP failure from the LLM is reported to `on.onError` and the caller hears a short apology
-instead of dead air — the call stays up and the next turn goes out normally. Same for a tool
-that throws: the error text goes back to the model as the tool result, and the model explains
-itself.
+**1. Run the gateway.** OpenClaw needs Node `>=22.22.3 <23`, `>=24.15.0 <25`, or `>=25.9.0`
+— v24.14 is rejected, `nvm use 24` fixes it.
+
+```bash
+openclaw gateway run
+```
+
+**2. See your agents.**
+
+```bash
+openclaw agents list
+#  Agents:
+#  - voice (default)
+```
+
+**3. Point the plugin at one** — the program above, with `agent: "voice"`.
+
+**4. Call it.** With `phone` set, from a phone. Without one, from the browser: mint a WebRTC
+token with `voice.agent.createToken("webrtc")` and connect with
+[`@pinecall/web`](/web/core/overview).
+
+## How a turn flows
+
+1. The caller speaks. Pinecall's STT turns it into text and its turn detector decides they
+   have finished.
+2. The SDK hands you `turn.end` — this is the
+   [client-side LLM](/concepts/server-vs-client-llm) path, which is why the agent is created
+   with **no `llm`**: with one, the voice server would answer instead of your agent.
+3. The plugin POSTs one user message to `http://127.0.0.1:18789/v1/chat/completions` with
+   `model: "openclaw/voice"` and the session-key header.
+4. Tokens stream back into `call.replyStream(turn)`, and Pinecall speaks them as they
+   arrive.
+
+If the caller talks over the answer, the in-flight request to the gateway is aborted with the
+turn. If the gateway is down or returns an error, the caller hears a short apology instead of
+dead air — a silent line reads as a dropped call.
+
+## Known limits
+
+**The text chat channel cannot work.** Pinecall resolves text chat with its **own
+server-side LLM**: it never emits `turn.end` to the SDK, so this plugin never sees the
+message and your OpenClaw agent never answers it. (Verified: a chat message to an agent
+configured this way came back as *"Soy ChatGPT"*.) `chat` therefore defaults to `false`. The
+client-side path this package lives on is voice — phone and WebRTC.
+
+**The greeting is spoken by the server**, not by your agent. It is a string in the config, it
+goes out the moment the call connects, and the agent is not told it happened.
+
+## What's next
+
+- [Server-side vs client-side LLM](/concepts/server-vs-client-llm) — the decision this
+  package is one side of
+- [Inbound voice](/guides/inbound-voice) — phone numbers, greetings, call lifecycle
+- The package itself: [github.com/pinecall/openclaw](https://github.com/pinecall/openclaw)
