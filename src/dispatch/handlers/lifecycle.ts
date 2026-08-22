@@ -13,6 +13,7 @@
 import type { EventHandler, DispatchContext } from "../handler.js";
 import type { WireEvent } from "../../protocol/wire.js";
 import { Call } from "../../domain/call.js";
+import type { CallInit } from "../../domain/call.js";
 import { RingingCall } from "../../domain/ringing-call.js";
 import { decodeEvent } from "../../protocol/codec.js";
 import { forwardCallEvents } from "../proxy.js";
@@ -54,7 +55,9 @@ export class LifecycleHandler implements EventHandler {
                     transport = "webrtc";
                 }
 
-                const call = new Call(
+                // Built through the agent so a phone line hands out a LineCall
+                // (see Agent._createCall) without forking this handler.
+                const call = agent._createCall(
                     {
                         call_id: callId,
                         from: (wire.from ?? "") as string,
@@ -63,6 +66,15 @@ export class LifecycleHandler implements EventHandler {
                         transport,
                         metadata: wire.metadata as Record<string, unknown> | undefined,
                         language: typeof wire.language === "string" ? wire.language : undefined,
+                        // Set by a phone line: which extension the caller
+                        // dialled, who owns the session, and — on a routed
+                        // call — the line it came from and what it heard.
+                        extension: typeof wire.extension === "string" ? wire.extension : null,
+                        owner: wire.owner === "line" || wire.owner === "agent" ? wire.owner : undefined,
+                        routed_from: typeof wire.routed_from === "string" ? wire.routed_from : undefined,
+                        line_transcript: Array.isArray(wire.line_transcript)
+                            ? (wire.line_transcript as CallInit["line_transcript"])
+                            : undefined,
                     },
                     (data) => agent.send(data),
                 );

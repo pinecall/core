@@ -7,6 +7,7 @@
 import type { Agent } from "../domain/agent.js";
 import type { Call } from "../domain/call.js";
 import type { WhatsAppSession } from "../domain/wa-session.js";
+import type { PhoneLine } from "../domain/line.js";
 import type { WireEvent } from "../protocol/wire.js";
 import type { Logger } from "../kernel/logger.js";
 import type { RegistrationCoordinator } from "./registration.js";
@@ -42,6 +43,8 @@ export interface DispatchContext {
     allAgents(): Agent[];
     /** A live WhatsApp session by id, for `wa-` prefixed call ids. */
     whatsappSession(sessionId: string): WhatsAppSession | undefined;
+    /** Every phone line on this client — how `line.*` and `call.route*` find their owner. */
+    lines(): PhoneLine[];
 }
 
 export interface EventHandler {

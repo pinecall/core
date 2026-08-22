@@ -63,6 +63,7 @@
             "group": "Phone",
             "pages": [
               "guides/inbound-voice",
+              "guides/phone-lines",
               "guides/outbound-calls",
               "guides/call-ringing"
             ]

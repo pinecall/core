@@ -36,6 +36,24 @@ agent.on("call.started", (call: Call) => { });
 
 A new **voice** call connected (phone or WebRTC). The `Call` object is partially populated — `id`, `from`, `to`, `direction`, `transport`, `metadata` and [`language`](/api/call#language) are available. `duration`, `endedAt`, `reason` are not yet.
 
+Three more fields are populated when a [phone line](/guides/phone-lines) was involved, and are `null` / `[]` otherwise:
+
+```typescript
+call.extension;       // string | null — the extension dialled after the number ("11")
+call.routedFrom;      // string | null — "line:+12186633772", the line that handed this call over
+call.lineTranscript;  // LineTranscriptEntry[] — what the line heard and said before the hand-over
+```
+
+```typescript
+interface LineTranscriptEntry {
+  who: "caller" | "line";
+  text: string;
+  at: number;                      // epoch ms
+  role: "user" | "assistant";      // the same fact, in a plain Call transcript's shape
+  content: string;
+}
+```
+
 > **Note:** `call.started` fires only for voice transports (`phone`, `webrtc`). For chat and WhatsApp, use `chat.started` and `whatsapp.started` instead.
 
 ### `memory.ops`
@@ -294,6 +312,81 @@ agent.on("session.timeout", (event: {
 
 A session limit hit. The call is about to end.
 
+## DTMF events
+
+### `call.dtmf_received`
+
+```typescript
+agent.on("call.dtmf_received", (event: {
+  callId: string;
+  digit: string;    // this press
+  digits: string;   // every press so far on this call
+}, call: Call) => { });
+```
+
+The CALLER pressed a key. Phone only. Nothing is fed to the STT or the model.
+On a [phone line](/guides/phone-lines), digits collected inside the extension
+window are **not** emitted here — they become `call.extension`.
+
+### `call.dtmf_sent`
+
+```typescript
+agent.on("call.dtmf_sent", (event: { callId: string; digits: string }, call: Call) => { });
+```
+
+Tones we played down the line, via `call.sendDTMF()`.
+
+## Phone line events
+
+Emitted on a `PhoneLine` created with [`pc.line()`](/guides/phone-lines).
+
+### `ready` (`line.created`)
+
+```typescript
+line.on("ready", () => { });
+await line.ready;              // the same fact as a promise
+```
+
+The server registered the line; the number is ours. Goes back to pending across a reconnect.
+
+### `error` (`line.error`)
+
+```typescript
+line.on("error", (err: PinecallError) => { });
+// err.code — "LINE_CONFLICT" | "LINE_CONFIG_ERROR" | "PHONE_NOT_IN_ORG" | "UNAUTHORIZED"
+```
+
+The registration was refused.
+
+### `call` / `call.ended`
+
+```typescript
+line.on("call", (call: LineCall) => { });                 // fires after the extension window closes
+line.on("call.ended", (call: LineCall, reason: string) => { });   // reason is "routed" after a hand-over
+```
+
+### `call.routed`
+
+```typescript
+call.on("call.routed", (event: { callId: string; agent: string }) => { });
+```
+
+The owner swap landed — the agent is driving this call now, on the same audio
+stream. `await call.routeTo(...)` resolving `{ ok: true }` is the same fact. A
+`call.ended` with reason `"routed"` follows, for the line.
+
+### `call.route_failed`
+
+```typescript
+call.on("call.route_failed", (event: {
+  callId: string;
+  agent: string;
+  reason: "offline" | "unknown" | "no_phone_config" | "capacity" | "swap_failed";
+}) => { });
+```
+
+The swap did not happen. The session is untouched and the line is still the owner.
+
 ## WhatsApp events
 
 ### `whatsapp.message`
@@ -406,4 +499,5 @@ A `:ping` comment is sent every 30s as keepalive. Note there is no `seq` here �
 
 - [The Call Log](/guides/call-log) — observing these events from any process
 - [`Call` API reference](/api/call) — methods to call in response to events
+- [Phone Lines](/guides/phone-lines) — `pc.line()`, extensions, `listen`/`ask` and `routeTo`
 - [Multi-tenant](/guides/multi-tenant) — scope observation per customer
