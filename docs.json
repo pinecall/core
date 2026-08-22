@@ -53,7 +53,8 @@
           "guides/tap",
           "guides/skills",
           "guides/realtime-speech",
-          "guides/token-metadata"
+          "guides/token-metadata",
+          "guides/openclaw"
         ]
       },
       {

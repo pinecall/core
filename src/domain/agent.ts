@@ -308,6 +308,31 @@ export class Agent extends TypedEventBus<AgentEvents> {
     }
 
     /**
+     * Register the browser voice channel, so this agent can take WebRTC calls.
+     *
+     * Phone and WhatsApp had public methods and these two did not — the only
+     * way in was `_addChannel`, which is internal. Anything outside this
+     * package (a plugin, another @pinecall/* module) could not open a browser
+     * channel without reaching past the public API.
+     *
+     * @example
+     * agent.addWebrtc();
+     */
+    addWebrtc(config?: ChannelConfig): void {
+        this._addChannel("webrtc", undefined, config);
+    }
+
+    /**
+     * Register the text chat channel. Same reasoning as `addWebrtc()`.
+     *
+     * @example
+     * agent.addChat();
+     */
+    addChat(config?: ChannelConfig): void {
+        this._addChannel("chat", undefined, config);
+    }
+
+    /**
      * Remove a phone number or SIP URI.
      *
      * @example agent.removePhone("+13186330963");

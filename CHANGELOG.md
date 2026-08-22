@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`agent.addWebrtc()` / `agent.addChat()`** — the browser voice and text chat
+  channels finally have public registration methods. `addPhoneNumber()` and
+  `addWhatsapp()` always did; these two only went through the internal
+  `_addChannel`, so anything outside the package (a plugin, another
+  `@pinecall/*` module) had to reach past the public API to open a browser
+  channel. Needed by `@pinecall/openclaw`.
+- **Guide: [OpenClaw & OpenAI-compatible LLMs](/guides/openclaw)** — putting a
+  voice in front of an LLM you already run, via the companion package
+  `@pinecall/openclaw`.
+
 ---
 
 ## [0.13.0] — 2026-08-22 — phone lines: a number you program, with no model behind it
