@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.14.0] — 2026-08-22 — public browser channels
+
 ### Added
 - **`agent.addWebrtc()` / `agent.addChat()`** — the browser voice and text chat
   channels finally have public registration methods. `addPhoneNumber()` and
