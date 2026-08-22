@@ -354,3 +354,84 @@ Settled: `history` on by default; one number for all demos.
 3. **Extension window** + `call.extension`, SIP passthrough, `tel:` with pause on the decks.
 4. **Presentations on one number**; delete the factory IVR and the per-vertical numbers; regenerate the landing.
 5. **Playground snapshot** of line ownership for `list_phones`; dashboard shows it.
+
+---
+
+## 11. The contract — frozen 2026-08-22 so server and SDK can be built in parallel
+
+Decisions closed in this revision: the public name is **`pc.line()`**; extensions
+are **two digits** (`10–99`); `history` is on by default; one number for every
+demo.
+
+### 11.1 SDK surface (what an app author types)
+
+```ts
+import { Pinecall } from "@pinecall/sdk";
+const pc = new Pinecall();
+
+const line = pc.line("+12186633772", {
+  stt: "soniox/stt-rt-v5",            // the line's own pipeline; same shapes as an agent's
+  voice: "elevenlabs/sarah",          // `llm`/`prompt`/`tools` are REJECTED here — a line has no model
+  language: "en",
+  extension: { window: 2500 },        // ms of silence after connect to collect post-dial digits; 0 disables
+});
+
+// Declarative routing table — an agent slug, or code. Runs before `call` for a match;
+// "*" is the no-extension / unmatched case. Optional: `line.on("call")` alone is enough.
+line.extensions({
+  "10": "pres-restaurantes",
+  "11": "pres-hoteles",
+  "20": async (call) => { /* code */ },
+});
+
+line.on("call", async (call) => {           // fires AFTER the extension window, with `call.extension` set
+  call.extension;                            // "33" | null
+  const r = await call.say("Hello.");        // resolves when the audio finished → { interrupted: boolean }
+  const a = await call.listen({ digits: 1, speech: true, timeout: 5000 });
+  //  → { by: "keypad", digit: "1", digits: "1" } | { by: "speech", text, confidence } | { by: "timeout" }
+  const b = await call.ask("Press one or say yes.", { digits: 1, speech: true, timeout: 5000 }); // say + listen
+  await call.routeTo("pres-hoteles", { language: "es", voice: "elevenlabs/marta" });            // { ok } | { ok:false, reason }
+  await call.forward("+1…");                 // leaves Pinecall (human); distinct from routeTo on purpose
+  call.hangup("done");
+  call.transcript;                           // [{ who: "caller"|"line", text, at }]
+  call.context("reason", "billing");         // survives routeTo → the agent's set_context
+  call.on("dtmf", e => {});                  // raw keypad, e.digit / e.digits
+  call.on("turn.end", t => {});              // raw speech turns
+});
+line.on("call.ended", (call, reason) => {}); // reason includes "routed"
+line.on("ready" | "error", …);
+```
+
+`PhoneLine` is its own class, NOT an `Agent`: no prompt/tools/skills/KB, no
+chat/webrtc/whatsapp. `LineCall` is the `Call` agents get plus the verbs above;
+`say()` on plain `Call` ALSO gains the returned promise (non-breaking).
+
+### 11.2 Wire — client → server
+
+| message | fields | answer |
+|---|---|---|
+| `line.create` | `number`, `config {stt?, voice?/tts?, language?, turn_detection?, extension_window_ms?}` — resolved through the same `resolve_shortcuts` as agents; `llm`/`prompt`/`tools` present → refused | `line.created {number}` or `line.error {number, code: LINE_CONFLICT \| LINE_CONFIG_ERROR \| PHONE_NOT_IN_ORG \| UNAUTHORIZED, error}` |
+| `line.destroy` | `number` | `line.destroyed {number}` |
+| `bot.reply` | as today, `agent_id: "line:<number>"`, `message_id` | `bot.finished {message_id}` / `bot.interrupted {message_id}` — this is what `say()` awaits |
+| `session.configure` | as today (`call.update`) — voice/language/stt for THIS call | `session.configured` |
+| `call.route` | `call_id`, `agent` (slug), `language?`, `voice?`, `stt?`, `greeting?`, `prompt_vars?`, `context? {k:v}`, `history?` (default true) | to the LINE: `call.routed {call_id, agent}` then `call.ended {call_id, reason:"routed"}`; or `call.route_failed {call_id, agent, reason: offline \| unknown \| no_phone_config \| capacity \| swap_failed}` (session untouched, line still owner). To the AGENT: a normal `call.started {…, routed_from:"line:<number>", extension, line_transcript:[…]}` |
+| `call.forward`, `call.hangup`, `call.hold`, `call.mute` | as today | as today |
+
+### 11.3 Wire — server → line
+
+Everything a line receives is a standard event with **`agent_id: "line:<number>"`**,
+so the SDK's existing dispatch routes it by registering the `PhoneLine` under
+that id. Specific to lines:
+
+- `call.started {call_id, from, to, direction:"inbound", transport:"phone", extension: "33"|null, owner:"line"}` — emitted **after** the extension window closes (or on `#`). Digits that arrive inside the window become `extension`, are NOT emitted as `call.dtmf_received`, and the line stays silent (no greeting path runs — a line has no `greeting:` config; its first words are code, and the first `bot.reply` takes the greeting lock exactly like today's first `call.say`).
+- `call.dtmf_received {call_id, digit, digits}` — every press after the window.
+- `user.message` / `turn.end` / `speech.*` / `bot.*` — as today; `llm_handler` is `None` on a line session, so `turn.end` reaches the SDK (the existing client-side mode).
+- `call.ended {call_id, reason}` — `"routed"` after a successful `call.route`.
+
+### 11.4 Server rules
+
+1. **Routing priority** in `get_client_for_number`: live line > `dev-` override > prod agent. A line is a `ClientConnection` with `kind="line"`, slug `line:<number>`, one phone channel — it gets liveness/probe/reap **for free** and shows up as the number's owner in `/api/sdk/agents` `phone_map` (so `list_phones` is honest without new code). Not counted against agent capacity; excluded from agent listings unless `?include_lines=1`.
+2. **`on_start` with a line owner**: config = the line's; `llm_handler = None`; open the extension window; defer `_emit_call_started` until it closes; no greeting path. The `session.no_client` hang-up branch only runs when NO line and NO agent owns the number.
+3. **`call.route`** = the §4 sequence: resolve target (dev override honoured) → freeze turn, abort in-flight audio → `unregister_session(line)` / `register_session(agent)` / `self.owner = agent` → `update_config(agent's raw phone config ⊕ opts)` → build `LLMHandler` if the merged config has `llm`, wire `turn_controller.on_user_message_callback`, prime `context`/`history` → `call.started` to the agent with `routed_from` → speak `opts.greeting ?? agent channel greeting` through `_send_greeting` → `call.routed` + `call.ended(routed)` to the line. `update_config` False → restore the line as owner, answer `route_failed swap_failed`.
+4. Billing: the line's session bills the org like an agent's; one call-log record; owner sequence recorded (`owners: [{kind, id, from, to}]`). Per-owner attribution is explicitly NOT in this cut.
+5. Twilio frame `dtmf` is already decoded (`on_dtmf`, shipped 526cd24); the window logic sits on top of it.
