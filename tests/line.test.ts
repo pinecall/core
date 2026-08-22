@@ -325,6 +325,22 @@ describe("ask()", () => {
         expect(await promise).toEqual({ by: "keypad", digit: "1", digits: "1" });
     });
 
+    it("a press mid-menu resolves AT ONCE and cuts the audio — it does not wait for the sentence to end", async () => {
+        const { t, call } = await liveCall();
+        const promise = call.ask("Para español, uno. For English, two.", { digits: 1, timeout: 5000 });
+        await flush();
+        const sentBefore = t.sentMessages.length;
+
+        // The caller presses one second into a six-second menu. No bot.finished,
+        // no bot.interrupted has arrived yet — the line is still talking.
+        t.receive({ event: "call.dtmf_received", agent_id: LINE_ID, call_id: "CA_1", digit: "2", digits: "2" });
+
+        expect(await promise).toEqual({ by: "keypad", digit: "2", digits: "2" });
+        // …and the line told the server to stop the menu audio.
+        const after = t.sentMessages.slice(sentBefore);
+        expect(after.some((m: any) => m.event === "bot.cancel")).toBe(true);
+    });
+
     it("starts the timeout only once the line stopped speaking", async () => {
         const { t, call } = await liveCall();
         vi.useFakeTimers();

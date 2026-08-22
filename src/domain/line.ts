@@ -206,14 +206,25 @@ export class LineCall extends Call {
      *
      * The keypad is collected from BEFORE the first syllable: barge-in on a
      * menu is the normal case, and a caller who knows the menu presses over it.
-     * If a press already satisfied the listen, `ask` returns it the moment the
-     * line stops speaking; otherwise the timeout starts counting from there.
+     * A press that satisfies the listen **cuts the menu and resolves at once**
+     * — the rest of the sentence is dead air to somebody who already answered.
+     * Otherwise the timeout starts counting the moment the line stops speaking.
      */
     async ask(text: string, opts: ListenOptions): Promise<ListenResult> {
         const session = this.#openListen(opts, false);
-        await this.say(text);
-        session.start();
-        return session.promise;
+        let spoken = false;
+        const speech = this.say(text).then(() => {
+            spoken = true;
+            session.start();
+        });
+        const result = await session.promise;
+        // Answered while the line was still talking: stop the audio now.
+        // `bot.cancel` makes the server drop what is playing; the pending
+        // `say()` promise settles on the resulting interruption and is
+        // otherwise inert.
+        if (!spoken && result.by !== "timeout") this.cancel();
+        void speech.catch(() => {});
+        return result;
     }
 
     #openListen(opts: ListenOptions, autoStart: boolean): ListenSession {
