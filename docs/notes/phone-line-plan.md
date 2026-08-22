@@ -84,9 +84,8 @@ const line = pc.phone("+12186633772", {
 });
 
 line.on("call", async (call) => {
-  // 1. An extension dialled with the number? (",204" — see §5)
-  const ext = await call.extension({ timeout: 2500 });
-  if (ext) return call.routeTo(BY_EXT[ext] ?? "pres-pinecall");
+  // 1. An extension dialled with the number? (",204" — see §5). Resolved BEFORE `call` fires.
+  if (call.extension) return call.routeTo(BY_EXT[call.extension] ?? "pres-pinecall");
 
   // 2. A menu — spoken by the line, answered by keypad OR voice, decided by code.
   await call.say("Para español marque uno o diga español. For English, press two or say English.");
@@ -110,7 +109,7 @@ line.on("call", async (call) => {
 |---|---|
 | `number` | E.164 or `sip:` URI, as `addPhoneNumber` accepts today |
 | `opts.stt` / `opts.voice` / `opts.language` / `opts.turnDetection` | the line's own pipeline config — same shapes as an agent's, minus `llm`/`prompt`/`tools` (rejected if passed) |
-| `opts.extensionWindowMs` (default 2500) | how long after connect to listen for post-dial digits before `call` fires (§5) |
+| `opts.extension.window` (default 2500 ms, 0 disables) | how long after connect to listen for post-dial digits before `call` fires (§5) |
 | `line.on("call", h)` | an inbound call on this number is connected, VAD/STT/TTS up, and HELD for this handler |
 | `line.on("call.ended", h)` | ended at any stage, including mid-menu |
 | `line.on("ready" \| "error")` | registration lifecycle, same as agents |
@@ -131,11 +130,11 @@ The same `Call` object agents get (`from`, `to`, `id`, `transport: "phone"`,
 |---|---|---|
 | `await call.say(text, {voice?, language?})` | when the audio **finished playing** (or was interrupted: `{interrupted: true}`) | `bot.reply` with a `message_id`; resolve on `bot.finished` / `bot.interrupted` for that id. Optional `voice`/`language` = a scoped `session.configure` before the reply. First `say` gets the greeting lock. |
 | `await call.listen(opts)` | `{digit?, digits?, text?, confidence?, timeout?}` — the **first** of: a keypress (`digits: N` or `terminator`), an end-of-turn transcript (`speech: true`), or the timeout | keypad from `call.dtmf_received`; speech from `turn.end` (the pipeline's own end-of-turn — Soniox endpoint / smart-turn — not a second STT); timeout local. `speech: true` is opt-in because a menu that only takes digits should not wait on VAD. |
-| `await call.extension(opts)` | the digits the caller's phone sent right after connect, or `null` | §5. Sugar over `listen({digits: "*", terminator: "#", timeout})` that starts **at connect**, before `call` fires, so the handler sees them as a fact. |
+| `call.extension` | the digits the caller's phone sent right after connect, or `null` — a resolved property, not a call | §5. The server collects them in the silent window **before** `call.started`, so the handler sees them as a fact. |
 | `call.on("dtmf", h)` / `call.on("turn.end", h)` | the raw streams, for flows that are not request/response | exactly today's events |
 | `await call.routeTo(agent, opts?)` | `{ok: true}` or `{ok: false, reason: "offline" \| "unknown" \| "no_phone_config" \| "capacity"}` | §4. The owner swap. `opts`: `language`, `voice`, `stt`, `greeting` (override the agent's), `promptVars`, `context` (→ `set_context`), `history` (prime the agent with what the line heard, as transcript) |
 | `await call.forward(number)` | `{ok}` | today's `forward_call` — the call **leaves** Pinecall (human, external queue). Kept distinct from `routeTo` on purpose. |
-| `await call.play(url \| buffer)` | when done | `bot.audio` frames — exists for WebRTC, wire it for phone. Hold-music reuse. |
+| `await call.play(url \| buffer)` | when done | NOT in the first cut (`bot.audio` for phone is not wired). Follow-up. |
 | `call.hangup(reason)` / `call.reject()` | — | existing |
 | `call.context(key, value)` | — | existing `set_context`; survives the owner swap so the agent inherits what the line learned |
 
@@ -385,17 +384,17 @@ line.extensions({
 });
 
 line.on("call", async (call) => {           // fires AFTER the extension window, with `call.extension` set
-  call.extension;                            // "33" | null
+  call.extension;                            // "33" | null (resolved before `call`)
   const r = await call.say("Hello.");        // resolves when the audio finished → { interrupted: boolean }
   const a = await call.listen({ digits: 1, speech: true, timeout: 5000 });
   //  → { by: "keypad", digit: "1", digits: "1" } | { by: "speech", text, confidence } | { by: "timeout" }
   const b = await call.ask("Press one or say yes.", { digits: 1, speech: true, timeout: 5000 }); // say + listen
   await call.routeTo("pres-hoteles", { language: "es", voice: "elevenlabs/marta" });            // { ok } | { ok:false, reason }
-  await call.forward("+1…");                 // leaves Pinecall (human); distinct from routeTo on purpose
+  call.forward("+1…");                       // leaves Pinecall (human); distinct from routeTo on purpose (void today)
   call.hangup("done");
   call.transcript;                           // [{ who: "caller"|"line", text, at }]
   call.context("reason", "billing");         // survives routeTo → the agent's set_context
-  call.on("dtmf", e => {});                  // raw keypad, e.digit / e.digits
+  call.on("call.dtmf_received", e => {});    // raw keypad, e.digit / e.digits
   call.on("turn.end", t => {});              // raw speech turns
 });
 line.on("call.ended", (call, reason) => {}); // reason includes "routed"
@@ -435,3 +434,10 @@ that id. Specific to lines:
 3. **`call.route`** = the §4 sequence: resolve target (dev override honoured) → freeze turn, abort in-flight audio → `unregister_session(line)` / `register_session(agent)` / `self.owner = agent` → `update_config(agent's raw phone config ⊕ opts)` → build `LLMHandler` if the merged config has `llm`, wire `turn_controller.on_user_message_callback`, prime `context`/`history` → `call.started` to the agent with `routed_from` → speak `opts.greeting ?? agent channel greeting` through `_send_greeting` → `call.routed` + `call.ended(routed)` to the line. `update_config` False → restore the line as owner, answer `route_failed swap_failed`.
 4. Billing: the line's session bills the org like an agent's; one call-log record; owner sequence recorded (`owners: [{kind, id, from, to}]`). Per-owner attribution is explicitly NOT in this cut.
 5. Twilio frame `dtmf` is already decoded (`on_dtmf`, shipped 526cd24); the window logic sits on top of it.
+
+
+## 12. Built — 2026-08-22
+
+- SDK: `pc.line()` landed on master (fb0a82d): `src/domain/line.ts`, guide `docs/guides/phone-lines.md`, `examples/phone-line/` (no `agent()`; `npm run smoke` drives it over a local ws server). Differences vs the draft above, all reflected in §3/§11: `call.extension` is a property; the option is `extension: { window }`; raw keypad is `call.dtmf_received`; `play` not wired; `forward` void; `listen({terminator})` returns `digits` without the terminator and `digit` = the terminator.
+- Server: line registry + extension window landed on the milestone branch (f1da29e); `call.route` in progress.
+- Open: presentations on one number (after the SDK is published), playground snapshot of line ownership.
