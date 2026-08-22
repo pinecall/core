@@ -6,8 +6,10 @@ description: "The build log behind the tutorial — four versions, the designs t
 # How it was built
 
 [The tutorial](/tutorial/configurable-agent) shows the finished shape in the order that
-makes sense to read. It was not built in that order. It was built **four times**, each
+makes sense to read. It was not built in that order. It was built **five times**, each
 version rejected for a specific reason, and the reasons are more useful than the result.
+The fifth one is the most useful of all, because it is the first version that had to
+undo a mistake the earlier ones had already solved.
 
 ## Version 1 — packages, processes and a client for everything
 
@@ -67,7 +69,66 @@ its API.
 endpoint. Express stopped being a router and became the mount only. The SSE endpoint is
 a loader that returns a `Response` wrapping a `ReadableStream` — 28 lines.
 
-481 lines, 20 files, `tsc` clean. Sources are listed at the end.
+481 lines, 20 files, `tsc` clean.
+
+And this is the version that was shipped, deployed, and copied into another repo — so
+its one flaw travelled with it.
+
+## Version 5 — the line, drawn for real
+
+Version 1's rule was "no Pinecall import in `packages/`", and it had `packages/domain`
+holding the rules with no I/O under them. That rule was thrown out with version 1's
+1,200 lines of architecture comments — and it should not have been, because it was the
+only part of version 1 that was right.
+
+Without it, "the agent lives in `server/` because that is Node-only code" quietly became
+"the agent may import whatever it likes", and the import graph ended up like this:
+
+```
+server/agent/agent.ts  ──imports──►  app/appointments/model.server.ts
+                       ──imports──►  app/calls/model.server.ts
+                       ──imports──►  app/settings/model.server.ts
+                       ──imports──►  app/lib/bus.server.ts
+```
+
+A voice agent importing four modules out of the React Router folder. It works — the
+`.server.ts` suffix keeps them out of the browser bundle — but the boundary was being
+held up by a **build convention**, not by the code. And `app/calls/page.tsx` imported
+`Call`, the model, with its disk access, into the same file as the React components,
+for the same reason.
+
+Version 5 moves the business back out: `src/domain` (pure rules), `src/store`
+(persistence behind an interface), `src/agent` (prompt, tools, config, wire), `src/bus`,
+and `app/` reduced to React Router. Same product, same UI, same `db.json`, same prompt —
+the compiled CSS is byte-for-byte identical. What changed is that `src/` imports no
+framework at all, the domain returns what happened instead of emitting on a global bus,
+and one ESLint rule in CI fails the build the moment `src/` reaches into `app/`. The
+first four versions asked nicely. This one does not ask.
+
+Four things came out of it that were not on the plan:
+
+- **`db.server.ts` was a `Proxy` that parsed the whole file on every read and did
+  `load()` + `writeFileSync` on every write.** `Call.line()` runs on every confirmed
+  transcript line, so a three-minute call rewrote `db.json` dozens of times, and a
+  process killed mid-write left it truncated. `src/store` holds the truth in memory,
+  serializes writes through a promise queue, debounces them, and lands each one with
+  write-tmp + `rename`, which POSIX makes atomic.
+- **The "lost update" that motivated the rewrite could not actually happen.** The old
+  `set` did its `load()` and its `writeFileSync` in the same tick, so it always
+  rebuilt the file from the newest picture. The loss appears the moment the write stops
+  being synchronous — which is any store that does not block the event loop. The test
+  suite reproduces the old implementation with an `await` between the read and the
+  write, watches it drop a writer, and then runs the same scenario against the new
+  store. A bug worth fixing; a diagnosis worth correcting.
+- **The live panel kept one call.** `on("turn")`, `on("user.speaking")` and
+  `on("bot.word")` never compared the call id, so while two calls overlapped, the
+  second one's words were painted into the first one's transcript. It is a
+  `Map<callId, LiveCall>` now, and every handler matches on the id it was handed.
+- **Two `EventSource`s per tab.** The live panel opened one and the history opened
+  another — two streams and two sets of bus listeners per tab, for one page. There is
+  one now, refcounted in `app/hooks/useEvents.ts`.
+
+1,400 lines in 39 files, plus 500 in tests, `tsc` clean. Sources are listed at the end.
 
 ## Three designs that were rejected on the way
 
@@ -180,10 +241,11 @@ Three smaller things the same calls taught:
 
 ## The bugs only a real build found
 
-**The database moved.** `db.server.ts` resolved `db.json` relative to the module with
+**The database moved.** The store resolved `db.json` relative to the module with
 `import.meta.url`. In development that is the project root; bundled, the module lives
 in `build/server/assets/`, so production read a file that did not exist and served the
-defaults — `sarah` while the form said `valentina`. Resolve against `process.cwd()`.
+defaults — `sarah` while the form said `valentina`. Resolve against `process.cwd()`,
+which is what `src/config.ts` does now, in the one place the path is written down.
 
 **The agent did not start until the first visitor.** The official template loads
 `server/app.ts` lazily, inside the request handler. Fine for a web app; for a phone
@@ -192,10 +254,11 @@ agent it means nobody is answering until someone opens the browser. One
 
 **Hot reload registered a second agent.** Vite re-evaluates `server/app.ts` on a change
 to anything it imports, and a second `pc.agent("dental-desk")` in the same process is
-refused by the server. `remember("agent", startAgent)` — four lines that keep one
-instance on `globalThis`, the pattern Epic Stack ships as `@epic-web/remember` — and
-the same for the event bus, so a reload never leaves the agent subscribed to a stale
-emitter. (The first cut was a bare `declare global` + `globalThis.__agent ??=` in
+refused by the server. `remember("agent", startAgent)` — four lines in `src/remember.ts`
+that keep one instance on `globalThis`, the pattern Epic Stack ships as
+`@epic-web/remember` — and the same for the event bus and the store, so a reload never
+leaves the agent subscribed to a stale emitter or two stores taking turns overwriting
+the file. (The first cut was a bare `declare global` + `globalThis.__agent ??=` in
 `server/app.ts`; it worked and it read like plumbing. The helper is the same five
 characters of semantics with a name.)
 
@@ -203,16 +266,19 @@ characters of semantics with a name.)
 
 | | |
 |---|---|
-| Repository | 20 files, 481 lines, `tsc` clean |
+| Repository | 39 files, ~1,400 lines, plus 5 test files and ~500 lines · `tsc` clean, `eslint` clean, 43 tests |
 | Processes | 1 |
-| Pinecall surface | `pc.agent()`, `agent.update()`, `tool()`, `createToken()`, `<VoiceWidget>`, five agent events |
-| Lines that make it configurable | `config()` (12, half of them constants) · `bus.on("settings", …)` (1) · the form's `action` (2) |
-| Lines that make the page live | `events.ts` (28) · the agent's five `agent.on` relays · one `EventSource` |
+| Pinecall surface | `pc.agent()`, `agent.update()`, `tool()`, `createToken()`, `VoiceSession`, fifteen agent events |
+| Lines that make it configurable | `agentConfig()` (12, half of them constants) · `bus.on("settings", …)` (1) · the form's `action` (4) |
+| Lines that make the page live | `events.ts` (40) · `src/domain/events.ts` (the catalogue) · `wire.ts`'s relays · one `EventSource` per tab |
+| The rule that keeps it honest | one `no-restricted-imports` rule: `src/` may not import `app/` |
 
 Making an agent configurable from a UI is not a framework feature. It is one function
 that decides which settings may move, one `agent.update()` when they do, and a clear
 answer to "where does the agent live" — which, it turned out, the React Router template
-had already given.
+had already half given. The other half took five versions: the template says where
+*framework* code goes, and says nothing about the clinic. The agent belongs with the
+clinic, and neither of them belongs inside `app/`.
 
 ## Sources
 
