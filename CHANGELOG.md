@@ -10,6 +10,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`pc.line()` — a phone number you program, with no model behind it.** A
+  *line* claims a number as a session owner that is not an agent: it brings up
+  its own STT, TTS and turn detection, takes the inbound call first, and every
+  decision it makes is plain code. `llm`, `prompt`, `tools` and `greeting` are
+  refused synchronously — a line has no model, and the first model call happens
+  only if the code hands the live call to an agent, or never at all.
+  `PhoneLine`, `LineCall` and their types are exported from the package root.
+  Requires a voice server from 2026-08-22 or later. See
+  `docs/guides/phone-lines.md`.
+  - `line.extensions({ "10": "sales", "20": async (call) => {…}, "*": … })` —
+    a declarative routing table on the extension the caller dialled after the
+    number. Runs before `line.on("call")`; `"*"` is the no-extension /
+    unmatched case; no match and no `"*"` falls through to the handler.
+  - `line.on("ready" | "error" | "call" | "call.ended")`, `line.ready`,
+    `line.registered`, `line.calls`, `line.destroy()`. A line re-claims its
+    number on reconnect, exactly like an agent re-registers.
+  - `await call.say(text, { voice?, language? })` on a `LineCall` — resolves
+    when the audio finished playing, `{ interrupted: true }` if the caller
+    talked over it.
+  - `await call.listen({ digits?, terminator?, speech?, timeout, language? })` —
+    the first of the keypad, the caller's speech (opt-in) or the timeout, off
+    the one session the agent will keep using. `{ by: "keypad" | "speech" |
+    "timeout" }`.
+  - `await call.ask(text, opts)` — `say` + `listen`, with keypresses counted
+    from before the first syllable and the timeout starting when the line stops
+    speaking.
+  - `await call.routeTo(agent, { language?, voice?, stt?, greeting?,
+    promptVars?, context?, history? })` — hands the LIVE call to an agent in
+    place: no re-dial, same audio stream. `{ ok: true }`, or `{ ok: false,
+    reason: "offline" | "unknown" | "no_phone_config" | "capacity" |
+    "swap_failed" }` with the line still owning the call.
+  - `call.context(key, value)` (survives `routeTo`), `call.hangup(reason)`,
+    `call.extension`, `call.transcript` (`{ who: "caller" | "line", text, at,
+    role, content }`), `call.routed`.
+  - Wire: `line.create` / `line.created` / `line.error` / `line.destroy` /
+    `line.destroyed`, `call.route` / `call.routed` / `call.route_failed`, and
+    the `extension`, `owner`, `routed_from`, `line_transcript` fields on
+    `call.started`.
+  - `Call.routedFrom` / `Call.extension` / `Call.lineTranscript` on every call,
+    so an agent a line routed to knows which door the caller came through and
+    what was already said. `null` / `[]` on calls no line touched.
+  - Example: `examples/phone-line/` — a business front line with extension
+    routing, a language menu by keypad or voice, a code-only menu, a `forward`
+    to a human and a `routeTo` to an agent. No `pc.agent()` anywhere.
 - **`call.dtmf_received` — the caller's keypad on a live phone call.** Twilio
   already sent a `dtmf` frame on every press and the voice server had no branch
   for it, so an inbound keypress was dropped on the floor and an IVR ("press 1
@@ -19,6 +63,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Only the inbound track counts — echoing our own `call.dtmf` tones back as
   caller input would be a loop. Requires a voice server from 2026-08-22 or
   later. See `guides/events.md` → DTMF for a language menu built on it.
+
+### Changed
+- **`call.say()` now returns a `Promise<{ interrupted: boolean }>`** on every
+  `Call`, resolving when the audio stopped coming out of the speaker
+  (finished, interrupted, or the call ended under it). Non-breaking: it never
+  rejects, so existing fire-and-forget `call.say(...)` keeps working and cannot
+  produce an unhandled rejection.
 
 ---
 

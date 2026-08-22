@@ -139,6 +139,29 @@ const agent = pc.agent("global-support", {
 
 The agent's prompt, tools, and LLM stay the same — only the audio surface changes per number. Turn detection and VAD are auto-derived from the STT provider (Flux → native, Nova-3 → smart_turn + silero).
 
+## Lines — a number without a personality
+
+There is a fifth noun, and it is deliberately outside the four: a **line**.
+
+```typescript
+const line = pc.line("+12186633772", { voice: "elevenlabs/sarah", language: "en" });
+```
+
+`pc.line()` claims a phone number as a session owner that is **not an agent**:
+no prompt, no tools, no model — `llm`, `prompt`, `tools` and `greeting` are
+refused. It answers the call first, in code: it speaks (`await call.say`), it
+reads the keypad or the caller's speech (`await call.ask`), it resolves the
+extension the caller dialled, and it can hand the live call to an agent in
+place with `await call.routeTo("<slug>")` — same stream, no re-dial, and the
+agent inherits the transcript.
+
+Use a line when the first thirty seconds of a call are a *decision*, not a
+conversation: an extension directory, a language menu, an opening-hours
+recording, a triage that ends in `forward` to a human. The agent stays the
+personality; the line is the door.
+
+See [Phone Lines](/guides/phone-lines).
+
 ## Why this design
 
 The agent-and-channels split exists because voice agents have two completely different concerns:
@@ -152,4 +175,5 @@ Most platforms conflate the two: you build a "Twilio bot" or a "WhatsApp bot." P
 
 - [Server-side vs client-side LLM](/concepts/server-vs-client-llm) — the most important architectural decision
 - [Hot-reload](/concepts/hot-reload) — change voice, language, prompt, or tools mid-call
+- [Phone Lines](/guides/phone-lines) — a number that answers with code, not a model
 - [Deployment topologies](/concepts/deployment-topologies) — embedded, standalone, or headless

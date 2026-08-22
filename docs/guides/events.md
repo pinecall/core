@@ -45,6 +45,7 @@ agent.on("event.name", (event, call) => {
 | [Session](#session) | `session.idleWarning`, `session.timeout`, `session.paused`, `session.resumed` | Voice, WebRTC |
 | [Hold & mute](#hold--mute) | `call.held`, `call.unheld`, `call.muted`, `call.unmuted` | Voice, WebRTC |
 | [DTMF](#dtmf) | `call.dtmf_received`, `call.dtmf_sent` | Voice |
+| [Phone lines](#phone-lines) | `line.created`, `line.error`, `call.routed`, `call.route_failed` | Voice |
 | [WhatsApp](#whatsapp) | `whatsapp.message`, `whatsapp.response`, `whatsapp.status`, `whatsapp.sessionEnded` | WhatsApp |
 | [Billing](#billing) | `credits.rejected`, `credits.exhausted` | All |
 | [Audio](#audio-metrics) | `audio.metrics` | Voice, WebRTC |
@@ -648,6 +649,93 @@ agent.on("call.dtmf_sent", (event, call) => {
 
 ---
 
+## Phone lines
+
+A [phone line](/guides/phone-lines) (`pc.line(number)`) is a number that
+answers with code instead of a model. These are its events; everything else a
+line receives — `user.message`, `turn.end`, `bot.*`, `call.dtmf_received`,
+`call.ended` — is exactly what an agent receives.
+
+### `line.created` → `line.on("ready")`
+
+The server registered the line and the number is ours. `line.ready` resolves
+here, and it goes back to pending across a reconnect (a line re-claims its
+number, or the number is stranded).
+
+```javascript
+line.on("ready", () => console.log("holding", line.number));
+await line.ready;
+```
+
+### `line.error` → `line.on("error")`
+
+The registration was refused. The `code` says which case it is:
+
+```javascript
+line.on("error", (err) => {
+  // err.code — "LINE_CONFLICT" | "LINE_CONFIG_ERROR" | "PHONE_NOT_IN_ORG" | "UNAUTHORIZED"
+  // err.message — the server's text
+});
+```
+
+### `call` / `call.ended` on the line
+
+```javascript
+line.on("call", async (call) => {
+  // A LineCall, connected, with `call.extension` already resolved.
+  // Fires AFTER the extension window closes — see the guide.
+});
+
+line.on("call.ended", (call, reason) => {
+  // reason is "routed" after a successful routeTo
+  console.log(reason, call.transcript);
+});
+```
+
+### `call.routed`
+
+The owner swap landed: an agent is now driving this call, on the same audio
+stream. `await call.routeTo(...)` resolving `{ ok: true }` is the same fact —
+the event is there for logging and for flows that are not request/response.
+
+```javascript
+call.on("call.routed", (event) => {
+  // event.callId, event.agent
+});
+```
+
+A `call.ended` with reason `"routed"` follows, for the line.
+
+### `call.route_failed`
+
+The swap did **not** happen. Nothing was dropped and the line is still the
+owner — decide what to do.
+
+```javascript
+call.on("call.route_failed", (event) => {
+  // event.callId, event.agent
+  // event.reason — "offline" | "unknown" | "no_phone_config" | "capacity" | "swap_failed"
+});
+```
+
+### The fields a routed call carries
+
+An agent a line handed a call to gets a **normal** `call.started`, with three
+extra facts on the `Call`:
+
+```javascript
+agent.on("call.started", (call) => {
+  call.routedFrom;      // "line:+12186633772", or null on a call nobody routed
+  call.extension;       // "11" — the extension the caller dialled, or null
+  call.lineTranscript;  // [{ who: "caller"|"line", text, at, role, content }] — what the line heard
+});
+```
+
+They are `null` / `[]` on any call that did not come through a line, so
+existing handlers are unaffected.
+
+---
+
 ## WhatsApp
 
 ### `whatsapp.message`
@@ -788,5 +876,6 @@ SSE streams include: `call.started`, `bot.speaking`, `bot.word`, `message.confir
 - [Call API](/api/call) — methods to call in response to events
 - [Turn Detection](/concepts/turn-detection) — how turn modes affect event timing
 - [Tools and Functions](/guides/tools-and-functions) — handling `llm.toolCall`
+- [Phone Lines](/guides/phone-lines) — `pc.line()`, extensions, menus and `routeTo`
 - [WhatsApp](/guides/whatsapp) — WhatsApp session lifecycle
 - [Live Listening](/guides/live-listening) — `audio.metrics` for visualization

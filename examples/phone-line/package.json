@@ -1,0 +1,13 @@
+{
+  "name": "pinecall-phone-line-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.mjs",
+    "start": "node server.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@pinecall/sdk": "file:../../"
+  }
+}
