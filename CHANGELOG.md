@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.13.0] — 2026-08-22 — phone lines: a number you program, with no model behind it
+
 ### Added
 - **`pc.line()` — a phone number you program, with no model behind it.** A
   *line* claims a number as a session owner that is not an agent: it brings up
