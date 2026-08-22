@@ -61,12 +61,10 @@ try another) instead of the caller hearing a dead number.
 `pc.line()` is idempotent per number: calling it twice returns the same
 `PhoneLine`.
 
-<Note>
-A line has its own STT and TTS, so **it bills like an agent does** — its
-minutes and its TTS characters are charged to your org for as long as it owns
-the session. A call that starts on a line and is routed to an agent is one call
-log record with two owners in sequence.
-</Note>
+> **A line bills like an agent does.** It has its own STT and TTS, so its
+> minutes and its TTS characters are charged to your org for as long as it owns
+> the session. A call that starts on a line and is routed to an agent is one
+> call log record with two owners in sequence.
 
 ## The three flows
 
