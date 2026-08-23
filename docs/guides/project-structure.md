@@ -163,44 +163,52 @@ Start with one process. Split when one of these is true, not before:
 ### Two processes: what it looks like
 
 This is [`bistro`](https://github.com/pinecall/examples/tree/main/bistro), the
-reference app for the standalone topology — the same four nouns, with the line
-between the processes drawn between `apps/`:
+reference app for the standalone topology. The same four nouns, under the same
+`src/` — the difference between one process and two is **a second entry
+file**, not a monorepo:
 
 ```
 bistro/
-├── packages/
-│   └── kitchen/          the BUSINESS + its storage — reservations, settings, a Store over SQLite (WAL).
-│                         Shared by both processes. No Pinecall, no web, no process in it.
-├── apps/
-│   ├── agent/            the VOICE: pc.agent() · tools (they call the kitchen) · config
-│   │                     + a tiny HTTP — POST /token · POST /reload — because the API KEY lives here
-│   └── web/              the HOST STAND (React Router): tonight from the kitchen; live calls from the
-│                         voice server's call log (@pinecall/web/log); the settings form → kitchen → agent /reload.
-│                         No API key in this process. Never imports the agent.
-└── bistro.db             one file, two processes
+├── src/
+│   ├── kitchen/        the BUSINESS — reservations.ts · settings.ts — pure rules
+│   │   └── index.ts        createKitchen(store): the rules bound to a Store
+│   ├── storage/        HOW it persists — store.ts (interface) · sqlite.ts (WAL) · index.ts (this process's handle)
+│   ├── agent/          the VOICE — prompt.ts · tools.ts · config.ts · watch.ts · index.ts · main.ts (the process)
+│   ├── web/            the HOST STAND — React Router: routes.ts · root.tsx · routes/ · components/
+│   ├── server.ts       the host-stand process: Express in front of React Router
+│   ├── config.ts       SLUG, PHONE, PORT, DB_FILE — read by both
+│   └── remember.ts
+├── agent.js            PROCESS 1 → src/agent/main.ts     a Pinecall process — no port, no HTTP
+├── server.js           PROCESS 2 → src/server.ts         never imports src/agent
+├── Procfile            web + agent
+└── package.json        one
 ```
 
-Three rules change when you cross that line, and they are the whole
+Three things change when you cross that line, and they are the whole
 difference:
 
 1. **Storage becomes a real database.** A JSON file with the truth in memory is
    one truth per process — which is two truths. `bistro` uses SQLite in WAL mode
    (`node:sqlite`, no native build) behind the same `Store` interface the
    one-process app had; the swap is one file.
-2. **Tokens and hot-reload live with the agent.** The API key is in the agent
-   process, so the agent serves `POST /token` (webrtc, chat, stream) and
-   `POST /reload`; the web app proxies the first and calls the second after it
-   writes settings. The web process holds no key at all.
+2. **The processes never talk.** The agent is a Pinecall process and nothing
+   else — no HTTP of its own, no endpoint the web calls. The host stand writes
+   settings to the database; the agent **watches the row** (`src/agent/watch.ts`,
+   one read a second) and `agent.update()`s itself when the stamp moves. Tokens
+   are minted by the web process with `createToken()` — it reads the same
+   `.env`. The database is the fact.
 3. **The web observes through the [call log](/guides/call-log), never through
-   the agent.** The browser mints a stream token (through the agent) and attaches
-   to the voice server directly: `useAgentCalls()` for which calls exist,
+   the agent.** The browser mints a stream token (`/api/token`) and attaches to
+   the voice server directly: `useAgentCalls()` for which calls exist,
    `useCall()` for the transcript. No SSE from the agent, no socket between the
    processes, nothing that a redeploy of the web app can interrupt.
 
+And one more line in the lint: **`src/web` and `src/server.ts` never import
+`src/agent`.** A web deploy that restarted the agent would defeat the split.
+
 Because the folders were already the nouns, this is a move, not a rewrite:
-`clinic/` + `storage/` become the package, `agent/` and `web/` become the apps.
-A monorepo for 47 files is ceremony; a monorepo for two deployables is the
-right tool. See [Deployment Topologies](/concepts/deployment-topologies).
+`agent.js` goes next to `server.js`, and `storage/` swaps its store. See
+[Deployment Topologies](/concepts/deployment-topologies).
 
 ## What's next
 
