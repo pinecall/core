@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch server.js"
+    "dev": "node --env-file=.env --watch server.mjs",
+    "start": "node --env-file=.env server.mjs"
   },
   "dependencies": {
-    "@pinecall/sdk": "file:../../",
-    "dotenv": "^17.4.2"
+    "@pinecall/sdk": "file:../../"
   }
 }
