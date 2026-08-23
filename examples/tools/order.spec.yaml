@@ -1,4 +1,4 @@
-agent: tooltest
+agent: tools
 description: The agent calls getOrderStatus and answers with the tool's data, not its own
 timeout: 40000
 judge:

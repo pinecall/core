@@ -1,4 +1,4 @@
-agent: skilltest
+agent: skills
 description: Nova loads the weather skill on demand and answers with tool data
 timeout: 40000
 judge:

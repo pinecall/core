@@ -1,9 +1,14 @@
 {
-  "name": "tool-basic",
+  "name": "pinecall-tools-example",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env --watch server.mjs",
+    "start": "node --env-file=.env server.mjs",
+    "test": "pinecall test ."
+  },
   "dependencies": {
-    "@pinecall/sdk": "file:../..",
+    "@pinecall/sdk": "file:../../",
     "zod": "^3.23.8"
   }
 }

@@ -1,4 +1,4 @@
-agent: skilltest
+agent: skills
 description: Nova loads the billing skill on demand and reports a balance in USD
 timeout: 40000
 judge:
