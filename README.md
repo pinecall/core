@@ -94,6 +94,8 @@ Runnable examples in [`examples/`](./examples) — clone, `cp .env.example .env`
 
 | Example | What it shows |
 |---|---|
+> **One feature, one file.** Each folder here shows ONE thing, against this checkout of the SDK. Whole apps — storage, deploys, two processes — live in [`pinecall/examples`](https://github.com/pinecall/examples).
+
 | **[`simple/`](./examples/simple)** | Minimal voice agent — phone + history in 30 lines |
 | **[`outbound-dispatch/`](./examples/outbound-dispatch)** | CSV-driven outbound campaign — rate limiting, dedup, result writeback |
 | **[`turn-detection/`](./examples/turn-detection)** | Debug turn events: Flux (native) vs Nova-3 (SmartTurn + Silero) |
