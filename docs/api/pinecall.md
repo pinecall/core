@@ -163,19 +163,64 @@ See [Security](/security) for the full token model.
 
 ### `createToken("stream", agents)`
 
-The same method also mints **observation** tokens for the [call log](/guides/call-log): pass `"stream"` and one agent slug — or a **list** of slugs — and the returned token lets its holder observe those agents' calls (live tail, replay, history) without participating. The agent set is sealed into the token's signature; the browser cannot widen it.
+The same method also mints **observation** tokens for the [call log](/guides/observe-calls): pass `"stream"` and one agent slug — or a **list** of slugs — and the returned token lets its holder observe those agents' calls (live tail, replay, history) without participating. The agent set is sealed into the token's signature; the browser cannot widen it.
 
 ```typescript
 const t = await pc.createToken("stream", "mara");            // one agent
 const t = await pc.createToken("stream", ["mara", "sales"]); // an agent set
-// → { token, server }
+// read-only: no supervise verbs, narrowed to one call
+const t = await pc.createToken("stream", "mara", undefined, { scope: "observe", callId });
+// → { token, server, expiresIn }
 ```
 
-Consume it in the browser with `@pinecall/web/log/react` (`useAgentCalls`, `useCall`). See [The Call Log](/guides/call-log).
+The fourth argument is `{ scope?: "observe" | "participate" | "supervise"; callId?: string }`.
+
+Consume it in the browser with `@pinecall/web/log/react` (`useAgentCalls`, `useCall`), or in Node with [`pc.observe()`](#observeoptions). See [Observe calls](/guides/observe-calls).
+
+### `observe(options)`
+
+Read the [call log](/guides/observe-calls) over SSE — the one way to observe a
+call from Node. Opens `GET /v1/calls/{id}/events` (or
+`/v1/agents/{slug}/calls`) with `Accept: text/event-stream`, feeds every
+envelope into the same `CallLogView` reducer the browser uses, and exposes it
+three ways: the reduced `state`, `on()` listeners, and `for await`.
+**No WebSocket is opened** — observation is read-only by construction.
+
+```typescript
+const obs = pc.observe({ agent: "mara", types: ["custom", "call.ended"] });
+
+obs.on("custom", (name, value, entry) => console.log(entry.call, name, value));
+obs.on("entry", (entry, state) => {});
+obs.on("finish", ({ reason, lastSeq }) => {});
+
+for await (const entry of obs) console.log(entry.seq, entry.type);
+
+obs.state      // the reduced CallLogState
+obs.lastSeq    // the resume cursor
+obs.dropped    // entries the ITERATOR never saw (state is never affected)
+await obs.done;
+obs.close();
+```
+
+| option | default | what it is |
+|---|---|---|
+| `call` / `agent` | — | exactly one. `call` = one call's log; `agent` = the agent's lifecycle log (which never ends) |
+| `after` | `0` | start cursor |
+| `token` | minted | omit and one is minted with this client's API key (`{ channel: "stream", scope: "observe" }`) — **which needs an agent**, so `observe({ call })` without a token must also pass `agent` |
+| `types` / `durable` | — | the server-side filters, plus the always-pass set |
+| `queueLimit` | `1024` | bound on the async iterator's buffer; on overflow the **oldest** entries are dropped and counted in `obs.dropped`. `state` and `on("entry")` are never lossy |
+| `idleReconnect` | `"auto"` | half-open detection |
+| `reconnect` | `true` | `false` disables auto-reconnect |
+| `signal` | — | aborting it is exactly `close()` |
+| `server` / `apiUrl` / `apiKey` | the client's | overrides |
+| `onError` | — | transport-level failures; state is never faked into the view |
+
+See [Observe calls](/guides/observe-calls) for the resume rules, the filters and
+the browser side.
 
 ### `stream(res?, options?)`
 
-Open an SSE stream of agent events — **in-process only** (the HTTP endpoint must live in this same process, and there is no replay or cursor; for dashboards prefer the [call log](/guides/call-log)). Works with any framework — returns a Web API `Response` or writes to a Node.js `ServerResponse`.
+Open an SSE stream of agent events — **in-process only** (the HTTP endpoint must live in this same process, and there is no replay, no cursor, no history, and only the calls this process handles; for anything a user sees, read the [call log](/guides/observe-calls) instead). Works with any framework — returns a Web API `Response` or writes to a Node.js `ServerResponse`.
 
 ```typescript
 // Web API (Remix, Next.js, Hono, Bun)

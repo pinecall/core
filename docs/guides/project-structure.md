@@ -19,8 +19,8 @@ my-app/
 │   ├── clinic/          the BUSINESS — pure rules, zero I/O, zero framework
 │   │   ├── appointments.ts    availability(), book()
 │   │   ├── settings.ts        defaults + apply()
-│   │   ├── calls.ts           the call log
-│   │   └── events.ts          the ONE typed catalogue of events
+│   │   ├── calls.ts           the app's own archive of past calls
+│   │   └── events.ts          the typed catalogues: the bus, and what call.log() writes
 │   ├── storage/         HOW it persists — Store (interface), JsonStore, MemoryStore
 │   │   └── index.ts           the composition root: the store, and the rules bound to it
 │   ├── agent/           the VOICE AGENT
@@ -32,10 +32,10 @@ my-app/
 │   ├── web/             the UI (React Router)
 │   │   ├── routes.ts          URL → file; routes/ mirrors the URL tree
 │   │   ├── root.tsx · app.css
-│   │   ├── routes/            settings.tsx · calls.tsx · api/{settings,appointments,availability,events,token}.ts
-│   │   ├── components/        Bubble · Phase · CallTranscript · BrowserCall · AgentLive · …
-│   │   └── hooks/useEvents.ts one EventSource per tab, refcounted
-│   ├── bus.ts           the typed emitter over clinic/events
+│   │   ├── routes/            settings.tsx · calls.tsx · api/{settings,appointments,availability,token}.ts
+│   │   ├── components/        Bubble · Phase · CallTranscript · BrowserCall · AgentLive · LiveCall · …
+│   │   └── lib/token.ts       the two tokens the browser is given (talk, and watch)
+│   ├── bus.ts           the typed emitter over clinic/events — one event wide
 │   ├── config.ts        SLUG, PHONE, DB_FILE, PORT — one place
 │   └── server.ts        THE process: config → storage → agent → web handler → listen
 ├── server.js            six lines: dev → Vite, prod → build/
@@ -86,21 +86,31 @@ export function book(appointments: readonly AppointmentRow[], input: NewAppointm
 booked, is the one that tells the world — the rules do not know a bus exists.
 That is what keeps them testable in one hand.
 
-### One typed catalogue of events
+### Two typed catalogues, and they are not the same thing
 
 ```ts
-// src/clinic/events.ts — the only place an event is declared
-export type Events = {
-  "settings":     SettingsRow;
-  "appointment":  AppointmentRow;
-  "call.started": CallRow;
-  "transcript":   { id: string } & Line;
+// src/clinic/events.ts — the only place either is declared
+export type Events = {                    // the in-process bus
+  "settings": SettingsRow;
+};
+
+export type CallLog = {                   // what call.log() writes into the call's log
+  "appointment.booked": AppointmentRow;
+  "appointment.refused": { date: string; time: string; reason: string };
 };
 ```
 
-The bus is typed over it, the SSE route iterates its keys, the browser types
-its payloads. Adding an event is one line in one file, and a typo is a compile
-error instead of a silent listener.
+The bus is typed over `Events`; `useCall<CallLog>` is typed over the other, so
+`s.custom` is a union of typed rows and `onCustom` narrows `value` on `name`.
+Adding either is one line in one file, and a typo is a compile error instead of
+a silent listener.
+
+**Keep the bus narrow.** A fact about a *call* does not belong on it: the call
+log already gives it a `seq`, replay, history and a reader in any process, and
+an in-process emitter would be a second, worse copy that dies with the process.
+`dental-desk`'s bus is **one event wide** — `settings`, with one listener, the
+agent. Everything else the browser needs it reads from the log. See
+[Observe calls](/guides/observe-calls).
 
 ### Storage: the truth in memory, written atomically
 
@@ -162,64 +172,33 @@ Start with one process. Split when one of these is true, not before:
 
 ### Two processes: what it looks like
 
-This is [`bistro`](https://github.com/pinecall/examples/tree/main/bistro), the
-reference app for the standalone topology. Two processes, two folders, and one
-for what they share — the web + worker shape every Procfile platform
-understands, where **the agent is the worker**:
+**Almost nothing.** The split is a second entry file: `agent.js` → the voice
+process, `server.js` → the web process, the four nouns unchanged with the
+business and the storage moved under a `shared/` folder both import. One
+`package.json`, two lines in a Procfile, no monorepo and no workspaces. Two
+things actually change, and they are the whole difference: **storage becomes a
+real database** (a JSON file with the truth in memory is one truth per process,
+which is two truths — the same `Store` interface over SQLite in WAL mode is one
+new file), and **the two processes never talk** (the web app writes settings to
+the database, the agent watches the row and `agent.update()`s itself; tokens are
+minted by whichever process holds the API key). The lint gains one line:
+`agent/` and `server/` never import each other.
 
-```
-bistro/
-├── agent/            PROCESS 1 — the voice
-│   ├── main.ts           the process: store → pc.agent → watch
-│   ├── index.ts          startAgent()
-│   └── prompt.ts · tools.ts · config.ts · watch.ts
-├── server/           PROCESS 2 — the host stand (React Router)
-│   ├── server.ts         Express in front of React Router
-│   └── routes.ts · root.tsx · routes/ · components/
-├── shared/           what both processes import — and the only thing they share
-│   ├── kitchen/          the BUSINESS — reservations.ts · settings.ts · index.ts (createKitchen)
-│   ├── storage/          HOW it persists — store.ts (interface) · sqlite.ts (WAL) · index.ts
-│   └── config.ts         SLUG, PHONE, PORT, DB_FILE
-├── agent.js          → agent/main.ts      a Pinecall process — no port, no HTTP
-├── server.js         → server/server.ts   never imports agent/
-├── Procfile          web + agent
-└── package.json      one
-```
-
-The four nouns are still there — `kitchen/` and `storage/` moved under
-`shared/`, `agent/` and `web/` became the two processes. No monorepo, no
-workspaces: one `package.json`, two entry files.
-
-Three things change when you cross that line, and they are the whole
-difference:
-
-1. **Storage becomes a real database.** A JSON file with the truth in memory is
-   one truth per process — which is two truths. `bistro` uses SQLite in WAL mode
-   (`node:sqlite`, no native build) behind the same `Store` interface the
-   one-process app had; the swap is one file.
-2. **The processes never talk.** The agent is a Pinecall process and nothing
-   else — no HTTP of its own, no endpoint the web calls. The host stand writes
-   settings to the database; the agent **watches the row** (`agent/watch.ts`,
-   one read a second) and `agent.update()`s itself when the stamp moves. Tokens
-   are minted by the web process with `createToken()` — it reads the same
-   `.env`. The database is the fact.
-3. **The web observes through the [call log](/guides/call-log), never through
-   the agent.** The browser mints a stream token (`/api/token`) and attaches to
-   the voice server directly: `useAgentCalls()` for which calls exist,
-   `useCall()` for the transcript. No SSE from the agent, no socket between the
-   processes, nothing that a redeploy of the web app can interrupt.
-
-The lint gains one line: **`agent/` and `server/` never import each other** —
-each imports its own folder and `shared/`. A web deploy that restarted the
-agent would defeat the split. See
+What does **not** change is the live panel. The browser was already reading the
+[call log](/guides/observe-calls) with a stream token, straight from the voice
+server — it never depended on sharing a process with the agent, so the same
+component, the same hooks and the same token route work on both sides of the
+split. That is the point of observation being a read: the topology stops being
+an observability decision. See
 [Deployment Topologies](/concepts/deployment-topologies).
 
 ## What's next
 
 - [An agent your customer can configure](/tutorial/configurable-agent) — the
   one-process reference app (`dental-desk`)
-- [Build a live call app](/guides/build-a-live-call-app) — the two-process
-  reference app (`bistro`)
+- [Build a live call app](/guides/build-a-live-call-app) — the same app with the
+  live console, end to end
+- [Observe calls](/guides/observe-calls) — how the web layer watches a call
 - [Phone lines](/guides/phone-lines) — the number that answers with code
 - [Dev Mode](/guides/dev-mode) — prod and dev agents on the same number
 - [Deployment Topologies](/concepts/deployment-topologies) — embedded, standalone, headless

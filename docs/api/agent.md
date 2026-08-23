@@ -320,16 +320,18 @@ const call = agent.call("CA7ec...");
 
 ## Observability
 
-The canonical way to observe this agent's calls — live, late, or after the fact — is the **[call log](/guides/call-log)**: mint a stream token (`pc.createToken("stream", agent.id)`) and attach from any process or browser, with replay and cursor resume.
-
-### `stream(res?)`
-
-Open an **in-process** SSE stream of this agent's events (no replay, no cursor — the client must share this process's HTTP server). Same shape as `pc.stream()` but scoped to one agent.
+The way to observe this agent's calls — live, late, or after the fact — is the **[call log](/guides/observe-calls)**: mint a stream token and read it from any process or browser, with replay and cursor resume.
 
 ```typescript
-app.get("/events", () => agent.stream());
-app.get("/events", (req, res) => agent.stream(res));
+// from Node
+const obs = pc.observe({ agent: agent.id });
+obs.on("entry", (entry) => console.log(entry.seq, entry.type));
+
+// for a browser: mint the token here, read the log there
+const { token, server } = await agent.createToken("stream", undefined, { scope: "observe" });
 ```
+
+> The in-process streaming methods this class used to expose — an SSE one and a bidirectional WebSocket one — were **removed**, along with the `EventStream` module. They only ever saw calls this process handled, had no cursor and no replay, and died with the process. The migration table is in [Observe calls](/guides/observe-calls#coming-from-agentstream--agentws).
 
 ## Events
 

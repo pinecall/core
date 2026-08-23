@@ -476,7 +476,7 @@ Use for live waveform UIs, energy meters, or VAD visualization.
 
 ## The call log envelope
 
-Observed through the [call log](/guides/call-log) (`WS /v1/attach`, `GET /v1/calls/{id}/events`), every fact arrives as a stamped log entry — the canonical shape for anything outside the agent process:
+Observed through the [call log](/guides/observe-calls) (`GET /v1/calls/{id}/events`, SSE or JSON), every fact arrives as a stamped log entry — the canonical shape for anything outside the agent process:
 
 ```json
 {"seq":12,"ts":1786537584.4,"call":"CA123","agent":"mara","type":"user.message","ephemeral":false,"data":{"id":"msg_abc","text":"Hello","final":true}}
@@ -484,20 +484,21 @@ Observed through the [call log](/guides/call-log) (`WS /v1/attach`, `GET /v1/cal
 
 `seq` is the cursor: dedupe by it, resume from it. See [The Call Log](/guides/call-log) for the full vocabulary and the control markers (`log.gap`, `log.caught_up`).
 
-## SSE events (in-process)
+## In-process SSE (`pc.stream()`)
 
-When streamed over in-process SSE (via `pc.stream()` or `agent.stream()`), each event has an `event:` field and a JSON `data:` body with `agent` ID:
+`pc.stream(res)` relays the in-process bus as SSE, with an `event:` field and a JSON `data:` body carrying the `agent` id:
 
 ```
 event: user.message
 data: {"callId":"CA123","text":"Hello","messageId":"msg_abc","agent":"mara"}
 ```
 
-A `:ping` comment is sent every 30s as keepalive. Note there is no `seq` here — SSE has no cursor and no replay; that's the call log's job.
+A `:ping` comment is sent every 30s as keepalive. There is **no `seq`** here — no cursor, no replay, no history, and only the calls this process handles. It is what the [run console](/guides/run-console) is built on, not the observation model: for anything a user sees, read the log.
 
 ## What's next
 
-- [The Call Log](/guides/call-log) — observing these events from any process
+- [Observe calls](/guides/observe-calls) — reading these facts from any process
+- [The Call Log](/guides/call-log) — the wire
 - [`Call` API reference](/api/call) — methods to call in response to events
 - [Phone Lines](/guides/phone-lines) — `pc.line()`, extensions, `listen`/`ask` and `routeTo`
 - [Multi-tenant](/guides/multi-tenant) — scope observation per customer

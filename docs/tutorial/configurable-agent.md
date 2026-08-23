@@ -50,10 +50,11 @@ src/
 ├── agent/             THE VOICE AGENT — prompt · tools · config (settings → SDK config) · wire · log
 ├── web/               THE REACT ROUTER APP (appDirectory)
 │   ├── routes.ts         the whole surface, URL → file
-│   ├── routes/           settings.tsx · calls.tsx · api/{settings,appointments,availability,events,token}.ts
-│   ├── components/       Bubble · Phase · CallTranscript · PastCall · BrowserCall · AgentLive · …
-│   └── hooks/useEvents.ts   ONE /api/events connection per tab, refcounted
-├── bus.ts             a typed emitter over clinic/events.ts
+│   ├── routes/           settings.tsx · calls.tsx · api/{settings,appointments,availability,token}.ts
+│   ├── components/       Bubble · Phase · CallTranscript · PastCall · BrowserCall ·
+│   │                     AgentLive · LiveCall · LiveTimeline · LoggedFact · …
+│   └── lib/token.ts      the two tokens the browser is given: one to talk, one to watch
+├── bus.ts             a typed emitter over clinic/events.ts — one event wide
 ├── config.ts          slug · phone number · port · db path
 └── server.ts          THE process: Express, the React Router handler, and startAgent()
 
@@ -112,7 +113,6 @@ export default [
     route("settings", "routes/api/settings.ts"),
     route("appointments", "routes/api/appointments.ts"),
     route("availability", "routes/api/availability.ts"),
-    route("events", "routes/api/events.ts"),
     route("token", "routes/api/token.ts"),
   ]),
 ] satisfies RouteConfig;
@@ -283,99 +283,122 @@ the console is a separate service:
 
 ## 4. The page that moves by itself
 
-This is the part that earns the "SSE" in the repo's name, and it flows the *other* way:
-from the server **to the browser**.
+This part flows the *other* way — from the call to the browser — and it does not
+go through this process at all. The page reads the **[call log](/guides/observe-calls)**:
+the append-only, seq-stamped record every call already has on the voice server.
 
-`src/web/routes/api/events.ts` is a resource route whose loader returns a stream:
-
-```ts
-export const loader = ({ request }: Route.LoaderArgs) => {
-  const stream = new ReadableStream({
-    start(controller) {
-      const send = (event, data) =>
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      const unsubscribe = bus.onAny(send);          // every event in the catalogue, verbatim
-      request.signal.addEventListener("abort", /* unsubscribe, close */);
-    },
-  });
-  return new Response(stream, { headers: { "Content-Type": "text/event-stream", … } });
-};
+```
+the agent ──► voice.pinecall.io ──► the call's log ──SSE──► the browser
 ```
 
-That route keeps no list of its own: `bus.onAny` iterates the catalogue in
-`src/clinic/events.ts`, which is the single place an event is declared — its name, its
-payload, and a type-level assertion that the runtime list and the type map cannot drift
-apart.
+The clinic's own `db.json` is still the archive (`src/agent/wire.ts` writes it,
+the history at the bottom of the page renders it server-side). But the *live*
+panel is not a copy of the transcript kept in this process's memory — it is the
+log itself, read directly.
+
+The loader mints the token it runs on, so the panel is watching on the first
+paint, and the key never leaves the server:
 
 ```ts
-// src/clinic/events.ts
-export type Events = {
-  settings: SettingsRow;
-  appointment: AppointmentRow;
-  "call.started": CallRow;
-  "call.ended": { id: string; reason: string; endedAt?: number };
-  turn: { id: string; state: TurnState };
-  "user.speaking": { id: string; text: string };
-  "bot.word": { id: string; text: string };
-  transcript: { id: string } & Line;
-};
-```
-
-Adding an event is a line there; the bus types it, this route forwards it, and the
-browser gets the payload typed without a cast. The agent feeds the call events in
-`src/agent/wire.ts`, which is the whole translation from the SDK to this catalogue:
-
-```ts
-// src/agent/wire.ts — the log returns what it wrote; the agent says it happened
-agent.on("call.started", (call) => bus.emit("call.started", calls.start({ id: call.id, from: call.from ?? "navegador", transport: call.transport })));
-agent.on("user.message", ({ text }, call) => line(call, "user", text));
-agent.on("bot.finished", (_, call) => { if (voice(call) && call.currentBotText) line(call, "bot", call.currentBotText); });
-```
-
-`wire()` takes the agent, the bus and the logger as parameters instead of importing
-them, so "does `bot.finished` write exactly one line?" is a unit test with doubles
-rather than a phone call.
-
-And the call page hangs off **one** `EventSource` per tab, refcounted in
-`src/web/hooks/useEvents.ts` — the live panel and the history share it instead of opening
-one each:
-
-```tsx
-useEvents({
-  "call.started": (call) => setLive((l) => new Map(l).set(call.id, blank(call))),
-  turn:           ({ id, state }) => patch(id, (l) => ({ ...l, state })),
-  transcript:     ({ id, ...line }) => patch(id, (l) => ({ ...l, lines: [...l.lines, line] })),
-  "call.ended":   ({ id }) => drop(id),
+// src/web/routes/calls.tsx
+export const loader = async () => ({
+  agent: SLUG,
+  observe: await pc.createToken("stream", SLUG, undefined, { scope: "observe" }),
+  history: clinic.calls.recent(),
 });
 ```
 
-The panel is a `Map<callId, LiveCall>` and every handler matches on the id it was
-given. Two calls at once are two panels; the version that kept a single slot painted
-the second call's words into the first one's transcript.
+Two hooks, chained, and that chain is the design:
 
-Phone the number, and the page shows the phase (escuchando · pensando · hablando), the
-patient's words, the agent's replies, and — when it hangs up — the whole call in the
-history. No polling, no refresh. `appointment` rides the same stream, so a page that
-wants to show the agenda live already has the event.
+```tsx
+// src/web/components/AgentLive.tsx — which calls exist, which are live
+const { live } = useAgentCalls(agent, { token, server });
+return live.map((row) => <LiveCall key={row.call} call={row.call} token={token} server={server} />);
 
-Two details worth knowing. **The bot's line is what has been *said*.** On voice,
-`bot.speaking` may carry the whole text up front — the phone does, for the greeting —
-but it is not shown until the audio plays: `bot.word` grows a draft, and
-`bot.finished` closes it as the line, from `call.currentBotText`. Chat has no audio and
-no words, so there `bot.speaking` *is* the line. One rule, keyed on `call.transport`;
-showing `bot.speaking.text` early puts the greeting on screen twice — once before it is
-spoken and once while it is — which is exactly what the first phone call did. And the
-**tool calls are part of the transcript**: the tools are ours, so a tiny wrapper logs
-what was asked and what came back as a `tool` line —
+// src/web/components/LiveCall.tsx — one call's content
+const s = useCall<CallLog>({ call, token, server });
+<LiveTimeline messages={s.messages} tools={s.toolCalls} custom={s.custom} phase={s.phase} />
+```
+
+One observation **per live call, keyed by call id** — two calls at once are two
+panels. The version that kept a single slot painted the second call's words into
+the first one's transcript, which is the same bug the old in-process version
+had; the fix is the same, and the key is the reason.
+
+Three things fall out of this that no in-process bus could give you:
+
+- **A page reload keeps the transcript.** `reconnectOnMount` (on by default)
+  parks the last `seq` in `localStorage` and resumes from it. Nothing in memory
+  replays — the cursor does the work.
+- **It is not *this* process's call.** Any copy of the app answering the phone
+  shows up here, and so does a call that started before the tab was opened.
+- **No WebSocket.** `transport` defaults to `auto`, which is SSE degrading to
+  the JSON cursor. Observing is a read.
+
+### What the agent writes into it
+
+`book_appointment` books the slot and then says so *in the call*:
+
+```ts
+// src/agent/tools.ts
+call.log("appointment.booked", booked, { id: `${booked.date}T${booked.time}` });
+```
+
+That is a durable `custom` entry with a `seq` of its own — so `LiveTimeline`
+draws it **between the tool chip that made it and the sentence the bot said
+next**, not in a list off to one side. `id` is the slot, so a model that calls
+the tool twice for the same appointment upserts one row instead of confirming
+twice.
+
+The names and their shapes are one type, and the hook takes it:
+
+```ts
+// src/clinic/events.ts — two catalogues, and they are not the same thing
+export type Events  = { settings: SettingsRow };            // the in-process bus
+export type CallLog = {                                      // what call.log() writes
+  "appointment.booked": AppointmentRow;
+  "appointment.refused": { date: string; time: string; reason: string };
+};
+```
+
+`useCall<CallLog>` makes `s.custom` a union of typed rows and narrows `value` on
+`name` in `onCustom`.
+
+> ⚠️ **`onCustom` narrows only at exact arity.** Write
+> `(name, value, _entry) => …`. Drop the third parameter and TypeScript stops
+> contextually typing the union of tuples, and `value` widens back to
+> `unknown`.
+
+### The bus that survived
+
+`src/bus.ts` is still there, and it is **one event wide**:
+
+```
+form action ──► Settings.update() ──► bus.emit("settings") ──► agent.update()
+```
+
+That is a real in-process fact with a real in-process listener. A fact about a
+*call* is not: it already has a log with a cursor, replay, history and a reader
+in any process. `bus.onAny`, `/api/events` and `useEvents.ts` are gone, and
+nothing replaced them.
+
+Two details about the transcript are worth keeping, because they are the
+reducer's rules now rather than yours. **The bot's line is what has been
+*said*** — `bot.speaking` may carry the whole text up front (the phone does,
+for the greeting), and the reducer keeps it as a *speaking* draft until
+`bot.finished`; rendering `bot.speaking.text` as final puts the greeting on
+screen twice, once before it is spoken and once while it is, which is exactly
+what the first phone call did. And **the tool calls are part of the
+transcript**: `s.toolCalls` carries `{ name, args, result, ms }`, so the
+timeline shows
 
 ```
 ⚙ check_availability {date:2026-08-28} → {open:true,slots:[09:00,09:30,10:00],total:22}
 ```
 
-— between the patient's question and the agent's answer. A transcript that shows the
-lookup is the difference between "it said there was a slot at nine" and "it *checked*".
-(`llm.toolCall` fires too, with the names; the result is only known to the tool itself,
-which is why the wrapper lives there and not in an event handler.)
+between the patient's question and the agent's answer. A transcript that shows
+the lookup is the difference between "it said there was a slot at nine" and "it
+*checked*".
 
 > **If `agent.on("bot.word")` never fires on a browser call, it is not your code.**
 > Until sdk-server `17f7df3` the WebRTC transport sent `bot.speaking`, `bot.word`,
@@ -391,10 +414,19 @@ The browser needs a short-lived token. Minting one is an HTTP call carrying the 
 API key, so it is a resource route:
 
 ```ts
-// src/web/routes/api/token.ts — POST /api/token
-export const action = async () =>
-  Response.json(await createToken({ channel: "webrtc", agentId: SLUG, apiKey }));
+// src/web/routes/api/token.ts — POST /api/token[?scope=observe]
+export const action = async ({ request }: Route.ActionArgs) => {
+  const scope = new URL(request.url).searchParams.get("scope");
+  return Response.json(
+    scope === "observe"
+      ? await createToken({ channel: "stream", agentId: SLUG, scope: "observe", apiKey })  // to WATCH
+      : await createToken({ channel: "webrtc", agentId: SLUG, apiKey }),                   // to TALK
+  );
+};
 ```
+
+Two tokens, one route: the WebRTC one lets this tab *talk*, the stream one lets
+it *watch* — and the watcher is read-only, one agent wide.
 
 The page does not use the ready-made widget. It builds its own button over
 `VoiceSession` from `@pinecall/web/core` — a connect/disconnect, the phase, the duration,

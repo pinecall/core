@@ -82,6 +82,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   log guide, "Tell the dashboard" in tools-and-functions.
 
 ### Changed
+- **Docs: one page for observation, and the two streaming pages are gone.**
+  `guides/sse-streaming.md` and `guides/ws-streaming.md` are deleted, with the
+  `docs.json` group "Streaming to your backend" that held them; the new
+  `guides/observe-calls.md` is the single observation page — the shape
+  (`call.log` → the log → anybody reads), minting a stream token, the browser
+  (zero-library `EventSource`, then `observe()`, then `useCall` /
+  `useAgentCalls` with every default quoted from
+  `@pinecall/web/src/log/react.tsx`), Node (`pc.observe()`, the iterator's
+  bounded queue, persisting `lastSeq`), `curl`, resume & failure (cursor,
+  `Last-Event-ID` precedence, `log.gap` hydration, the 25 s heartbeat, the idle
+  watchdog, `204`, backoff), the `types=` / `durable=1` filters with the
+  always-pass set, the supervise verbs as the one WebSocket, and a migration
+  table for `agent.stream()` / `agent.ws()` / `createEventStream()`.
+  `guides/call-log.md` is now the wire reference only (envelope, the closed
+  vocabulary, the endpoints, SSE framing and headers, filters, tokens, the gap
+  snapshot, custom entries). `pc.observe()` is documented in `api/pinecall.md`.
+  `multi-tenant`, `build-a-live-call-app`, `project-structure`,
+  `deployment-topologies`, `events`, `reference/events`, `api/agent`,
+  `run-console` and both tutorial pages were repointed off in-process
+  streaming and off the removed `bistro` example onto `dental-desk`.
 - **A phone line speaks the instant the call connects.** `extension.window`
   now defaults to `0`: the silent post-dial window that collected `+1…,33`
   digits is opt-in, for a switchboard that knowingly trades dead air for

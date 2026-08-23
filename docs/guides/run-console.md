@@ -14,7 +14,7 @@ pinecall run agent/index.mjs
 ```
 
 ```
-  ⚡ booting bistro  ·  gpt-4.1-mini · cartesia/sonic
+  ⚡ booting dental-desk  ·  gpt-4.1-mini · cartesia/sonic
   ⚙ tools: checkAvailability, makeReservation
   ☎ listening on +14155550177 …
   ◉ console → http://127.0.0.1:4747   (p open · c chat · e events · q quit)
@@ -31,7 +31,7 @@ configure; it is the runner, watching the process it already runs.
 > Nothing here is production. The console binds `127.0.0.1`, exists only while
 > `pinecall run` is running, and disappears with it. When you want a dashboard
 > your users see, build one — [Build a live call app](/guides/build-a-live-call-app)
-> is that guide, and the [call log](/guides/call-log) is the API it uses.
+> is that guide, and the [call log](/guides/observe-calls) is the API it uses.
 
 ---
 
@@ -167,13 +167,13 @@ One typed event bus, several readers, none of them special:
 
 - the **terminal live view** renders it as lines;
 - the **web console** reads it over `GET /events`, which is the SDK's own
-  [`pc.stream()`](/guides/sse-streaming) with a `console.hello` frame in front
+  [`pc.stream()`](/api/pinecall) with a `console.hello` frame in front
   carrying the agents and the calls so far (a page that reconnects resyncs in
   one round trip);
-- **your own server** does exactly the same thing with `pc.stream(res)` or
-  `agent.stream(res)` — [SSE streaming](/guides/sse-streaming) — or with
-  `agent.ws(ws)` when you want it bidirectional
-  ([WebSocket streaming](/guides/ws-streaming)).
+- **your own server** can do the same thing in-process with
+  [`pc.stream(res)`](/api/pinecall) — though for anything a user sees,
+  read the [call log](/guides/observe-calls) instead: it has a cursor, replay,
+  history, and works from a process that does not run the agent.
 
 Because they are readers of the same bus, they can never disagree about what
 was said. The web console and the terminal even share the reducer that turns
@@ -191,13 +191,13 @@ import { appendFileSync } from "node:fs";
 import { Pinecall } from "@pinecall/sdk";
 
 const pc = new Pinecall();
-const bistro = pc.agent("bistro", { prompt: "You are the host at Bistro Aurora." });
+const clinic = pc.agent("dental-desk", { prompt: "You are the receptionist at a dental clinic." });
 
 const line = (who, text) =>
   appendFileSync("transcript.log", `${new Date().toISOString()} ${who} › ${text}\n`);
 
-bistro.on("user.message", (e) => line("caller", e.text));   // final caller turn
-bistro.on("bot.speaking", (e) => line("bistro", e.text));   // what the agent says
+clinic.on("user.message", (e) => line("caller", e.text));   // final caller turn
+clinic.on("bot.speaking", (e) => line("clinic", e.text));   // what the agent says
 ```
 
 Run it with `pinecall run` and you now have four observers of the same call: the
@@ -257,6 +257,6 @@ on the public internet — deploy an agent instead.
 
 - [Build a live call app](/guides/build-a-live-call-app) — the dashboard your
   users see, built by hand.
-- [SSE streaming](/guides/sse-streaming) · [WebSocket streaming](/guides/ws-streaming) — the bus, in your own server.
+- [Observe calls](/guides/observe-calls) — the console's job, done properly: any process, any browser, with replay and resume.
 - [Events](/guides/events) — every event the observers see.
 - [CLI reference](/reference/cli) — `pinecall run` and the rest.

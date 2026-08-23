@@ -138,6 +138,18 @@ Four things came out of it that were not on the plan:
 
 1,400 lines in 39 files, plus 500 in tests, `tsc` clean. Sources are listed at the end.
 
+> **Version 6, later: the live panel left the process.** Both of the last two bugs
+> were bugs *of an in-process event bus relayed to the browser* — a thing that
+> exists because the transcript was only in this process's memory. It is not:
+> every call already has an append-only, seq-stamped
+> [log](/guides/observe-calls) on the voice server, and the browser can read it
+> with a read-only token. `/api/events`, `bus.onAny` and `useEvents.ts` were
+> deleted; `useAgentCalls` + `useCall` replaced them, one observation per call
+> id, and a page reload now resumes from the stored `seq` instead of showing an
+> empty panel. The bus survives one event wide — `settings`, the one fact that
+> really is in-process. The `Map<callId, …>` lesson survived too: it is the
+> hook's `key`.
+
 ## Three designs that were rejected on the way
 
 ### A server inside the agent
@@ -278,7 +290,7 @@ helper is the same five characters of semantics with a name.)
 | Processes | 1 |
 | Pinecall surface | `pc.agent()`, `agent.update()`, `tool()`, `createToken()`, `VoiceSession`, fifteen agent events |
 | Lines that make it configurable | `agentConfig()` (12, half of them constants) · `bus.on("settings", …)` (1) · the form's `action` (4) |
-| Lines that make the page live | `routes/api/events.ts` (40) · `src/clinic/events.ts` (the catalogue) · `wire.ts`'s relays · one `EventSource` per tab |
+| Lines that make the page live | none of ours: `useAgentCalls` + `useCall` read the [call log](/guides/observe-calls) over SSE, and `call.log()` writes the bookings into it |
 | The rule that keeps it honest | `no-restricted-imports`, one override per folder: `web → agent → clinic → storage`, and nothing imports `src/web` |
 
 Making an agent configurable from a UI is not a framework feature. It is one function

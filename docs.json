@@ -88,17 +88,11 @@
         "pages": [
           "guides/events",
           "guides/call-log",
+          "guides/observe-calls",
           "guides/live-listening",
           "guides/human-takeover",
           "guides/build-a-live-call-app",
-          "guides/multi-tenant",
-          {
-            "group": "Streaming to your backend",
-            "pages": [
-              "guides/sse-streaming",
-              "guides/ws-streaming"
-            ]
-          }
+          "guides/multi-tenant"
         ]
       },
       {

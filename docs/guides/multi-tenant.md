@@ -7,7 +7,7 @@ description: "Host many tenants on one Pinecall instance with scoped event strea
 
 A common pattern: you're building a SaaS where each customer has their own agents, and each customer's dashboard should only show their own calls. Pinecall handles this server-side — no data leakage between tenants. The canonical mechanism is the **[call log](/guides/call-log) stream token's agent set**: a token minted for a tenant lists exactly the agents that tenant may observe, sealed in the token's signature so the browser cannot widen it.
 
-This guide has two parts: **(1)** injecting the logged-in user's identity into the agent via **sealed token metadata** (the recommended multi-tenant pattern), and **(2)** scoping each tenant's dashboard event stream.
+This guide has two parts: **(1)** injecting the logged-in user's identity into the agent via **sealed token metadata** (the recommended multi-tenant pattern), and **(2)** scoping each tenant's dashboard to exactly the calls it may see.
 
 ## One shared agent + per-user session (sealed token metadata) — recommended
 
@@ -106,36 +106,17 @@ const listAppointments = tool({
 
 ## Scoped dashboards: the stream token's agent set — recommended
 
-Each tenant owns one or more agents. When a tenant loads their dashboard, your backend mints a **stream token** listing exactly the agents that tenant owns:
+Each tenant owns one or more agents. When a tenant loads their dashboard, your
+backend mints a **stream token** listing exactly the agents that tenant owns —
+and that list is sealed into the token's signature, so the browser cannot add an
+agent to it.
 
-```typescript
-app.get("/api/observer-token", authMiddleware, async (req, res) => {
-  const tenant = await db.tenants.findOne(req.auth.tenantId);
-  if (!tenant?.agents?.length) return res.status(403).end();
-
-  // The agent SET is sealed into the token's signature —
-  // the browser cannot add an agent to it.
-  const token = await pc.createToken("stream", tenant.agents);
-  res.json(token); // { token, server }
-});
-```
-
-The browser then observes with the `@pinecall/web/log` hooks — the list of live calls, the transcripts, all scoped to the sealed set:
-
-```tsx
-import { useAgentCalls, useCall } from "@pinecall/web/log/react";
-
-const { calls, live } = useAgentCalls(tenantAgent, { token, server });
-const s = useCall({ call: selected, token, server });
-```
-
-Isolation is **agent topology**: one agent (or a few) per tenant, and a token covers a call iff the call's agent is in its sealed set. A tenant holding another tenant's call id gets a `403` — the id grants nothing. This works from any topology (the dashboard talks to the voice server directly, not to your agent process) and survives reconnects with cursor resume. See [The Call Log](/guides/call-log).
-
-## Scoped in-process SSE (embedded topology only)
-
-If your agent and web server share a process, `pc.stream()`'s `agents` filter is a lighter alternative — no token mint, but no replay, no cursor, and it only works embedded.
-
-![Multi-tenant SSE scoping](/assets/diagrams/multi-tenant-sse.png)
+Isolation is **agent topology**: one agent (or a few) per tenant, and a token
+covers a call iff the call's agent is in its sealed set. A tenant holding
+another tenant's call id gets a `403` — the id grants nothing. This works from
+any topology (the dashboard reads the voice server directly, not your agent
+process) and survives reconnects with cursor resume. See
+[Observe calls](/guides/observe-calls).
 
 ## Building it
 
@@ -175,51 +156,67 @@ for (const tenant of tenants) {
 }
 ```
 
-### 3. Stream events scoped to the user's tenant
+### 3. Mint one token per logged-in session
 
-`pc.stream()` accepts an `agents` filter. Pass only the agents this user is allowed to see:
+The filter is the **token**, and it is sealed server-side. Nothing a tenant's
+browser can send widens it:
 
 ```typescript
-app.get("/api/events", authMiddleware, (req, res) => {
-  const userId = req.auth.userId;
-  const tenantId = req.auth.tenantId;
+app.post("/api/observer-token", authMiddleware, async (req, res) => {
+  const tenant = await db.tenants.findOne(req.auth.tenantId);
+  if (!tenant?.agents?.length) return res.status(403).end();
 
-  // Look up which agents this tenant owns
-  const tenant = req.cache.tenants.get(tenantId);
-  const allowedAgents = tenant?.agents ?? [];
-
-  if (allowedAgents.length === 0) {
-    res.status(403).end();
-    return;
-  }
-
-  // Subscribe only to those agents — events from other tenants never reach the stream
-  pc.stream(res, { agents: allowedAgents });
+  res.json(await pc.createToken("stream", tenant.agents, undefined, { scope: "observe" }));
 });
 ```
 
-The filter is **server-side**. Events from agents the user doesn't own never touch the wire. There's no data leakage possible from the client.
+Events from agents the tenant does not own never touch the wire — and unlike a
+per-request server-side filter, this one survives your web app restarting,
+because the browser reads the voice server directly.
 
-### 4. Consume the stream in the browser
+### 4. Read the log in the dashboard
 
-```javascript
-const source = new EventSource("/api/events");
+```tsx
+import { useAgentCalls, useCall } from "@pinecall/web/log/react";
 
-source.addEventListener("call.started", (e) => {
-  const { agent, from, transport } = JSON.parse(e.data);
-  showCallNotification(`[${agent}] Incoming from ${from}`);
-});
-
-source.addEventListener("user.message", (e) => {
-  const { agent, callId, text } = JSON.parse(e.data);
-  appendToTranscript(callId, "user", text);
-});
-
-source.addEventListener("bot.speaking", (e) => {
-  const { agent, callId, text } = JSON.parse(e.data);
-  appendToTranscript(callId, "bot", text);
-});
+function TenantDashboard({ agent, token, server }) {
+  const { calls, live } = useAgentCalls(agent, { token, server });
+  const s = useCall({ call: live[0]?.call, token, server });
+  return <Transcript messages={s.messages} tools={s.toolCalls} custom={s.custom} />;
+}
 ```
+
+Reconnects resume from the stored cursor, a page reload keeps the transcript
+(`reconnectOnMount`, on by default), and a redeploy of your web app does not
+blink the panel. The whole consumer surface — including the plain
+`EventSource` version with no libraries at all — is
+[Observe calls](/guides/observe-calls).
+
+### 5. Narrow the wire per tenant with `types=` / `durable=1`
+
+A tenant dashboard rarely wants word-by-word audio telemetry. Filter
+**server-side**, per tenant, per panel — `seq` stays intact, so the cursor and
+the resume still work exactly the same:
+
+```tsx
+// the list panel: lifecycle only, no interim noise
+useAgentCalls(agent, { token, server, types: ["call.started", "call.ended"], durable: true });
+
+// a "what did our agent do" audit panel: tools and your own facts
+useCall({ call, token, server, types: ["tool.call", "tool.result", "custom"], durable: true });
+```
+
+```typescript
+// the same thing from a backend consumer
+pc.observe({ agent, types: ["custom"], durable: true });
+```
+
+`durable: true` drops ephemeral entries (partial transcripts, word timings) from
+the live tail — usually a large majority of the volume on a busy voice tenant.
+The always-pass set (`log.gap`, `log.caught_up`, `call.ended`, `call.summary`)
+ignores both filters, so a filtered panel still knows where it stands and when a
+call is over. Filters are a **bandwidth** tool, not an isolation tool: isolation
+is the token's sealed agent set, above.
 
 ## Per-tenant token endpoints
 
@@ -277,6 +274,7 @@ A single `Pinecall` instance handles dozens to hundreds of agents on one WebSock
 
 ## What's next
 
-- [The Call Log](/guides/call-log) — the observation model behind stream tokens
+- [Observe calls](/guides/observe-calls) — the one way to read a call, with the filters and the resume rules
+- [The Call Log](/guides/call-log) — the wire behind stream tokens
 - [Deployment topologies](/concepts/deployment-topologies) — where each mechanism applies
 - [Security](/security) — token model details

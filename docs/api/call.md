@@ -203,7 +203,7 @@ call.unmute();
 
 Stream call events as Server-Sent Events to an HTTP response. Used for "Call Me" flows where the browser needs a live transcript of an outbound call.
 
-> For observing calls in general — including ones this process didn't dial — prefer the [call log](/guides/call-log): it works from any process and survives reconnects with a cursor. `streamSSE` remains handy for the narrow "dial + pipe this one call to this one response" flow.
+> For observing calls in general — including ones this process didn't dial — prefer the [call log](/guides/observe-calls): it works from any process and survives reconnects with a cursor. `streamSSE` remains handy for the narrow "dial + pipe this one call to this one response" flow.
 
 ```typescript
 app.post("/api/call-me", async (req, res) => {

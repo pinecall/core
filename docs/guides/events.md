@@ -849,29 +849,25 @@ Here's the complete sequence of events during a typical voice exchange:
 
 ## Observing events from outside the process
 
-Everything above is the **in-process** view: your agent's `on()` handlers. To observe the same facts from a *different* process or a browser — dashboards, monitors, history — use the [call log](/guides/call-log): every event becomes a stamped, replayable log entry (`seq` cursor, `WS /v1/attach`), readable live or after the fact with a stream token.
+Everything above is the **in-process** view: your agent's `on()` handlers, which only ever see calls this process is handling and die with it. To observe the same facts from a *different* process, from a browser, or after the fact, read the **[call log](/guides/observe-calls)**: every event becomes a stamped, replayable log entry with a `seq` cursor, served over SSE on `GET /v1/calls/{id}/events` to anyone holding a stream token.
 
-## SSE events (in-process)
-
-When streamed over in-process SSE (via `pc.stream()` or `agent.stream()` — no cursor, no replay), each event has an `event:` field and a JSON `data:` body:
-
-```
-event: user.message
-data: {"callId":"CA123","text":"Hello","messageId":"msg_abc","agent":"mara"}
-
-event: bot.word
-data: {"callId":"CA123","word":"Hi","messageId":"msg_def","agent":"mara"}
+```typescript
+// the same facts, from anywhere — no WebSocket, replay and resume included
+const obs = pc.observe({ agent: "mara" });
+obs.on("entry", (entry) => console.log(entry.seq, entry.type, entry.data));
 ```
 
-A `:ping` comment is sent every 30s as keepalive.
-
-SSE streams include: `call.started`, `bot.speaking`, `bot.word`, `message.confirmed`, `user.speaking`, `user.message`, `call.ended`.
+The wire vocabulary there is `snake_case` and slightly different from the
+camelCase in-process events on this page — one is your handler's argument, the
+other is the bytes on the wire. The mapping is in
+[The Call Log](/guides/call-log#the-vocabulary).
 
 ---
 
 ## What's next
 
-- [The Call Log](/guides/call-log) — the same events, observable from any process
+- [Observe calls](/guides/observe-calls) — the same facts, observable from any process
+- [The Call Log](/guides/call-log) — the wire vocabulary
 - [Events Reference](/reference/events) — compact type signatures for all events
 - [Call API](/api/call) — methods to call in response to events
 - [Turn Detection](/concepts/turn-detection) — how turn modes affect event timing
