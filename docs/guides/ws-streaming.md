@@ -5,6 +5,17 @@ description: "Stream agent events over WebSocket for bidirectional, real-time co
 
 # WebSocket Event Streaming
 
+> **In-process only — and that is a deployment decision, not a detail.** `agent.ws()`
+> streams events from the process that runs the agent, so the agent shares a
+> process with your web server (the *embedded* topology). Every deploy of that
+> web app restarts the agent: a call in progress reconnects for several seconds.
+> Fine for a small app with light traffic — [`dental-desk`](https://github.com/pinecall/examples/tree/main/dental-desk)
+> is built this way. When the web deploys often or the traffic matters, run the
+> agent as its own process and observe it through the
+> [call log](/guides/call-log), which works from any process and survives both
+> restarting — [`bistro`](https://github.com/pinecall/examples/tree/main/bistro)
+> is built that way.
+
 > **Building a dashboard or observing calls? Use the [call log](/guides/call-log) instead.**
 > `agent.ws()` shares SSE's limits: in-process only, no cursor, disconnect = data
 > lost. The call log's `WS /v1/attach` gives you the same live feed from any

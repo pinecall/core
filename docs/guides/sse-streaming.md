@@ -5,6 +5,17 @@ description: "Stream agent events to your frontend in real time with Server-Sent
 
 # SSE Event Streaming
 
+> **In-process only — and that is a deployment decision, not a detail.** `agent.stream()`
+> streams events from the process that runs the agent, so the agent shares a
+> process with your web server (the *embedded* topology). Every deploy of that
+> web app restarts the agent: a call in progress reconnects for several seconds.
+> Fine for a small app with light traffic — [`dental-desk`](https://github.com/pinecall/examples/tree/main/dental-desk)
+> is built this way. When the web deploys often or the traffic matters, run the
+> agent as its own process and observe it through the
+> [call log](/guides/call-log), which works from any process and survives both
+> restarting — [`bistro`](https://github.com/pinecall/examples/tree/main/bistro)
+> is built that way.
+
 > **Building a dashboard or observing calls? Use the [call log](/guides/call-log) instead.**
 > SSE only exists inside the process that runs the agent, has no cursor, and a
 > disconnected client silently loses everything emitted while it was away. The

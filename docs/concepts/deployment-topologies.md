@@ -36,7 +36,7 @@ Agent runs inside your existing web app (Express, Next.js, Hono, Remix). The web
 - The agent process restarts every time you deploy the web app
 - Web traffic and voice traffic share resources
 
-**When to use:** small apps, dashboards that need live call event streaming, single-team projects.
+**When to use:** small apps, dashboards that need live call event streaming, single-team projects. **Reference app:** [`dental-desk`](https://github.com/pinecall/examples/tree/main/dental-desk) — one process, SSE in-process.
 
 ## Topology 2: Standalone
 
@@ -53,7 +53,7 @@ Agent runs as a separate process from your web app. The web app handles HTTP, th
 - No in-process SSE — the web app can't tap the agent process's event emitter directly. For live dashboards use the [call log](/guides/call-log) (`WS /v1/attach` + a stream token minted by the agent process) — no shared bus needed.
 - Two deployments to manage
 
-**When to use:** higher-traffic apps, when ops cares about independent scaling, when you want to avoid the "web deploy kills in-flight calls" problem.
+**When to use:** higher-traffic apps, when ops cares about independent scaling, when you want to avoid the "web deploy kills in-flight calls" problem. **Reference app:** [`bistro`](https://github.com/pinecall/examples/tree/main/bistro) — the agent and the web app as two processes, a SQLite file between them, the dashboard observing through the call log.
 
 ## Topology 3: Headless
 

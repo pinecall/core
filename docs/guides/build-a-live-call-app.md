@@ -1,313 +1,239 @@
 ---
 title: "Build a Live Call App"
-description: "Step by step: a restaurant voice agent you can talk to from the browser, call by phone, and watch live — Soniox STT, Mistral Small, ElevenLabs."
+description: "Two processes: a voice agent that books tables, and a host stand that watches the calls live — the agent and the web app deployed apart, a database between them, the call log as the live view."
 ---
 
 # Build a Live Call App
 
-> **`pinecall run` now ships a console that does this out of the box** — call
-> the agent from the browser, watch every call live, chat by text, with no code
-> at all ([The run console](/guides/run-console)). It is a development tool:
-> local, unstyled by you, unauthenticated beyond a loopback bind. Build your own
-> when you need **your** design, **your** auth and **your** data next to the
+> **`pinecall run` ships a console that does this out of the box** — call the
+> agent from the browser, watch every call live, with no code
+> ([The run console](/guides/run-console)). It is a development tool. Build your
+> own when you need **your** design, **your** auth and **your** data next to the
 > call — this guide is how.
 
-This guide builds a complete app, step by step: **Bistro Aurora**, a restaurant
-host that
+This guide walks through **Bistro Aurora** — the finished code is
+[`bistro/` in pinecall/examples](https://github.com/pinecall/examples/tree/main/bistro):
 
-- answers a **real phone number**,
-- takes **browser voice calls** (WebRTC, mic in the page),
-- books tables with a **tool**, and
-- has a **live dashboard**: every phone call appears in the browser the moment
-  it rings, transcript streaming in real time — powered by the
-  [call log](/guides/call-log).
-
-Pipeline: **Soniox** (STT) → **Mistral Small** (LLM) → **ElevenLabs** (TTS).
-Two processes: a Node agent (~80 lines) and a React app.
+- a host that answers a **phone number** and **browser calls**, and books tables
+  with a tool;
+- a **host stand**: tonight's reservations, and every call **as it happens** —
+  transcript, tool calls, who is speaking;
+- as **two processes**. The agent is one, the web app is another. Deploy the
+  web app ten times a day and not one call drops.
 
 ```
- caller ☎ ──┐
-            ├─▶ Pinecall voice server ──▶ call log (seq, cursor)
- browser 🎙 ─┘        ▲      │                    │
-                      │      ▼                    ▼
-              agent process (Node)         React app (watch tab)
-              prompt · tool · tokens       useAgentCalls + useCall
+   guests ☎ 🎙 ───▶  Pinecall voice server ──▶ call log (seq, cursor)
+                         ▲                           │ observe (stream token)
+                         │ SDK websocket             ▼
+            apps/agent (node)                 apps/web (React Router)
+            pc.agent · tools · /token         tonight · live calls · settings
+                         │                           │
+                         └──────▶ bistro.db ◀────────┘      packages/kitchen — the rules
 ```
 
-## 0. Project layout
+If your app is small and one process is fine, read
+[An agent your customer can configure](/tutorial/configurable-agent) instead —
+same four nouns, one process, SSE in-process. This guide is for when that
+stops being enough: see [Project structure](/guides/project-structure#when-one-process-stops-being-enough).
+
+## 0. The layout
+
+```
+bistro/
+├── packages/kitchen/     the business + its storage: reservations, settings, SQLite (WAL)
+├── apps/agent/           the voice: pc.agent() · tools · a tiny HTTP (tokens, reload)
+├── apps/web/             the host stand: React Router — tonight · live calls · settings
+└── bistro.db             one file, two processes
+```
 
 ```bash
-mkdir bistro && cd bistro
-mkdir agent web
-npm init -y
-npm install @pinecall/sdk zod
+git clone https://github.com/pinecall/examples && cd examples/bistro
+npm install && cp .env.example .env     # PINECALL_API_KEY, a dev- slug, no phone yet
+npm run build
 ```
 
-Set your key once:
+## 1. The business, and the database both processes share
 
-```bash
-export PINECALL_API_KEY=pk_...
-```
+`packages/kitchen` knows nothing about Pinecall or the web. The rules are pure
+functions over a list:
 
-## 1. The agent process
-
-`agent/index.mjs` — the whole backend. It does exactly two jobs: **define the
-agent** (prompt, pipeline, tool, phone number) and **mint tokens** (the API key
-never reaches the browser).
-
-```javascript
-import { createServer } from "node:http";
-import { Pinecall, tool } from "@pinecall/sdk";
-import { z } from "zod";
-
-const SLUG = "bistro";
-const PORT = 8790;
-const pc = new Pinecall();
-
-// ── the tool ──────────────────────────────────────────────────────────
-const bookTable = tool({
-  name: "book_table",
-  description:
-    "Book a table. Call it exactly once, only when you know the day, the time and how many people.",
-  schema: z.object({
-    day: z.string(),
-    time: z.string(),
-    people: z.number().int().min(1).max(20),
-  }),
-  execute: async ({ day, time, people }) => {
-    const reference = "R-" + Math.random().toString(36).slice(2, 7).toUpperCase();
-    return { ok: true, reference, day, time, people };
-  },
-});
-
-// ── the agent ─────────────────────────────────────────────────────────
-const agent = pc.agent(SLUG, {
-  prompt: `You are the host at Bistro Aurora, a small bistro.
-Take table reservations. Ask for ONE detail at a time: day, then time,
-then party size. Confirm before booking. Speak — never use markdown,
-lists or emojis; everything you say is read aloud.`,
-  stt: "soniox/realtime",
-  llm: "mistral/mistral-small-latest",
-  voice: "elevenlabs/sarah",
-  language: "en",
-  greeting: "Bistro Aurora, good evening — how can I help?",
-  tools: [bookTable],
-  phoneNumber: "+13186330963", // a number from your Pinecall org
-});
-
-// ── token endpoints ───────────────────────────────────────────────────
-const server = createServer(async (req, res) => {
-  res.setHeader("Content-Type", "application/json");
-  try {
-    if (req.url === "/api/token")
-      return res.end(JSON.stringify(await agent.createToken("webrtc")));
-    if (req.url === "/api/observer-token")
-      return res.end(JSON.stringify(await pc.createToken("stream", SLUG)));
-    if (req.url === "/health") return res.end('"ok"');
-    res.statusCode = 404;
-    res.end('"not found"');
-  } catch (e) {
-    res.statusCode = 500;
-    res.end(JSON.stringify({ error: String(e?.message ?? e) }));
+```ts
+// packages/kitchen/src/reservations.ts
+export function book(reservations: readonly Reservation[], input: NewReservation): Reservation {
+  if (!availability(reservations, input.day).slots.includes(input.time)) {
+    throw new Error(`${input.day} at ${input.time} is not available`);
   }
-});
-server.listen(PORT, "127.0.0.1", () =>
-  console.log(`bistro agent — tokens on :${PORT}`),
-);
-```
-
-Run it:
-
-```bash
-node agent/index.mjs
-```
-
-The phone number is live right now — call it and the agent answers. Everything
-else in this guide is about the **browser**.
-
-Two different tokens, two different powers:
-
-| Endpoint | Mints | Grants |
-|---|---|---|
-| `/api/token` | `createToken("webrtc")` | **participate** — join a call with a mic |
-| `/api/observer-token` | `createToken("stream", SLUG)` | **observe** — read this agent's [call log](/guides/call-log), no mic, no voice |
-
-> In production, put your own auth in front of both endpoints — a token is a
-> capability, mint it only for users who should have it.
-
-## 2. The web app
-
-```bash
-cd web
-npm create vite@latest . -- --template react
-npm install @pinecall/web
-```
-
-Proxy the token endpoints to the agent process in `vite.config.js`:
-
-```javascript
-export default {
-  plugins: [react()],
-  server: { proxy: { "/api": "http://127.0.0.1:8790" } },
-};
-```
-
-## 3. Talk — a voice call from the page
-
-`useVoiceSession` owns the entire WebRTC session. The page is just a projection
-of its state — you write **zero** socket or audio code.
-
-```jsx
-// web/src/App.jsx
-import { useState } from "react";
-import { useVoiceSession } from "@pinecall/web";
-import { Observer } from "./Observer.jsx";
-
-const tokenProvider = async () => {
-  const res = await fetch("/api/token");
-  if (!res.ok) throw new Error(`token endpoint: ${res.status}`);
-  return res.json();
-};
-
-export function App() {
-  const [tab, setTab] = useState("talk");
-  const s = useVoiceSession({
-    agent: "bistro",
-    tokenProvider,
-    trackedTools: ["book_table"],
-  });
-
-  return (
-    <main>
-      <nav>
-        <button onClick={() => setTab("talk")}>🎙 talk</button>
-        <button onClick={() => setTab("watch")}>📡 watch the phone line</button>
-      </nav>
-
-      {tab === "watch" && <Observer />}
-      {tab === "talk" && (
-        <>
-          {s.status !== "connected" ? (
-            <button onClick={s.connect}>📞 Call the restaurant</button>
-          ) : (
-            <button onClick={s.disconnect}>hang up</button>
-          )}
-
-          {s.messages.map((m) => (
-            <p key={m.id}>
-              <b>{m.role === "bot" ? "host" : "you"}</b> {m.text}
-              {m.isInterim && "▌"}
-            </p>
-          ))}
-
-          {s.toolCalls.map((t) => (
-            <div key={t.toolCallId}>
-              ⚙ {t.name} {t.result ? `→ booking ${t.result.reference}` : "…"}
-            </div>
-          ))}
-        </>
-      )}
-    </main>
-  );
+  const table = reservations.filter((r) => r.day === input.day && r.time === input.time).length + 1;
+  return { ...input, reference: reference(input.day, input.time, table) };
 }
 ```
 
-What the hook gives you: `s.messages` (interim + final transcripts, both
-sides), `s.toolCalls` (with `.result` once the tool ran), `s.phase`
-(`listening` / `speaking`), `s.connect` / `s.disconnect` / `s.toggleMute`.
+and `createKitchen(store)` binds them to a `Store`. The store is **SQLite** —
+`node:sqlite`, no native build — in WAL mode, because two processes read and
+write it at once. A JSON file with the truth in memory would be one truth per
+process, which is two truths. That is the first thing that changes when you
+split: storage becomes a database.
 
-## 4. Watch — the phone line, live in the browser
+`npm test` in the package proves the two-process property without a socket:
+a booking made through one `SqliteStore` is read through another opened on the
+same file.
 
-This is the part most platforms cannot do: **observe calls you are not in**,
-with nothing but a token. Two hooks, chained — that chain *is* the design:
+## 2. The agent process
 
-1. `useAgentCalls(agent)` tails the **agent log** → *which calls exist, which
-   are live*.
-2. `useCall({ call })` tails **that call's log** → transcript, tools, phase.
+`apps/agent/src/agent.mjs` — settings (the host's) on top, code (ours) below:
 
-```jsx
-// web/src/Observer.jsx
-import { useEffect, useState } from "react";
+```js
+export function agentConfig(settings, kitchen) {
+  return {
+    greeting: settings.greeting,
+    voice: settings.voice,
+    language: settings.language,
+    promptVars: { name: settings.name, hours: settings.hours, menu: settings.menu, notes: settings.notes },
+
+    prompt: PROMPT,
+    llm: "openai/gpt-5.4-nano",
+    stt: "soniox/stt-rt-v5",
+    tools: tools(kitchen),
+    ...(PHONE ? { phoneNumber: PHONE } : {}),
+  };
+}
+```
+
+The tools are five lines each and the line that matters calls the kitchen:
+
+```js
+execute: async (input) => {
+  try { return { booked: true, ...kitchen.reservations.book(input) }; }
+  catch (err) { return { booked: false, reason: err.message }; }
+},
+```
+
+And because **the API key lives in this process**, this process serves the two
+things that need it — a tiny `node:http`:
+
+| | |
+|---|---|
+| `POST /token { kind }` | `webrtc` / `chat` → `agent.createToken(kind)` — participate; `stream` → `pc.createToken("stream", slug)` — observe |
+| `POST /reload` | re-read settings from the kitchen, `agent.update(agentConfig(...))` — the next call is born with them |
+| `GET /health` | |
+
+Loopback by default: the web app is the only caller.
+
+```bash
+npm run start:agent      # registers the agent · http on :8790
+```
+
+## 3. The web app — no key, no agent import
+
+`apps/web` is plain React Router. It holds no Pinecall key and never imports
+the agent. Two server-only helpers are the whole coupling:
+
+```ts
+// apps/web/app/lib/agent.server.ts
+export async function reloadAgent(): Promise<boolean> {
+  try { return (await fetch(`${config.agentUrl}/reload`, { method: "POST" })).ok; }
+  catch { return false; }           // a host stand must save even if the agent is down
+}
+export async function mintToken(kind: "webrtc" | "stream") {
+  return fetch(`${config.agentUrl}/token`, { method: "POST", body: JSON.stringify({ kind }), headers: { "content-type": "application/json" } });
+}
+```
+
+The settings route writes the shared database, then asks the agent to reload:
+
+```ts
+// apps/web/app/routes/api/settings.ts
+export const action = async ({ request }) => {
+  const settings = kitchen.settings.update(await request.json());   // bistro.db
+  const reloaded = await reloadAgent();                              // the other process
+  return Response.json({ ...settings, agentReloaded: reloaded });
+};
+```
+
+Tonight's service is a loader reading the same file the agent writes:
+
+```ts
+export const loader = () => ({ day, reservations: kitchen.reservations.service(day), agent: config.slug });
+```
+
+## 4. Talk — a call from the page
+
+`VoiceSession` from `@pinecall/web/core`, with a token provider that goes
+through our proxy (`/api/token` → the agent's `/token`):
+
+```tsx
+sessionRef.current = new VoiceSession({
+  agent,
+  tokenProvider: () => fetch("/api/token", { method: "POST", body: JSON.stringify({ kind: "webrtc" }), headers: { "content-type": "application/json" } }).then((r) => r.json()),
+});
+```
+
+## 5. Watch — calls you are not in, from a process that does not run the agent
+
+This is the part that makes two processes work. Nothing travels through the web
+server. The browser mints a **stream token** (through the proxy) and attaches
+**directly** to the voice server's [call log](/guides/call-log). Two hooks,
+chained — that chain is the design:
+
+```tsx
+// apps/web/app/components/LiveCalls.tsx
 import { useAgentCalls, useCall } from "@pinecall/web/log/react";
 
-const AGENT = "bistro";
-
-export function Observer() {
-  const [auth, setAuth] = useState(null); // { token, server }
-  useEffect(() => {
-    fetch("/api/observer-token").then((r) => r.json()).then(setAuth);
-  }, []);
-  if (!auth) return <p>minting observe token…</p>;
-  return <Board token={auth.token} server={auth.server} />;
+function Calls({ agent, server, token }) {
+  // 1 — which calls exist / are live: the agent's lifecycle log
+  const { live, calls } = useAgentCalls(agent, { token, server });
+  const current = live[0] ?? null;
+  if (!current) return <p>Nobody on the line.</p>;
+  return <Transcript call={current.call} token={token} server={server} />;
 }
 
-function Board({ token, server }) {
-  const { calls, live } = useAgentCalls(AGENT, { token, server });
-  const [watching, setWatching] = useState(null);
-
-  // auto-open the first live call the moment it starts
-  useEffect(() => {
-    if (!watching && live.length > 0) setWatching(live[0].call);
-  }, [watching, live]);
-
-  return (
-    <section>
-      <p>📡 {live.length} live / {calls.length} total</p>
-      {calls.map((c) => (
-        <button key={c.call} onClick={() => setWatching(c.call)}>
-          {c.live ? "🔴" : "⏹"} {c.direction} · {c.from}
-        </button>
-      ))}
-      {watching && <Watch call={watching} token={token} server={server} />}
-    </section>
-  );
-}
-
-function Watch({ call, token, server }) {
+function Transcript({ call, token, server }) {
+  // 2 — that call's log: messages as they are transcribed, tools as they land
   const s = useCall({ call, token, server });
   return (
-    <div>
-      <p>{s.live ? "🔴 live" : "⏹ ended"} · {s.caughtUp ? "caught up" : "catching up…"}</p>
-      {s.messages.map((m) => (
-        <p key={m.seq ?? m.id}>
-          <b>{m.role === "bot" ? "host" : "caller"}</b> {m.text}
-        </p>
-      ))}
-      {s.toolCalls.map((t) => (
-        <p key={t.id}>⚙ {t.name} {t.result?.reference && `→ ${t.result.reference}`}</p>
-      ))}
-    </div>
+    <ol>
+      {s.messages.map((m) => <Bubble key={m.seq} who={m.role === "user" ? "user" : "bot"} text={m.text} draft={m.interim || m.speaking} />)}
+      {s.toolCalls.map((t, i) => <Bubble key={i} who="tool" text={`${t.name} → ${short(t.result)}`} />)}
+    </ol>
   );
 }
 ```
 
-Note the import: **`@pinecall/web/log/react`** — the hooks live under
-`/log/react`; `@pinecall/web/log` is the framework-free layer
-(`CallLogView`, `tail`, `poll`).
+Late join replays the backlog; a dropped socket resumes from the last `seq`;
+a redeploy of the web app does not blink the panel. `@pinecall/web/log` is the
+framework-free layer (`tail`, `poll`, `observe`, `CallLogView`) if you are not
+on React.
 
-## 5. Run the whole thing
+> Needs `@pinecall/web` **≥ 0.5.1**: earlier builds keyed the agent log on
+> the envelope's `call`, which is null there (the id is in `data.call`), and
+> `useAgentCalls()` came back empty with the socket live. This very app is how
+> that was found.
+
+## 6. Run the whole thing
 
 ```bash
-node agent/index.mjs   # terminal 1 — agent + tokens
-cd web && npm run dev  # terminal 2 — the page
+npm run start:agent      # terminal 1
+npm run start:web        # terminal 2 — http://localhost:3000
 ```
 
-Open the page, go to **watch**, and **call the phone number from your own
-phone**. The call appears in the list the moment it rings; click it (or let it
-auto-open) and the transcript streams as you speak. Hang up — the row flips to
-*ended*, and the full transcript stays readable: history and live are the same
-log, read from a different cursor.
+Open the host stand, press **Call the host**, ask for a table — and watch
+yourself appear under *On the phone now*, tool call included, from a process
+that has no idea you are talking to the other one. Edit the greeting under
+*Settings*, save, and call again: the agent reloaded without restarting, and
+nothing you did to the web app touched the call.
 
 ## What you did NOT build
 
-- No WebSocket handling — the hooks own attach/reconnect/cursor resume.
-- No event bus, no webhook receiver, no polling loop with gaps.
-- No audio code — WebRTC, VAD, barge-in, TTS are the server's job.
-- No key exposure — the browser only ever held two scoped, short-lived tokens.
+An event bus between the processes. A webhook receiver. A "was it delivered"
+table. The database is the fact; the call log is the live view; the cursor is
+the protocol.
 
 ## What's next
 
-- [The Call Log](/guides/call-log) — the model that made the watch tab possible
-- [Tools and functions](/guides/tools-and-functions) — richer tools
-- [Multi-Tenant](/guides/multi-tenant) — one dashboard per customer, sealed by
-  the token's agent set
+- [Project structure](/guides/project-structure) — one process first, and what
+  changes when you split
+- [The call log](/guides/call-log) — the observation model this rests on
+- [Deployment topologies](/concepts/deployment-topologies) — embedded vs
+  standalone vs headless
+- [Multi-tenant dashboards](/guides/multi-tenant) — scoping stream tokens per
+  customer

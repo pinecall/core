@@ -23,8 +23,18 @@ my-app/
 │   │   └── events.ts          the ONE typed catalogue of events
 │   ├── storage/         HOW it persists — Store (interface), JsonStore, MemoryStore
 │   │   └── index.ts           the composition root: the store, and the rules bound to it
-│   ├── agent/           the VOICE AGENT — prompt.ts · tools.ts · config.ts · wire.ts
-│   ├── web/             the UI — routes.ts · routes/{settings,calls,api/*} · components/ · hooks/
+│   ├── agent/           the VOICE AGENT
+│   │   ├── prompt.ts          the prompt, with {{vars}} the settings fill in
+│   │   ├── tools.ts           tool() definitions — thin, they call clinic/
+│   │   ├── config.ts          settings → the agent's config (voice, greeting, llm, stt, tools)
+│   │   ├── wire.ts            SDK events → clinic/ + bus — receives its collaborators, so it is testable
+│   │   └── index.ts           startAgent(): pc.agent() + wire()
+│   ├── web/             the UI (React Router)
+│   │   ├── routes.ts          URL → file; routes/ mirrors the URL tree
+│   │   ├── root.tsx · app.css
+│   │   ├── routes/            settings.tsx · calls.tsx · api/{settings,appointments,availability,events,token}.ts
+│   │   ├── components/        Bubble · Phase · CallTranscript · BrowserCall · AgentLive · …
+│   │   └── hooks/useEvents.ts one EventSource per tab, refcounted
 │   ├── bus.ts           the typed emitter over clinic/events
 │   ├── config.ts        SLUG, PHONE, DB_FILE, PORT — one place
 │   └── server.ts        THE process: config → storage → agent → web handler → listen
@@ -34,7 +44,8 @@ my-app/
 ```
 
 Call `clinic/` whatever your business is — `orders/`, `fleet/`, `patients/`.
-The other three names stay.
+The other three names stay. The whole app, file by file, is
+[`dental-desk`](https://github.com/pinecall/examples/tree/main/dental-desk).
 
 ## The rule: arrows point inward
 
@@ -143,22 +154,60 @@ the agent's slug and hold the API key.
 
 Start with one process. Split when one of these is true, not before:
 
-| signal | what to do |
+| signal | what it means |
 |---|---|
-| The web and the agent deploy on different cadences, and a web deploy dropping calls in flight is a real cost | The agent becomes its own process: `apps/agent/` and `apps/web/`, with `src/clinic` + `src/storage` promoted to `packages/<domain>/` that both import. The token route goes with the agent. |
-| You have several agents with nothing in common but the SDK | One folder per agent under `apps/`, one process each — two agents in one process share a crash, a deploy and a restart. |
-| Another service needs the data | `storage/` swaps `JsonStore` for a real database behind the same `Store` interface. |
+| The web and the agent deploy on different cadences, and a web deploy dropping calls in flight is a real cost | The agent becomes its own process. |
+| You have several agents with nothing in common but the SDK | One folder per agent, one process each — two agents in one process share a crash, a deploy and a restart. |
+| Another service needs the data | `storage/` swaps the JSON file for a real database behind the same `Store` interface. |
 
-Because the folders are already the nouns, this is a move, not a rewrite:
+### Two processes: what it looks like
+
+This is [`bistro`](https://github.com/pinecall/examples/tree/main/bistro), the
+reference app for the standalone topology — the same four nouns, with the line
+between the processes drawn between `apps/`:
+
+```
+bistro/
+├── packages/
+│   └── kitchen/          the BUSINESS + its storage — reservations, settings, a Store over SQLite (WAL).
+│                         Shared by both processes. No Pinecall, no web, no process in it.
+├── apps/
+│   ├── agent/            the VOICE: pc.agent() · tools (they call the kitchen) · config
+│   │                     + a tiny HTTP — POST /token · POST /reload — because the API KEY lives here
+│   └── web/              the HOST STAND (React Router): tonight from the kitchen; live calls from the
+│                         voice server's call log (@pinecall/web/log); the settings form → kitchen → agent /reload.
+│                         No API key in this process. Never imports the agent.
+└── bistro.db             one file, two processes
+```
+
+Three rules change when you cross that line, and they are the whole
+difference:
+
+1. **Storage becomes a real database.** A JSON file with the truth in memory is
+   one truth per process — which is two truths. `bistro` uses SQLite in WAL mode
+   (`node:sqlite`, no native build) behind the same `Store` interface the
+   one-process app had; the swap is one file.
+2. **Tokens and hot-reload live with the agent.** The API key is in the agent
+   process, so the agent serves `POST /token` (webrtc, chat, stream) and
+   `POST /reload`; the web app proxies the first and calls the second after it
+   writes settings. The web process holds no key at all.
+3. **The web observes through the [call log](/guides/call-log), never through
+   the agent.** The browser mints a stream token (through the agent) and attaches
+   to the voice server directly: `useAgentCalls()` for which calls exist,
+   `useCall()` for the transcript. No SSE from the agent, no socket between the
+   processes, nothing that a redeploy of the web app can interrupt.
+
+Because the folders were already the nouns, this is a move, not a rewrite:
 `clinic/` + `storage/` become the package, `agent/` and `web/` become the apps.
 A monorepo for 47 files is ceremony; a monorepo for two deployables is the
-right tool. See [Deployment Topologies](/concepts/deployment-topologies) for
-the trade-offs of each shape.
+right tool. See [Deployment Topologies](/concepts/deployment-topologies).
 
 ## What's next
 
 - [An agent your customer can configure](/tutorial/configurable-agent) — the
-  reference app, built in this shape
+  one-process reference app (`dental-desk`)
+- [Build a live call app](/guides/build-a-live-call-app) — the two-process
+  reference app (`bistro`)
 - [Phone lines](/guides/phone-lines) — the number that answers with code
 - [Dev Mode](/guides/dev-mode) — prod and dev agents on the same number
 - [Deployment Topologies](/concepts/deployment-topologies) — embedded, standalone, headless
