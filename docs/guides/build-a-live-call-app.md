@@ -28,7 +28,7 @@ This guide walks through **Bistro Aurora** — the finished code is
             agent.js                          server.js (React Router)
             pc.agent · tools · watch          tonight · live calls · settings · /api/token
                          │                           │
-                         └──────▶ bistro.db ◀────────┘      src/kitchen — the rules
+                         └──────▶ bistro.db ◀────────┘      shared/kitchen — the rules
 ```
 
 If your app is small and one process is fine, read
@@ -38,21 +38,17 @@ stops being enough: see [Project structure](/guides/project-structure#when-one-p
 
 ## 0. The layout
 
-The same four nouns as the one-process app, under `src/`. Two processes means
-**two entry files** — `agent.js` and `server.js` — not a monorepo:
+Two processes, two folders, and one for what they share — the web + worker
+shape, where the agent is the worker. One `package.json`, no monorepo:
 
 ```
 bistro/
-├── src/
-│   ├── kitchen/      the business: reservations · settings — pure rules
-│   ├── storage/      a Store interface, and SQLite (WAL) behind it
-│   ├── agent/        the voice: prompt · tools · config · watch · main.ts (the process)
-│   ├── web/          the host stand: React Router — tonight · live calls · settings
-│   ├── server.ts     the host-stand process
-│   └── config.ts     SLUG, PHONE, DB_FILE — read by both
-├── agent.js          PROCESS 1 — a Pinecall process, no port, no HTTP
-├── server.js         PROCESS 2 — never imports src/agent
-└── Procfile          web + agent
+├── agent/        PROCESS 1 — the voice: prompt · tools · config · watch · main.ts
+├── server/       PROCESS 2 — the host stand (React Router): routes · components · server.ts
+├── shared/       what both import: kitchen/ (the rules) · storage/ (SQLite behind a Store) · config.ts
+├── agent.js      → agent/main.ts      a Pinecall process, no port, no HTTP
+├── server.js     → server/server.ts   never imports agent/
+└── Procfile      web + agent
 ```
 
 ```bash
@@ -63,11 +59,11 @@ npm run build
 
 ## 1. The business, and the database both processes share
 
-`src/kitchen` knows nothing about Pinecall or the web. The rules are pure
+`shared/kitchen` knows nothing about Pinecall or the web. The rules are pure
 functions over a list:
 
 ```ts
-// src/kitchen/reservations.ts
+// shared/kitchen/reservations.ts
 export function book(reservations: readonly Reservation[], input: NewReservation): Reservation {
   if (!availability(reservations, input.day).slots.includes(input.time)) {
     throw new Error(`${input.day} at ${input.time} is not available`);
@@ -88,7 +84,7 @@ through one `SqliteStore` is read through another opened on the same file.
 
 ## 2. The agent process
 
-`src/agent/config.ts` — settings (the host's) on top, code (ours) below:
+`agent/config.ts` — settings (the host's) on top, code (ours) below:
 
 ```ts
 export const agentConfig = (s: Settings, tools: Tool[]) => ({
@@ -120,7 +116,7 @@ host saves settings in the other process; nobody tells the agent, so the agent
 looks:
 
 ```ts
-// src/agent/watch.ts — one row, once a second, and onChange when its stamp moved
+// agent/watch.ts — one row, once a second, and onChange when its stamp moved
 export function watchSettings(kitchen: Kitchen, onChange: (s: Settings) => void, everyMs = 1000) {
   let seen = kitchen.settings.get().updatedAt;
   const timer = setInterval(() => {
@@ -135,7 +131,7 @@ export function watchSettings(kitchen: Kitchen, onChange: (s: Settings) => void,
 ```
 
 ```ts
-// src/agent/index.ts
+// agent/index.ts
 const agent = pc.agent(SLUG, config(kitchen.settings.get()));
 watchSettings(kitchen, (settings) => agent.update(config(settings)));
 ```
@@ -150,12 +146,12 @@ npm run agent      # registers the agent
 
 ## 3. The web app — never imports the agent
 
-`src/web` is plain React Router. It never imports `src/agent` — ESLint makes
+`server/` is plain React Router. It never imports `agent/` — ESLint makes
 that a build failure — and the two processes never talk. The settings route
 writes the shared database, and that is all:
 
 ```ts
-// src/web/routes/api/settings.ts
+// server/routes/api/settings.ts
 export const action = async ({ request }) =>
   Response.json(kitchen.settings.update(await request.json()));   // bistro.db — the agent is watching
 ```
@@ -170,7 +166,7 @@ And the browser's tokens are minted here, with the key this process reads from
 the same `.env` — a token needs the key, not the agent:
 
 ```ts
-// src/web/routes/api/token.ts
+// server/routes/api/token.ts
 export const action = async ({ request }) => {
   const { kind } = await request.json();                       // "webrtc" to talk, "stream" to watch
   return Response.json(await createToken({ channel: kind === "stream" ? "stream" : "webrtc", agentId: SLUG, apiKey }));
@@ -197,7 +193,7 @@ server. The browser mints a **stream token** (`/api/token`) and attaches
 chained — that chain is the design:
 
 ```tsx
-// src/web/components/LiveCalls.tsx
+// server/components/LiveCalls.tsx
 import { useAgentCalls, useCall } from "@pinecall/web/log/react";
 
 function Calls({ agent, server, token }) {

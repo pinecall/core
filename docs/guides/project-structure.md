@@ -163,26 +163,32 @@ Start with one process. Split when one of these is true, not before:
 ### Two processes: what it looks like
 
 This is [`bistro`](https://github.com/pinecall/examples/tree/main/bistro), the
-reference app for the standalone topology. The same four nouns, under the same
-`src/` — the difference between one process and two is **a second entry
-file**, not a monorepo:
+reference app for the standalone topology. Two processes, two folders, and one
+for what they share — the web + worker shape every Procfile platform
+understands, where **the agent is the worker**:
 
 ```
 bistro/
-├── src/
-│   ├── kitchen/        the BUSINESS — reservations.ts · settings.ts — pure rules
-│   │   └── index.ts        createKitchen(store): the rules bound to a Store
-│   ├── storage/        HOW it persists — store.ts (interface) · sqlite.ts (WAL) · index.ts (this process's handle)
-│   ├── agent/          the VOICE — prompt.ts · tools.ts · config.ts · watch.ts · index.ts · main.ts (the process)
-│   ├── web/            the HOST STAND — React Router: routes.ts · root.tsx · routes/ · components/
-│   ├── server.ts       the host-stand process: Express in front of React Router
-│   ├── config.ts       SLUG, PHONE, PORT, DB_FILE — read by both
-│   └── remember.ts
-├── agent.js            PROCESS 1 → src/agent/main.ts     a Pinecall process — no port, no HTTP
-├── server.js           PROCESS 2 → src/server.ts         never imports src/agent
-├── Procfile            web + agent
-└── package.json        one
+├── agent/            PROCESS 1 — the voice
+│   ├── main.ts           the process: store → pc.agent → watch
+│   ├── index.ts          startAgent()
+│   └── prompt.ts · tools.ts · config.ts · watch.ts
+├── server/           PROCESS 2 — the host stand (React Router)
+│   ├── server.ts         Express in front of React Router
+│   └── routes.ts · root.tsx · routes/ · components/
+├── shared/           what both processes import — and the only thing they share
+│   ├── kitchen/          the BUSINESS — reservations.ts · settings.ts · index.ts (createKitchen)
+│   ├── storage/          HOW it persists — store.ts (interface) · sqlite.ts (WAL) · index.ts
+│   └── config.ts         SLUG, PHONE, PORT, DB_FILE
+├── agent.js          → agent/main.ts      a Pinecall process — no port, no HTTP
+├── server.js         → server/server.ts   never imports agent/
+├── Procfile          web + agent
+└── package.json      one
 ```
+
+The four nouns are still there — `kitchen/` and `storage/` moved under
+`shared/`, `agent/` and `web/` became the two processes. No monorepo, no
+workspaces: one `package.json`, two entry files.
 
 Three things change when you cross that line, and they are the whole
 difference:
@@ -193,7 +199,7 @@ difference:
    one-process app had; the swap is one file.
 2. **The processes never talk.** The agent is a Pinecall process and nothing
    else — no HTTP of its own, no endpoint the web calls. The host stand writes
-   settings to the database; the agent **watches the row** (`src/agent/watch.ts`,
+   settings to the database; the agent **watches the row** (`agent/watch.ts`,
    one read a second) and `agent.update()`s itself when the stamp moves. Tokens
    are minted by the web process with `createToken()` — it reads the same
    `.env`. The database is the fact.
@@ -203,11 +209,9 @@ difference:
    `useCall()` for the transcript. No SSE from the agent, no socket between the
    processes, nothing that a redeploy of the web app can interrupt.
 
-And one more line in the lint: **`src/web` and `src/server.ts` never import
-`src/agent`.** A web deploy that restarted the agent would defeat the split.
-
-Because the folders were already the nouns, this is a move, not a rewrite:
-`agent.js` goes next to `server.js`, and `storage/` swaps its store. See
+The lint gains one line: **`agent/` and `server/` never import each other** —
+each imports its own folder and `shared/`. A web deploy that restarted the
+agent would defeat the split. See
 [Deployment Topologies](/concepts/deployment-topologies).
 
 ## What's next
