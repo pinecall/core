@@ -14,10 +14,6 @@ import { Call } from "./call.js";
 import type { CallInit } from "./call.js";
 import { RingingCall } from "./ringing-call.js";
 import { buildShortcutPayload } from "../protocol/shortcuts.js";
-import { createAgentStream } from "../sse/stream.js";
-import { createAgentWS } from "../stream/ws-stream.js";
-import type { WSLike, WSStreamOptions } from "../stream/ws-stream.js";
-import type { ServerResponse } from "node:http";
 import type { Turn } from "./turn.js";
 import type { AgentConfig, ChannelConfig, WhatsAppChannelConfig } from "../config/agent.js";
 import type { Tool } from "../tool.js";
@@ -470,32 +466,6 @@ export class Agent extends TypedEventBus<AgentEvents> {
     routeCallers(callers: string[]): void {
         this.#devCallers = callers;
         this.send({ event: "dev.config", callers });
-    }
-
-    // ── Event Streaming ──────────────────────────────────────────────────
-
-    stream(): Response;
-    stream(res: ServerResponse): void;
-    stream(res?: ServerResponse): Response | void {
-        if (res) return createAgentStream(this, res);
-        return createAgentStream(this);
-    }
-
-    /**
-     * Pipe agent events to a WebSocket connection.
-     *
-     * WebSocket equivalent of `stream()`. Each event is sent as a JSON
-     * message: `{ event: "bot.word", word: "hello", agent: "pines" }`.
-     *
-     * @example
-     * ```ts
-     * import { WebSocketServer } from "ws";
-     * const wss = new WebSocketServer({ server, path: "/ws/events" });
-     * wss.on("connection", (ws) => pines.ws(ws));
-     * ```
-     */
-    ws(socket: WSLike, opts?: WSStreamOptions): void {
-        createAgentWS(this, socket, opts);
     }
 
     // ── Token generation ─────────────────────────────────────────────────

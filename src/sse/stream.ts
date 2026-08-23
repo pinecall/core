@@ -7,7 +7,7 @@
 import type { Agent } from "../domain/agent.js";
 import type { ServerResponse } from "node:http";
 import { formatSSE, SSE_HEADERS, STREAM_EVENTS } from "./format.js";
-import { buildEventData } from "../stream/event-data.js";
+import { buildEventData } from "./event-data.js";
 
 export interface StreamOptions {
     agents?: string[];
@@ -34,86 +34,6 @@ function createDedupeGuard(): (event: string, data: Record<string, unknown>) => 
         seen.add(key);
         return false;
     };
-}
-
-// ─── Agent stream ────────────────────────────────────────────────────────
-
-export function createAgentStream(agent: Agent): Response;
-export function createAgentStream(agent: Agent, res: ServerResponse): void;
-export function createAgentStream(agent: Agent, res?: ServerResponse): Response | void {
-    const handlers: Array<{ event: string; handler: (...args: any[]) => void }> = [];
-
-    const cleanup = () => {
-        for (const { event, handler } of handlers) {
-            agent.off(event, handler);
-        }
-        handlers.length = 0;
-    };
-
-    // ── Node.js ServerResponse mode ──
-    if (res) {
-        // Disable TCP Nagle — critical for real-time SSE delivery
-        (res as any).socket?.setNoDelay?.(true);
-        res.writeHead(200, SSE_HEADERS);
-        res.flushHeaders();
-        res.write(formatSSE("connected", { agent: agent.id }));
-
-        const dedupe = createDedupeGuard();
-        for (const evt of STREAM_EVENTS) {
-            const handler = (...args: any[]) => {
-                const data = buildEventData(evt, args);
-                if (dedupe(evt, data)) return;
-                const payload = { ...data, agent: agent.id };
-                try { res.write(formatSSE(evt, payload)); } catch { cleanup(); }
-            };
-            handlers.push({ event: evt, handler });
-            agent.on(evt, handler);
-        }
-
-        const ping = setInterval(() => {
-            try { res.write(":ping\n\n"); } catch { clearInterval(ping); cleanup(); }
-        }, 30_000);
-
-        res.on("close", () => { clearInterval(ping); cleanup(); });
-        return;
-    }
-
-    // ── Web API Response mode ──
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-        start(controller) {
-            controller.enqueue(encoder.encode(
-                formatSSE("connected", { agent: agent.id }),
-            ));
-
-            const dedupe = createDedupeGuard();
-            for (const evt of STREAM_EVENTS) {
-                const handler = (...args: any[]) => {
-                    const data = buildEventData(evt, args);
-                    if (dedupe(evt, data)) return;
-                    const payload = { ...data, agent: agent.id };
-                    try {
-                        controller.enqueue(encoder.encode(formatSSE(evt, payload)));
-                    } catch { cleanup(); }
-                };
-                handlers.push({ event: evt, handler });
-                agent.on(evt, handler);
-            }
-
-            const ping = setInterval(() => {
-                try { controller.enqueue(encoder.encode(":ping\n\n")); }
-                catch { clearInterval(ping); cleanup(); }
-            }, 30_000);
-            (controller as any)._pingTimer = ping;
-        },
-        cancel() {
-            const ping = (this as any)?._pingTimer;
-            if (ping) clearInterval(ping);
-            cleanup();
-        },
-    });
-
-    return new Response(stream, { headers: SSE_HEADERS });
 }
 
 // ─── Multi-agent stream ──────────────────────────────────────────────────

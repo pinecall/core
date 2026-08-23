@@ -91,6 +91,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`call.ask()` resolves the moment a key is pressed** and cancels the menu
   audio. It used to hand back the press only once the sentence had finished.
 
+### Removed
+
+**BREAKING — in-process event streaming is gone. The Call Log is the one way
+to observe a call.** `agent.stream()`, `agent.ws()` and the whole `EventStream`
+client existed to re-broadcast an agent's in-process event bus to a browser:
+they only ever saw the events that happened while the process was up, they had
+no seq, no resume and no replay, and every one of them died with the process.
+The Call Log gives all of that from the server, so the redundant half is
+removed rather than deprecated.
+
+- **`Agent.stream(res?)`** — the per-agent SSE re-broadcast.
+  Replacement: `pc.observe({ agent })` in Node, `observe()` / `useCall()` from
+  `@pinecall/web/log` in the browser.
+
+  ```ts
+  // before
+  app.get("/events", (req, res) => pines.stream(res));
+  // after
+  for await (const entry of pc.observe({ agent: "pines" })) send(entry);
+  ```
+
+- **`Agent.ws(socket, opts?)`** and **`createAgentWS`** (plus the types
+  `WSLike`, `WSStreamOptions`) — the WebSocket twin of `stream()`.
+  Replacement: the same. Observation never opens a WebSocket any more.
+
+  ```ts
+  // before
+  wss.on("connection", (ws) => pines.ws(ws));
+  // after
+  const obs = pc.observe({ agent: "pines" }); obs.on("entry", (e) => ws.send(JSON.stringify(e)));
+  ```
+
+- **`EventStream`, `createEventStream`** (plus the types `EventStreamOptions`,
+  `EventStreamStatus`) — the WebSocket client that connected to `/ws/stream`.
+  Replacement: `useCall()` / `observe()` from `@pinecall/web/log`, which read
+  the log over SSE and resume by seq.
+
+  ```ts
+  // before
+  const stream = createEventStream({ agent: "pines", tokenProvider }); stream.on("bot.word", …);
+  // after
+  const { state } = useCall({ agent: "pines", token }); // or observe({ agent: "pines" })
+  ```
+
+- The whole `src/stream/` module. `buildEventData` moved to `src/sse/` — it is
+  internal and stays there for `pc.stream()`, which is unaffected.
+
 ---
 
 ## [0.14.0] — 2026-08-22 — public browser channels
