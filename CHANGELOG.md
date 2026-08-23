@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **A phone line speaks the instant the call connects.** `extension.window`
+  now defaults to `0`: the silent post-dial window that collected `+1…,33`
+  digits is opt-in, for a switchboard that knowingly trades dead air for
+  extension dialling — never a default. Every line built on 0.13/0.14 had
+  2.5 s of silence before its first word unless it asked otherwise; that was
+  wrong, and it is what callers heard.
+- **`call.ask()` resolves the moment a key is pressed** and cancels the menu
+  audio. It used to hand back the press only once the sentence had finished.
+
 ---
 
 ## [0.14.0] — 2026-08-22 — public browser channels

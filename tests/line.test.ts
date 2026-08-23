@@ -87,7 +87,7 @@ afterEach(() => {
 // ─── Registration ────────────────────────────────────────────────────────
 
 describe("pc.line() — registration", () => {
-    it("sends line.create with the line's own pipeline and the extension window", async () => {
+    it("sends line.create with the line's own pipeline and NO extension window by default", async () => {
         const { pc, t } = await connectedClient();
         pc.line(NUMBER, { stt: "soniox", voice: "elevenlabs/sarah", language: "en" });
 
@@ -98,7 +98,7 @@ describe("pc.line() — registration", () => {
             stt: "soniox",
             voice: "elevenlabs/sarah",
             language: "en",
-            extension_window_ms: 2500,
+            extension_window_ms: 0,   // no silent window unless a line asks for one
         });
         // A line has no model — nothing model-shaped may ride the wire.
         expect(frame.config.llm).toBeUndefined();

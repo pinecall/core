@@ -68,16 +68,21 @@ try another) instead of the caller hearing a dead number.
 
 ## The three flows
 
-### (a) The caller dialled an extension
+**A line speaks the instant the call connects.** That is the default and it
+is the rule for anything a person calls: they expect a voice, not a guess
+that a digit is wanted. Flow (a) below is the one exception, and it is opt-in
+for a reason.
+
+### (a) The caller dialled an extension — a switchboard, opt-in
 
 A caller who already knows where they are going can carry the destination in
-the number itself. The line reads it off `call.extension` and routes without
-asking anything.
+the number itself (`+1 218 663 3772, 33`). The line reads it off
+`call.extension` and routes without asking anything.
 
 ```typescript
 const line = pc.line("+12186633772", {
   voice: "elevenlabs/sarah",
-  extension: { window: 2500 },   // ms of silence after connect to collect digits; 0 disables
+  extension: { window: 2500 },   // OPT-IN: 2.5 s of silence while the phone's digits arrive. See the cost below.
 });
 
 // Declarative: an agent slug, or code. Runs BEFORE `line.on("call")`,
@@ -127,19 +132,20 @@ people type it verbatim and it fails.
 
 #### The extension window, and its cost
 
-The window is the price of extensions. When the stream connects, the session
-stays **silent** for `extension.window` milliseconds (default **2500**) and
-collects whatever digits the caller's phone sends. Only then does `call` fire,
-with `call.extension` already resolved to `"33"` or `null`.
+There is **no window by default** (`extension.window` is `0`): the line
+speaks the moment the call connects. Setting a window buys extension dialling
+and costs exactly that much dead air for **every** caller, including the ones
+who dialled no extension — which on a front desk is all of them. So:
 
-- Digits inside the window become `call.extension`. They are **not** emitted as
-  `call.dtmf_received`.
-- Digits after the window are a menu answer (`listen` / `ask`) or a plain
-  keypress — never an extension.
-- A caller who dialled no extension hears **2.5 s of silence before the line
-  speaks**. That is the trade-off. A line that never uses extensions should set
-  `extension: { window: 0 }` and answer instantly.
-- SIP carries the extension in the URI user part, so it needs no window at all.
+- A **switchboard** people dial with `,33` may set `extension: { window: 2500 }`
+  (a dialer's comma pause is ~2 s). Digits inside the window become
+  `call.extension` and are not emitted as `call.dtmf_received`; `call` fires
+  when the window closes, or the instant `#` arrives.
+- A **front desk** — anything that greets — leaves it at `0`. A digit the
+  caller presses while the greeting plays is then simply a keypress for
+  `listen` / `ask`, which is what it should be.
+- SIP carries the extension in the URI user part, so it needs no window either
+  way.
 
 ### (b) A menu, answered by keypad *or* by voice
 
@@ -194,7 +200,6 @@ const HOURS = "We are open Monday to Friday, nine to six.";
 const line = pc.line(process.env.LINE_NUMBER!, {
   voice: "elevenlabs/sarah",
   language: "en",
-  extension: { window: 0 },      // no extensions on this line — answer immediately
 });
 
 line.on("call", async (call) => {
@@ -330,7 +335,7 @@ Rule of thumb: staying inside Pinecall with an AI on the other end →
 ```typescript
 line.on("ready", () => {});                      // the server registered the line; the number is ours
 line.on("error", (err) => err.code);             // LINE_CONFLICT | LINE_CONFIG_ERROR | PHONE_NOT_IN_ORG | UNAUTHORIZED
-line.on("call", async (call) => {});             // an inbound call, held for you (fires after the extension window)
+line.on("call", async (call) => {});             // an inbound call, held for you (at once — or after the opt-in extension window)
 line.on("call.ended", (call, reason) => {});     // reason is "routed" after a hand-over
 
 await line.ready;                                // resolves on line.created
@@ -341,7 +346,7 @@ line.calls;                                      // ReadonlyMap<string, LineCall
 The raw streams are still there when a flow is not request/response:
 
 ```typescript
-call.on("call.dtmf_received", (e) => e.digit);   // every press after the extension window
+call.on("call.dtmf_received", (e) => e.digit);   // every press (outside an opt-in extension window)
 call.on("turn.end", (turn) => turn.text);        // the caller's confirmed speech turns
 call.on("call.routed", (e) => e.agent);
 call.on("call.route_failed", (e) => e.reason);

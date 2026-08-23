@@ -45,17 +45,25 @@ export interface LineOptions {
     /** End-of-turn detection, passed through to the server untouched. */
     turnDetection?: string | Record<string, unknown>;
     /**
-     * The post-dial extension window: how long after connect the server
-     * collects the digits the caller's phone sent (`+1218…,,33`) before
-     * emitting `call.started`. `{ window: 0 }` disables it.
-     *
-     * Default 2500ms.
+     * Opt-in, and OFF by default: a post-dial extension window. For that many
+     * ms after connect the line stays SILENT and collects the digits a phone
+     * sends on its own when the caller dialled `+1218…,33` (the comma is a
+     * ~2 s pause, then `3 3` as keypad tones); `call.started` then carries
+     * them as `call.extension`. It costs every caller that much dead air, so
+     * it is for a line that knowingly wants extension dialling — a
+     * switchboard — never for a front desk, where the caller expects to hear
+     * a voice the instant the call connects.
      */
     extension?: { window: number };
 }
 
-/** Default extension window, in ms. §11.1. */
-export const DEFAULT_EXTENSION_WINDOW_MS = 2500;
+/**
+ * Default post-dial extension window, in ms: NONE. A caller who dials a number
+ * expects to hear something the instant it connects, not to guess that a digit
+ * is wanted. The window exists only for a line that knowingly trades silence
+ * for `+1…,10`-style extension dialling, and it must be asked for.
+ */
+export const DEFAULT_EXTENSION_WINDOW_MS = 0;
 
 /** Config keys that mean "a model" — a line has none of them. */
 const REFUSED_KEYS = ["llm", "prompt", "tools", "greeting"] as const;
