@@ -4,12 +4,14 @@
  * Business logic ported from client.ts:
  *   - PHONE_IN_USE: warn + remove channel from agent
  *   - AGENT_IN_USE: warn (agent removed by server)
+ *   - CALL_LOG_REJECTED: emit `log.rejected` on the call, then on client
  *   - All other errors: emit on client
  */
 
 import type { EventHandler, DispatchContext } from "../handler.js";
 import type { WireEvent } from "../../protocol/wire.js";
 import { ServerAtCapacityError } from "../../kernel/errors.js";
+import type { CallLogRejectedEvent } from "../../domain/call-events.js";
 
 export class ErrorHandler implements EventHandler {
     readonly events = ["error"] as const;
@@ -111,6 +113,31 @@ export class ErrorHandler implements EventHandler {
                     (holderAlive ? " (up to 10 min between attempts)" : " (stale registrations clear in ~1 min)") + `.\n` +
                     `    If another live instance owns it, run \x1b[96mpinecall kick ${agentId || "<agent>"}\x1b[0m.\n`,
                 );
+            }
+            ctx.emitClientEvent("error", new Error(errorMsg));
+            return true;
+        }
+
+        // CALL_LOG_REJECTED — a `call.log()` the server did not append (bad
+        // name, value too large, sealed call, over the durable cap, …). The
+        // frame carries `call_id`, so it also reaches the call itself as
+        // `log.rejected`; the client `error` below still fires, like every
+        // other call-verb refusal.
+        if (code === "CALL_LOG_REJECTED") {
+            const callId = wire.call_id as string | undefined;
+            if (callId) {
+                const event: CallLogRejectedEvent = {
+                    callId,
+                    reason: (wire.reason as string | undefined) ?? errorMsg.replace(/^call\.log:\s*/, ""),
+                    error: errorMsg,
+                };
+                let agent = wire.agent_id ? ctx.agent(wire.agent_id as string) : null;
+                if (!agent) {
+                    for (const a of ctx.allAgents()) {
+                        if (a._getCall(callId)) { agent = a; break; }
+                    }
+                }
+                agent?._getCall(callId)?._emitWire("log.rejected", event);
             }
             ctx.emitClientEvent("error", new Error(errorMsg));
             return true;

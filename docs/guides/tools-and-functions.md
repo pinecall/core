@@ -238,6 +238,43 @@ const bookAppointment = tool({
 });
 ```
 
+### Tell the dashboard
+
+A tool's side effect is usually something the people watching the call want to
+see *now* — not after the transcript mentions it. `call.log(name, value)`
+appends a durable `custom` entry to the [call log](/guides/call-log#custom-entries),
+visible to every observer (`useCall`, `GET /v1/calls/{id}/events`, SSE) and
+replayed on resume. Pass an `id` to make later entries *replace* the same row
+instead of adding a new one:
+
+```typescript
+const bookAppointment = tool({
+  name: "bookAppointment",
+  description: "Book an appointment in the doctor's calendar.",
+  schema: z.object({
+    datetime: z.string().describe("ISO 8601 datetime"),
+    patientName: z.string(),
+  }),
+  execute: async ({ datetime, patientName }, call) => {
+    call.log("booking", { status: "checking", datetime }, { id: "booking" });
+    const slot = await calendar.book({ start: new Date(datetime), patient: patientName });
+    call.log(
+      "booking",
+      slot.success
+        ? { status: "confirmed", datetime, confirmationId: slot.id }
+        : { status: "failed", reason: slot.conflictReason },
+      { id: "booking" },                 // same (name, id) → the row is updated
+    );
+    return slot.success ? { booked: true } : { booked: false, error: slot.conflictReason };
+  },
+});
+```
+
+The dashboard sees one `booking` row go `checking → confirmed`. Names are
+lowercase and dot-namespaced (`^[a-z0-9][a-z0-9._-]{0,63}$`), values are any
+JSON up to 16 KiB, and a refusal arrives as the call's `log.rejected` event —
+the full rules are in [Custom entries](/guides/call-log#custom-entries).
+
 ### End the call
 
 ```typescript

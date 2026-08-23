@@ -64,6 +64,13 @@ export interface CallEvents {
     "skill.loaded": (event: SkillEvent) => void;
     "skill.unloaded": (event: SkillEvent) => void;
     /**
+     * The server refused a `call.log()` entry (bad name, value too large, the
+     * call has ended, over the durable cap…). Nothing was appended. The same
+     * refusal also reaches the client-level `error` event, like every other
+     * call-verb refusal.
+     */
+    "log.rejected": (event: CallLogRejectedEvent) => void;
+    /**
      * The server is about to generate a reply and is HOLDING the turn open for
      * you. Refresh per-turn prompt variables here.
      *
@@ -100,6 +107,31 @@ export interface SkillEvent {
     skill: string;
     /** Who triggered it: "model" (loadSkill meta-tool) or "manual" (call.loadSkill). */
     by: "model" | "manual";
+}
+
+/** Payload of `log.rejected` — a `call.log()` the server did not append. */
+export interface CallLogRejectedEvent {
+    callId: string;
+    /** The server's reason, e.g. `"invalid name"`, `"value too large (N > 16384 bytes)"`, `"call has ended"`. */
+    reason: string;
+    /** The full message as the server worded it (`"call.log: <reason>"`). */
+    error: string;
+}
+
+// ─── Custom log entries ─────────────────────────────────────────────────
+
+export interface CallLogOptions {
+    /**
+     * Upsert key for observers' projection: a later entry with the same
+     * `(name, id)` replaces the value wholesale. Absent → every entry is its
+     * own row. Max 128 chars.
+     */
+    id?: string;
+    /**
+     * Live-only: fanned out to observers, never buffered, persisted or
+     * replayed, and never counted against the durable cap. Default `false`.
+     */
+    ephemeral?: boolean;
 }
 
 // ─── Reply options ───────────────────────────────────────────────────────

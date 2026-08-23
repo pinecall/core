@@ -16,7 +16,7 @@ import { Requester, REQUEST_TIMEOUT_MS } from "../kernel/requester.js";
 import { CallRequests } from "./call-requests.js";
 import { ReplyStream } from "./reply-stream.js";
 import type { Turn } from "./turn.js";
-import type { CallEvents } from "./call-events.js";
+import type { CallEvents, CallLogOptions } from "./call-events.js";
 import type { ReplyOptions, ForwardOptions } from "./call-events.js";
 import type {
     UserMessageEvent,
@@ -36,7 +36,7 @@ import type { HistoryStore } from "../history.js";
 // These types used to live in this file; index.ts (and every app) imports them
 // from here, so they keep travelling through it.
 export type { SSEResponse, StreamSSEOptions };
-export type { CallEvents, PreparingTimeoutEvent, SkillEvent, ReplyOptions, ForwardOptions } from "./call-events.js";
+export type { CallEvents, PreparingTimeoutEvent, SkillEvent, CallLogRejectedEvent, CallLogOptions, ReplyOptions, ForwardOptions } from "./call-events.js";
 export type { LineTranscriptEntry } from "../protocol/events.js";
 
 /**
@@ -433,6 +433,31 @@ export class Call extends TypedEventBus<CallEvents> {
     _setSkillActive(name: string, active: boolean): void {
         if (active) this.#activeSkills.add(name);
         else this.#activeSkills.delete(name);
+    }
+
+    // ── Custom log entries ─────────────────────────────────────────────
+
+    /**
+     * Append a custom entry to this call's log: `type: "custom"`,
+     * `data: { name, value, id?, turn }`. Durable by default — visible to every
+     * observer of the call (dashboards, `useCall`, `GET /v1/calls/{id}/events`,
+     * SSE) and replayed on resume; `ephemeral: true` fans it out live only.
+     * Reachable from a tool through its `call` parameter.
+     *
+     * Fire-and-forget: the server validates (`name` matches
+     * `^[a-z0-9][a-z0-9._-]{0,63}$`, `value` ≤ 16 KiB as JSON, `id` ≤ 128
+     * chars, ≤ 1000 durable entries per call, call still open) and a refusal
+     * arrives as the call's `log.rejected` event (and the client `error`).
+     */
+    log(name: string, value: unknown, opts?: CallLogOptions): void {
+        this.#send({
+            event: "call.log",
+            call_id: this.id,
+            name,
+            value,
+            ...(opts?.id !== undefined ? { id: opts.id } : {}),
+            ...(opts?.ephemeral ? { ephemeral: true } : {}),
+        });
     }
 
     // ── Hold / Mute ────────────────────────────────────────────────────

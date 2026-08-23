@@ -131,6 +131,126 @@ resume. Framework-free equivalents (`CallLogView`, `tail()`, `poll()`,
 For the full walk-through — a working app with a live phone-line dashboard —
 see [Build a live call app](/guides/build-a-live-call-app).
 
+## Custom entries
+
+The log is not only what the server observed — the agent can write into it.
+`call.log(name, value)` appends a durable entry of type `custom` to this call's
+log, visible to every observer (dashboards, `useCall`, `GET /v1/calls/{id}/events`,
+SSE) and replayed on resume, exactly like a transcript line:
+
+```typescript
+call.log("crm.lookup", { customer: "c_42", tier: "gold" });
+call.log("booking.slot", { when: "10:30", room: 2 }, { id: "booking" });   // upsert key
+call.log("progress", 0.4, { ephemeral: true });                           // live-only
+```
+
+Signature: `log(name: string, value: unknown, opts?: CallLogOptions): void`,
+with `CallLogOptions = { id?: string; ephemeral?: boolean }` (exported from
+`@pinecall/sdk`). It is reachable from a tool because `execute(args, call)`
+receives the `Call` — see
+[Tell the dashboard](/guides/tools-and-functions#tell-the-dashboard).
+
+The wire entry every observer sees:
+
+```json
+{ "seq": 57, "ts": 1786537601.02, "call": "CA…", "agent": "dental-desk",
+  "type": "custom", "ephemeral": false,
+  "data": { "name": "booking.slot", "value": { "when": "10:30", "room": 2 },
+            "id": "booking", "turn": 4 } }
+```
+
+- `data.name` / `data.value` — yours, opaque to the server and the reducer.
+- `data.id` — the upsert key, only if you passed one.
+- `data.turn` — stamped by the server: the call's current turn id. Present on
+  voice sessions (WebRTC, phone); absent on chat / WhatsApp, which have no turn
+  counter. `seq`, `ts` and `turn` cannot be forged by the caller.
+
+**The wire is append-only; the upsert is a projection.** Every `call.log()` is
+its own entry with its own `seq`. The reducer (`@pinecall/web/log`) folds
+durable `custom` entries into `state.custom` by `(name, id)`: a later entry with
+the same key replaces the row **wholesale** (`value`, `seq`, `ts`, `turn`);
+without `id` the key is the entry's own `seq`, so every entry is a new row.
+Rows keep first-seen order. Replay and late join converge on the same state
+because the replay *is* the same sequence of upserts.
+
+**Ephemeral entries** (`{ ephemeral: true }`) share the seq space and are fanned
+out live, but are never buffered, persisted or replayed, never enter
+`state.custom`, and never count against the durable cap — they reach
+`onEntry` / `onCustom` and nowhere else. Use them for progress and interim
+values; the durable entry that supersedes them should follow.
+
+**Limits (server-enforced).** A refused entry is never appended:
+
+| rule | limit |
+|---|---|
+| `name` | `^[a-z0-9][a-z0-9._-]{0,63}$` — lowercase, dot-namespaced like the vocabulary itself |
+| `value` | any JSON, ≤ 16384 bytes serialized |
+| `id` | non-empty string, ≤ 128 chars |
+| durable entries per call | 1000 — then refused; ephemeral ones never count and still pass |
+| the call | must be open (not ended), known to the server, and owned by the agent that calls `log()` |
+
+A refusal is a transport frame on the SDK socket, never a log entry:
+
+```json
+{ "event": "error", "code": "CALL_LOG_REJECTED", "call_id": "CA…",
+  "reason": "value too large (20481 > 16384 bytes)",
+  "error": "call.log: value too large (20481 > 16384 bytes)" }
+```
+
+`call.log()` itself is fire-and-forget (`void`). The SDK surfaces the refusal
+as the call's `log.rejected` event (`{ callId, reason, error }`) and, like every
+other call-verb refusal, as the client-level `error`:
+
+```typescript
+call.on("log.rejected", ({ reason }) => console.warn("call.log refused:", reason));
+```
+
+When a client lands with a `log.gap`, the gap snapshot carries the same fold:
+`data.snapshot.custom` is an array of `{ seq, ts, name, value, id?, turn? }`
+rows — the latest value per `(name, id)`, ephemerals excluded.
+
+### Reading them with a plain `EventSource`
+
+The `GET` cursor streams SSE when asked with `Accept: text/event-stream`, which
+`EventSource` sends by itself. Each entry's `event:` is its `type`, so custom
+entries are one listener away — no library:
+
+```html
+<script>
+  const es = new EventSource(
+    `${server}/v1/calls/${callId}/events?token=${token}&after=0`,
+  );
+  const latest = new Map();                 // (name/id) → value — the same upsert
+  es.addEventListener("custom", (e) => {
+    const entry = JSON.parse(e.data);       // the full envelope
+    if (entry.ephemeral) return;            // live-only; never state
+    const { name, value, id } = entry.data;
+    latest.set(`${name}/${id ?? entry.seq}`, value);
+    render(latest);
+  });
+  es.addEventListener("call.summary", () => es.close());
+</script>
+```
+
+Reconnects resume from the last `id:` (the `seq`) automatically via
+`Last-Event-ID`.
+
+### Reading them with `useCall`
+
+`useCall` exposes the projection as `s.custom` and every custom entry — durable
+or ephemeral — through `onCustom` (shapes from `@pinecall/web/log`; the hook
+options are coming in `@pinecall/web`):
+
+```tsx
+const s = useCall<{ "booking.slot": { when: string; room: number } }>({
+  call, token, server,
+  onCustom: (name, value, entry) => {
+    if (name === "booking.slot") toast(`Slot: ${value.when}`);   // value is typed
+  },
+});
+s.custom   // [{ name: "booking.slot", id: "booking", value: {…}, seq, ts, turn }]
+```
+
 ## Backend observation
 
 The same endpoints work from Node (or anything that speaks WS/HTTP). Mint a

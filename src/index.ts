@@ -69,7 +69,7 @@ export type {
 } from "./config/agent.js";
 
 export { Call } from "./domain/call.js";
-export type { CallEvents, CallInit, SayResult, LineTranscriptEntry, ReplyOptions, ForwardOptions, SSEResponse, StreamSSEOptions } from "./domain/call.js";
+export type { CallEvents, CallInit, SayResult, LineTranscriptEntry, ReplyOptions, ForwardOptions, CallLogOptions, CallLogRejectedEvent, SSEResponse, StreamSSEOptions } from "./domain/call.js";
 
 // Phone lines — a number you program, with no model behind it.
 export { PhoneLine, LineCall, DEFAULT_EXTENSION_WINDOW_MS } from "./domain/line.js";

@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still reduces to the live state. `fixtures/call-log-golden.json` grows five
   `custom` entries (50 entries now) exercising the upsert, the seq-keyed rows
   and the ephemeral rule.
+- **`call.log(name, value, { id?, ephemeral? })`** — the agent writes into
+  its own call log. Sends `{ event: "call.log", call_id, name, value, id?,
+  ephemeral? }`; the server appends a durable `custom` entry (`data: { name,
+  value, id?, turn }`, `turn` stamped server-side on voice sessions) that every
+  observer sees and that replays on resume. Reachable from a tool through its
+  `call` parameter. Fire-and-forget: a server refusal (`name` not matching
+  `^[a-z0-9][a-z0-9._-]{0,63}$`, `value` over 16 KiB as JSON, `id` over 128
+  chars, more than 1000 durable entries on one call, an ended / foreign /
+  unknown call) arrives as the new call event **`log.rejected`**
+  (`CallLogRejectedEvent { callId, reason, error }`) and, like every other
+  call-verb refusal, as the client-level `error`. New exported types
+  `CallLogOptions`, `CallLogRejectedEvent`. Docs: "Custom entries" in the call
+  log guide, "Tell the dashboard" in tools-and-functions.
 
 ### Changed
 - **A phone line speaks the instant the call connects.** `extension.window`
