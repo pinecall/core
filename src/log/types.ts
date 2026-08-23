@@ -27,6 +27,8 @@
  * reducer's switch is exhaustive over the known arms.
  */
 
+import type { LogGapSnapshot } from "./view.js";
+
 // ── §1 The envelope ──────────────────────────────────────────────────────
 
 /** Every fact a session produces becomes exactly one of these. */
@@ -235,7 +237,8 @@ export interface SupervisorData {
 export interface LogGapData {
     from: number;
     resume_from: number;
-    snapshot?: Record<string, unknown>;
+    /** Consolidated state — see `LogGapSnapshot` in view.ts for the exact keys. */
+    snapshot?: LogGapSnapshot;
 }
 
 /** `log.caught_up` (§5) — backlog drained, live entries follow. */

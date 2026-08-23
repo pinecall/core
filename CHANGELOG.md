@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`log.gap` hydration** (`@pinecall/sdk/log`). `CallLogView` now merges
+  `data.snapshot` into its state when a gap is declared, instead of only
+  recording it: `messages` by `seq` (bot bubbles by `id`), `tool_calls` by
+  `id`, `turns` by `turn` (field-merged), `custom` by `(name, id)` (higher
+  `seq` wins), and `phase` / `live` / `started_at` / `ended_reason` /
+  `user_speaking` / `bot_speaking` / `handoff` / `skills` / `sources` as
+  values — never replacing an array wholesale, so local-only rows survive.
+  `lastSeq` lands on `resume_from - 1` (the exclusive cursor), `gaps` is still
+  recorded and `caughtUp` cleared. The exact shape is the new `LogGapSnapshot`
+  type (`LogGapData.snapshot` is typed with it) and `snapshotOf(state)` builds
+  one from a state. Control markers no longer move the duration anchors (a
+  gap minted at wall-clock time must not stretch `duration`), and an
+  out-of-order rebuild re-steps every applied gap in place so the hydrated
+  stretch survives. Golden test: a replay cut by a gap carrying the snapshot
+  of the skipped prefix equals the full replay, for every cut.
 - **`custom` in the call-log vocabulary** (`@pinecall/sdk/log`). A new closed
   type `custom` with `data: { name, value, id?, turn? }` (`CustomData`) — the
   one open extension point of the log; the reducer never interprets `value`.

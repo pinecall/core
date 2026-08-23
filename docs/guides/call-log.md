@@ -57,6 +57,39 @@ Two control markers matter to clients:
   a state snapshot so the UI lands correct, not empty.
 - **`log.caught_up`** — the backlog is done; everything after this is live.
 
+### What a `log.gap` snapshot carries — and how the reducer lands it
+
+The reducer (`CallLogView`, `@pinecall/sdk/log`) **hydrates** from the gap:
+it records the gap in `state.gaps`, clears `caughtUp`, moves `lastSeq` to
+`resume_from - 1` (the cursor is exclusive — `after=lastSeq` resumes exactly at
+`resume_from`), and merges `data.snapshot` into the state it already has —
+**by key, never replacing an array wholesale** (`LogGapSnapshot`):
+
+| key | shape | merged by |
+|---|---|---|
+| `phase` | `"idle" \| "ringing" \| "listening" \| "thinking" \| "speaking" \| "ended"` | value |
+| `live` | boolean | value |
+| `started_at` | ts of `call.started` (the duration anchor) | value |
+| `ended_reason` | string, once `call.ended` folded | value |
+| `user_speaking` / `bot_speaking` | boolean | value |
+| `handoff` | `"none" \| "requested" \| "active"` | value |
+| `skills` / `sources` | `string[]` / the latest `docs.sources` | value |
+| `messages` | `CallMessage[]` — `{ seq, role, text, id?, interim?, speaking?, interrupted?, corrected?, toolCallId? }` | `seq` (bot bubbles by `id`); re-sorted by seq |
+| `tool_calls` | `CallToolCall[]` — `{ id, name, args, seq, done, result?, ms?, error? }` | `id` |
+| `turns` | `CallTurn[]` — `{ turn, role?, startedAt?, endedAt?, latency? }` | `turn`, field-merged |
+| `custom` | `CallCustomEntry[]` — `{ name, id, value, seq, ts, turn? }` | `(name, id)` — the higher `seq` wins |
+
+Every key is optional (absent → the local state is left alone) and unknown
+keys are ignored. A snapshot row replaces its local counterpart; rows the
+snapshot does not carry survive. The server folds the snapshot over every
+entry it can still see — the page it serves right after the gap included —
+and the merge is keyed the same way the reducer folds, so re-applying those
+entries on top is a no-op. Not carried: `metrics.summary`/`cost` (only
+`call.summary` sets them and it is never skipped — a sealed cursor answers
+`204`) and `intents`. `snapshotOf(state)` builds this shape from a state; the
+golden test asserts that a replay cut by a gap carrying the snapshot of the
+skipped prefix lands in the same state as the full replay, for every cut.
+
 ## Two logs: the call's and the agent's
 
 - A **call log** carries one conversation end to end — transcripts, tool calls,
@@ -206,8 +239,10 @@ call.on("log.rejected", ({ reason }) => console.warn("call.log refused:", reason
 ```
 
 When a client lands with a `log.gap`, the gap snapshot carries the same fold:
-`data.snapshot.custom` is an array of `{ seq, ts, name, value, id?, turn? }`
-rows — the latest value per `(name, id)`, ephemerals excluded.
+`data.snapshot.custom` is an array of `{ name, id, value, seq, ts, turn? }`
+rows — the latest value per `(name, id)`, ephemerals excluded — and the
+reducer merges them into `state.custom` by `(name, id)`, the higher `seq`
+winning (see "What a `log.gap` snapshot carries" above).
 
 ### Reading them with a plain `EventSource`
 

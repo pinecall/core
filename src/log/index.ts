@@ -72,6 +72,7 @@ export type {
     CallMetrics,
     CallIntent,
     CallCustomEntry,
+    LogGapSnapshot,
 } from "./view.js";
 
-export { CallLogView, createCallLogView } from "./view.js";
+export { CallLogView, createCallLogView, snapshotOf } from "./view.js";

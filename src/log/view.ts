@@ -203,6 +203,66 @@ function emptyState(): CallLogState {
     };
 }
 
+/**
+ * What a `log.gap` carries in `data.snapshot` — the consolidated state of
+ * everything the server could still see when it declared the gap, so a
+ * client lands with a populated view instead of an empty one (§3, ag-ui
+ * "For Pinecall" 5 and 9). This is the wire contract between
+ * `calls_api._snapshot()` and `CallLogView`: the server emits exactly these
+ * keys, the reducer hydrates exactly these fields.
+ *
+ * Rows reuse the reducer's own row types, so hydration is a keyed merge
+ * rather than a second fold: `messages` by `seq` (bot bubbles by `id`),
+ * `tool_calls` by `id`, `turns` by `turn`, `custom` by `(name, id)`.
+ * Scalars are values — the snapshot's word wins. Every key is optional: a
+ * missing key leaves the local state untouched, and an unknown key is
+ * ignored (§1 forward compatibility).
+ *
+ * Not carried, by design: `metrics.summary`/`cost` (only `call.summary` sets
+ * them, and it is never skipped — a sealed cursor answers 204), `intents`
+ * (transport asks, not call facts) and the `log.*` control state.
+ */
+export interface LogGapSnapshot {
+    phase?: CallPhase;
+    live?: boolean;
+    /** ts of `call.started` — the duration anchor. */
+    started_at?: number | null;
+    ended_reason?: string;
+    user_speaking?: boolean;
+    bot_speaking?: boolean;
+    handoff?: CallLogState["handoff"];
+    skills?: string[];
+    sources?: unknown[];
+    messages?: CallMessage[];
+    tool_calls?: CallToolCall[];
+    turns?: CallTurn[];
+    custom?: CallCustomEntry[];
+}
+
+/**
+ * Project a state into the snapshot a `log.gap` would carry for it — the
+ * inverse of hydration. The golden test feeds `snapshotOf(prefix)` into a
+ * gap and asserts the result equals the full replay; a server that wants
+ * to mint gaps against a TS reducer can use it directly.
+ */
+export function snapshotOf(state: Readonly<CallLogState>, startedAt: number | null = null): LogGapSnapshot {
+    return {
+        phase: state.phase,
+        live: state.live,
+        started_at: startedAt,
+        ...(state.endedReason !== undefined ? { ended_reason: state.endedReason } : {}),
+        user_speaking: state.userSpeaking,
+        bot_speaking: state.botSpeaking,
+        handoff: state.handoff,
+        skills: [...state.skills],
+        sources: [...state.sources],
+        messages: state.messages.map((m) => ({ ...m })),
+        tool_calls: state.toolCalls.map((t) => ({ ...t })),
+        turns: state.turns.map((t) => ({ ...t })),
+        custom: state.custom.map((c) => ({ ...c })),
+    };
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -281,6 +341,19 @@ function parseResult(result: unknown): unknown {
     }
 }
 
+const PHASES: ReadonlySet<string> = new Set(["idle", "ringing", "listening", "thinking", "speaking", "ended"]);
+const HANDOFFS: ReadonlySet<string> = new Set(["none", "requested", "active"]);
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+    return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Rows of a snapshot array that are at least objects; anything else is ignored (§1). */
+function rows<T>(v: unknown, ok: (r: Record<string, unknown>) => boolean): T[] {
+    if (!Array.isArray(v)) return [];
+    return v.filter((r): r is Record<string, unknown> => isRecord(r) && ok(r)) as unknown as T[];
+}
+
 // ── The reducer ──────────────────────────────────────────────────────────
 
 /** Mutable scratch carried across the fold — never part of the public state. */
@@ -328,6 +401,13 @@ export class CallLogView {
     #state: CallLogState = emptyState();
     #ctx: FoldContext = emptyContext();
     #maxSeq = -1;
+    /**
+     * Every `log.gap` applied, in arrival order. Markers are never stored in
+     * `#entries` (§5), but a gap HYDRATES — so an out-of-order rebuild must
+     * re-step each gap at its place in the seq order or the hydrated stretch
+     * would evaporate.
+     */
+    #gaps: KnownLogEntry[] = [];
     #listeners = new Set<(state: CallLogState) => void>();
 
     /**
@@ -387,6 +467,7 @@ export class CallLogView {
         // them would poison entries(), which is the resume payload. Dispatch
         // immediately; never store, never advance the cursor.
         if (entry.type === "log.caught_up" || entry.type === "log.gap") {
+            if (entry.type === "log.gap") this.#gaps.push(entry);
             this.#state = {
                 ...this.#state,
                 messages: [...this.#state.messages],
@@ -443,6 +524,7 @@ export class CallLogView {
         this.#state = emptyState();
         this.#ctx = emptyContext();
         this.#maxSeq = -1;
+        this.#gaps = [];
         for (const fn of this.#listeners) fn(this.#state);
     }
 
@@ -458,13 +540,22 @@ export class CallLogView {
     #rebuild(): void {
         const state = emptyState();
         const ctx = emptyContext();
-        for (const entry of this.entries()) this.#step(state, ctx, entry);
+        // Gaps are re-stepped in seq order, interleaved with the entries: a
+        // gap's seq sits right before the first entry it resumes at, so
+        // everything at or below it folds first, then the snapshot lands,
+        // then the rest — the order the transport delivered.
+        const gaps = [...this.#gaps].sort((a, b) => a.seq - b.seq);
+        let g = 0;
+        for (const entry of this.entries()) {
+            while (g < gaps.length && gaps[g]!.seq < entry.seq) this.#step(state, ctx, gaps[g++]!);
+            this.#step(state, ctx, entry);
+        }
+        while (g < gaps.length) this.#step(state, ctx, gaps[g++]!);
         this.#finish(state, ctx);
-        // Control-frame state (§5) is a TRANSPORT signal, not a log fact:
-        // markers are never stored, so a rebuild cannot re-derive them.
-        // Carry the transport's last word across.
+        // Caught-up is a TRANSPORT signal, not a log fact: the marker is never
+        // stored, so a rebuild cannot re-derive it. Carry the transport's
+        // last word across.
         state.caughtUp = this.#state.caughtUp;
-        state.gaps = this.#state.gaps;
         this.#state = state;
         this.#ctx = ctx;
     }
@@ -491,8 +582,13 @@ export class CallLogView {
         state.lastSeq = Math.max(state.lastSeq, entry.seq);
         if (entry.call && !state.call) state.call = entry.call;
         if (entry.agent && !state.agent) state.agent = entry.agent;
-        if (ctx.startTs === null) ctx.startTs = entry.ts;
-        ctx.lastTs = ctx.lastTs === null ? entry.ts : Math.max(ctx.lastTs, entry.ts);
+        // Control markers are minted by the transport at wall-clock time —
+        // they say nothing about when the call happened, so they never move
+        // the duration anchors (correction #3).
+        if (entry.type !== "log.caught_up" && entry.type !== "log.gap") {
+            if (ctx.startTs === null) ctx.startTs = entry.ts;
+            ctx.lastTs = ctx.lastTs === null ? entry.ts : Math.max(ctx.lastTs, entry.ts);
+        }
 
         const messages = state.messages;
 
@@ -683,6 +779,11 @@ export class CallLogView {
 
             case "turn.end": {
                 const i = ctx.turnIndex.get(entry.data.turn);
+                // A hydrated turn may already carry an e2e (the gap snapshot
+                // folds the entries it is served with): retire it before the
+                // entry's own counts, so re-application never double-counts.
+                const prev = i !== undefined ? state.turns[i]!.latency?.e2e : undefined;
+                if (typeof prev === "number") { ctx.e2eSum -= prev; ctx.e2eN -= 1; }
                 if (i === undefined) {
                     ctx.turnIndex.set(entry.data.turn, state.turns.length);
                     state.turns.push({
@@ -793,12 +894,16 @@ export class CallLogView {
 
             case "supervisor.said":
             case "supervisor.whispered":
-                messages.push({
-                    seq: entry.seq,
-                    role: "system",
-                    text: entry.data.text,
-                });
-                this.#reindex(ctx, messages);
+                // A gap snapshot may already carry this line (its fold covers
+                // the entries it is served with) — keyed by seq, once.
+                if (!ctx.bySeq.has(entry.seq)) {
+                    messages.push({
+                        seq: entry.seq,
+                        role: "system",
+                        text: entry.data.text,
+                    });
+                    this.#reindex(ctx, messages);
+                }
                 break;
 
             // ── Log control ──
@@ -807,11 +912,19 @@ export class CallLogView {
                 break;
 
             case "log.gap":
+                // §3: declare the gap, land the snapshot, move the cursor.
+                // `after=` is exclusive (seq > after), so the cursor that
+                // resumes AT resume_from is resume_from - 1 — the seq the
+                // server stamps on the marker itself.
                 state.gaps = [
                     ...state.gaps,
                     { from: entry.data.from, resumeFrom: entry.data.resume_from },
                 ];
                 state.caughtUp = false;
+                state.lastSeq = Math.max(state.lastSeq, entry.data.resume_from - 1);
+                if (isRecord(entry.data.snapshot)) {
+                    this.#hydrate(state, ctx, entry.data.snapshot as LogGapSnapshot);
+                }
                 break;
 
             // ── Custom entries (`call.log()`) ──
@@ -847,6 +960,108 @@ export class CallLogView {
                 // Exhaustiveness: adding a §2 type without a case fails to compile.
                 const _never: never = entry;
                 void _never;
+            }
+        }
+    }
+
+    /**
+     * Merge a `log.gap` snapshot into `state` (ag-ui "For Pinecall" 9:
+     * MESSAGES_SNAPSHOT's rule — merge by id, never wipe).
+     *
+     *   - `messages`: keyed by `seq` (bot bubbles by `id`). A snapshot row
+     *     REPLACES its local counterpart and a new one is inserted; local-only
+     *     rows survive. Result is re-sorted by seq — the order the fold would
+     *     have produced.
+     *   - `tool_calls`: keyed by `id`, same rule, sorted by seq.
+     *   - `turns`: keyed by `turn`, field-merged (`{...local, ...row}`) so a
+     *     `turn.end` already folded locally is not lost to a snapshot that
+     *     only saw the `turn.start`. Latency sums are recomputed from the
+     *     merged turns.
+     *   - `custom`: keyed by `(name, id)`; the row with the HIGHER seq wins —
+     *     the one rule the upsert already has. First-seen order kept, new
+     *     keys appended.
+     *   - scalars (`phase`, `live`, `started_at`, `ended_reason`,
+     *     `user_speaking`, `bot_speaking`, `handoff`, `skills`, `sources`):
+     *     values — present wins, absent leaves local alone.
+     *
+     * Re-applying the entries the snapshot was folded from is a no-op for
+     * what it carried: every case in `#step` is keyed the same way.
+     */
+    #hydrate(state: CallLogState, ctx: FoldContext, snap: LogGapSnapshot): void {
+        if (typeof snap.phase === "string" && PHASES.has(snap.phase)) state.phase = snap.phase;
+        if (typeof snap.live === "boolean") state.live = snap.live;
+        if (typeof snap.started_at === "number") ctx.startTs = snap.started_at;
+        if (typeof snap.ended_reason === "string") state.endedReason = snap.ended_reason;
+        if (typeof snap.user_speaking === "boolean") state.userSpeaking = snap.user_speaking;
+        if (typeof snap.bot_speaking === "boolean") state.botSpeaking = snap.bot_speaking;
+        if (typeof snap.handoff === "string" && HANDOFFS.has(snap.handoff)) state.handoff = snap.handoff;
+        if (Array.isArray(snap.skills)) state.skills = snap.skills.filter((x) => typeof x === "string");
+        if (Array.isArray(snap.sources)) state.sources = [...snap.sources];
+
+        const msgRows = rows<CallMessage>(snap.messages, (r) => typeof r.seq === "number" && typeof r.role === "string");
+        if (msgRows.length) {
+            const messages = state.messages;
+            for (const r of msgRows) {
+                const row: CallMessage = { ...r, text: typeof r.text === "string" ? r.text : "" };
+                const idx = row.role === "bot" && row.id !== undefined
+                    ? ctx.botIndex.get(row.id) ?? ctx.bySeq.get(row.seq)
+                    : ctx.bySeq.get(row.seq);
+                if (idx === undefined) messages.push(row);
+                else messages[idx] = row;
+                this.#reindex(ctx, messages);
+            }
+            messages.sort((a, b) => a.seq - b.seq);
+            this.#reindex(ctx, messages);
+        }
+
+        const toolRows = rows<CallToolCall>(snap.tool_calls, (r) => typeof r.id === "string" && typeof r.seq === "number");
+        if (toolRows.length) {
+            for (const r of toolRows) {
+                const row: CallToolCall = {
+                    ...r,
+                    name: typeof r.name === "string" ? r.name : "",
+                    args: isRecord(r.args) ? r.args : {},
+                    done: r.done === true,
+                };
+                const i = ctx.toolIndex.get(row.id);
+                if (i === undefined) state.toolCalls.push(row);
+                else state.toolCalls[i] = row;
+                ctx.toolIndex.set(row.id, state.toolCalls.length - 1);
+            }
+            state.toolCalls.sort((a, b) => a.seq - b.seq);
+            ctx.toolIndex.clear();
+            state.toolCalls.forEach((t, i) => ctx.toolIndex.set(t.id, i));
+        }
+
+        const turnRows = rows<CallTurn>(snap.turns, (r) => typeof r.turn === "number");
+        if (turnRows.length) {
+            for (const r of turnRows) {
+                const i = ctx.turnIndex.get(r.turn);
+                if (i === undefined) state.turns.push({ ...r });
+                else state.turns[i] = { ...state.turns[i]!, ...r };
+                ctx.turnIndex.set(r.turn, i ?? state.turns.length - 1);
+            }
+            state.turns.sort((a, b) => a.turn - b.turn);
+            ctx.turnIndex.clear();
+            ctx.e2eSum = 0;
+            ctx.e2eN = 0;
+            state.turns.forEach((t, i) => {
+                ctx.turnIndex.set(t.turn, i);
+                if (typeof t.latency?.e2e === "number") { ctx.e2eSum += t.latency.e2e; ctx.e2eN += 1; }
+            });
+        }
+
+        const customRows = rows<CallCustomEntry>(snap.custom, (r) => typeof r.name === "string" && typeof r.seq === "number");
+        for (const r of customRows) {
+            const id = r.id !== undefined && r.id !== null ? String(r.id) : String(r.seq);
+            const row: CallCustomEntry = { ...r, id };
+            const key = `${row.name}/${id}`;
+            const i = ctx.customIndex.get(key);
+            if (i === undefined) {
+                ctx.customIndex.set(key, state.custom.length);
+                state.custom.push(row);
+            } else if (row.seq >= state.custom[i]!.seq) {
+                state.custom[i] = row;
             }
         }
     }
