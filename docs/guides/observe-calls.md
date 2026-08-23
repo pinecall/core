@@ -18,7 +18,7 @@ There is **one** way to watch a Pinecall call, and it is a read:
 ```
 
 - **The agent writes.** Everything the session observes is appended for you;
-  `call.log(name, value)` is how *your* facts get in ([Custom entries](/guides/call-log#custom-entries)).
+  `call.log(name, value)` is how *your* facts get in ([Custom entries](/guides/call-log#custom-entries-writing-your-own-facts-with-calllog)).
 - **The log stamps.** One fact = one entry = one monotonic `seq`, per call.
   `seq` is the cursor, the dedupe key and the resume key, all at once.
 - **Anybody reads.** Live tail, late join, reconnect, replay and history are the
@@ -166,7 +166,7 @@ pipe) and `close()`; `useCall` also returns `send(verb)`.
 > so declare all three parameters — `(name, value, _entry) => …`. Drop
 > `_entry` and `value` silently widens back to `unknown`.
 
-## 3. From Node / your backend
+## 3. From Node — your backend, a worker, a CLI (`pc.observe()`)
 
 `pc.observe()` is the same reader, server-side. It opens the same `GET` with
 `Accept: text/event-stream`, feeds the **same** `CallLogView` reducer, and gives

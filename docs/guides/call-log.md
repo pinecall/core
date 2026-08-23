@@ -83,7 +83,7 @@ The reducer does this for you; a hand-written consumer must too.
 | `supervisor.said` / `supervisor.whispered` | `{ text, by }` | audit trail of the supervise verbs |
 | `log.gap` | `{ from, resume_from, snapshot? }` | a control marker — see below |
 | `log.caught_up` | `{ seq }` | a control marker — see below |
-| `custom` | `{ name, value, id?, turn? }` | what `call.log()` wrote — see [Custom entries](#custom-entries) |
+| `custom` | `{ name, value, id?, turn? }` | what `call.log()` wrote — see [Custom entries](#custom-entries-writing-your-own-facts-with-calllog) |
 
 The exact same list is exported as `LOG_EVENT_TYPES` from `@pinecall/sdk/log`
 and `@pinecall/web/log`.
@@ -259,12 +259,14 @@ cannot set headers. A Pinecall API key works too, server-side. **A WebRTC
 token (`wrt_`) is refused**: it is single-use, and validating it here would
 consume the media connection it was minted for.
 
-## Custom entries
+## Custom entries: writing your own facts with `call.log()`
 
-The log is not only what the server observed — the agent can write into it.
-`call.log(name, value)` appends a durable entry of type `custom` to this call's
-log, visible to every observer and replayed on resume, exactly like a transcript
-line:
+The log is not only what the server observed — **your agent can write into it**,
+from a tool or from any event handler that has the `Call`. `call.log(name,
+value)` appends a durable entry of type `custom` to this call's log, visible to
+every observer and replayed on resume, exactly like a transcript line. This is
+how a booking, a CRM lookup, a risk score or a payment reference ends up in the
+same ordered stream as the transcript, with a `seq` of its own:
 
 ```typescript
 call.log("crm.lookup", { customer: "c_42", tier: "gold" });

@@ -242,7 +242,7 @@ const bookAppointment = tool({
 
 A tool's side effect is usually something the people watching the call want to
 see *now* — not after the transcript mentions it. `call.log(name, value)`
-appends a durable `custom` entry to the [call log](/guides/call-log#custom-entries),
+appends a durable `custom` entry to the [call log](/guides/call-log#custom-entries-writing-your-own-facts-with-calllog),
 visible to every observer (`useCall`, `GET /v1/calls/{id}/events`, SSE) and
 replayed on resume. Pass an `id` to make later entries *replace* the same row
 instead of adding a new one:
@@ -273,7 +273,7 @@ const bookAppointment = tool({
 The dashboard sees one `booking` row go `checking → confirmed`. Names are
 lowercase and dot-namespaced (`^[a-z0-9][a-z0-9._-]{0,63}$`), values are any
 JSON up to 16 KiB, and a refusal arrives as the call's `log.rejected` event —
-the full rules are in [Custom entries](/guides/call-log#custom-entries).
+the full rules are in [Custom entries](/guides/call-log#custom-entries-writing-your-own-facts-with-calllog).
 
 ### End the call
 
