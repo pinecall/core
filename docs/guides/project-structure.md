@@ -1,148 +1,164 @@
 ---
 title: "Project Structure"
-description: "The recommended layout for a Pinecall app — one process per agent, token endpoints beside the agent, shared domain in packages/."
+description: "How to lay out a Pinecall app so it reads like a system diagram — the business, the storage, the agent, the web — and when to split it into several processes."
 ---
 
 # Project Structure
 
-There is one layout that keeps working as a Pinecall app grows, and this is it.
-It is opinionated on purpose: **one process per agent**, the token endpoint next
-to the agent that mints for, and everything your agent's tools actually *do*
-extracted into a plain package with no Pinecall import in it.
+A Pinecall app is four things, and the folders should say so: **the business**
+(your rules), **the storage** (how they persist), **the agent** (the voice), and
+**the web** (pages and JSON, if you have any). Name the folders after those
+nouns, keep the dependency arrows pointing inward, and the code reads like the
+diagram. This is the layout of
+[`dental-desk`](/tutorial/configurable-agent), the reference app, and it is what
+we recommend you start with — one process, one repo.
 
 ```
 my-app/
-├── apps/
-│   ├── agents/
-│   │   ├── support/
-│   │   │   ├── index.mjs          # pc.agent("support", {...}) — the whole agent
-│   │   │   ├── tools.mjs          # tool() definitions, thin: they call packages/
-│   │   │   ├── token.mjs          # GET /token — mints wrt_/cht_ for the browser
-│   │   │   ├── specs/             # pinecall test specs (YAML)
-│   │   │   │   ├── greeting.spec.yaml
-│   │   │   │   └── refund.spec.yaml
-│   │   │   ├── package.json       # start / dev / test
-│   │   │   └── .env               # PINECALL_API_KEY — and nothing else
-│   │   └── outbound/              # a second agent = a second folder, same shape
-│   │       └── …
-│   └── web/                       # your site or dashboard — separate deployable
-│       └── …
-├── packages/
-│   └── domain/                    # orders, customers, the DB. No @pinecall import.
-│       ├── src/
-│       └── package.json
-└── package.json                   # workspaces: ["apps/*/*", "packages/*"]
+├── src/
+│   ├── clinic/          the BUSINESS — pure rules, zero I/O, zero framework
+│   │   ├── appointments.ts    availability(), book()
+│   │   ├── settings.ts        defaults + apply()
+│   │   ├── calls.ts           the call log
+│   │   └── events.ts          the ONE typed catalogue of events
+│   ├── storage/         HOW it persists — Store (interface), JsonStore, MemoryStore
+│   │   └── index.ts           the composition root: the store, and the rules bound to it
+│   ├── agent/           the VOICE AGENT — prompt.ts · tools.ts · config.ts · wire.ts
+│   ├── web/             the UI — routes.ts · routes/{settings,calls,api/*} · components/ · hooks/
+│   ├── bus.ts           the typed emitter over clinic/events
+│   ├── config.ts        SLUG, PHONE, DB_FILE, PORT — one place
+│   └── server.ts        THE process: config → storage → agent → web handler → listen
+├── server.js            six lines: dev → Vite, prod → build/
+├── .env                 PINECALL_API_KEY — and nothing else
+└── package.json
 ```
 
-## The rules, and why
+Call `clinic/` whatever your business is — `orders/`, `fleet/`, `patients/`.
+The other three names stay.
 
-### One folder per agent, one process per agent
+## The rule: arrows point inward
 
-An agent is a Node process holding a WebSocket. Two agents in one process share
-a crash, a deploy, and a restart. `apps/agents/<name>/` with its own
-`package.json` means `npm start` runs exactly one agent and nothing else, and
-you can move that folder to its own container the day traffic asks you to. This
-is the **standalone** topology from
-[Deployment Topologies](/concepts/deployment-topologies) — start here even when
-you have one agent, because splitting later is a migration and starting split is
-free.
-
-### `.env` holds `PINECALL_API_KEY` and nothing else
-
-Everything about the agent — model, voice, STT, phone number, greeting, prompt —
-belongs in `index.mjs`, where it is diffable and reviewable. The env file exists
-because a credential cannot be committed. If your `.env` grows a second row of
-agent config, that config has escaped code review.
-
-The one legitimate second variable is the **environment split**:
-
-```js
-// index.mjs
-const slug = process.env.PINECALL_AGENT_SLUG
-  ?? (process.env.PINECALL_MODE === "dev" ? "dev-support" : "support");
-
-export const agent = pc.agent(slug, { /* … */ });
+```
+web  ──►  agent  ──►  clinic  ──►  storage (the interface)
 ```
 
-`pc.agent()` **hot-reloads the live agent**. Running the file locally with a
-production key retargets production. The dev slug is what makes `npm run dev`
-safe to hammer — see [Dev Mode](/guides/dev-mode).
+- `clinic/` imports nothing outside itself. It is handed a `Store`; it never
+  picks one. You can test it with a list in your hand.
+- `storage/` implements the interface. Its `index.ts` is the one place an arrow
+  points back out — somebody has to bind the rules to a store — and it says so.
+- `agent/` imports `clinic/` and `storage/`. It never imports `web/`, React or
+  React Router; it must run from a test or a cron with no web app around.
+- `web/` may import anything. It is the outermost ring.
 
-```json
-{
-  "scripts": {
-    "start": "node index.mjs",
-    "dev": "PINECALL_MODE=dev pinecall run index.mjs",
-    "test": "pinecall test specs --agent dev-support"
+**Enforce it.** A boundary that is only a convention breaks the first time
+somebody is in a hurry — in `dental-desk` the agent ended up importing three
+models and the bus out of the framework's folder, and nobody noticed because
+nothing was watching. One ESLint `no-restricted-imports` rule per folder turns
+the arrow into a build failure. Keep the lint to that one thing: a lint that
+reports forty opinions is a lint people stop reading.
+
+## The rules inside the folders
+
+### The business returns; the caller announces
+
+```ts
+// src/clinic/appointments.ts — pure. No disk, no bus, no clock it does not own.
+export function book(appointments: readonly AppointmentRow[], input: NewAppointment): AppointmentRow {
+  if (!availability(appointments, input.date).slots.includes(input.time)) {
+    throw new Error(`${input.date} ${input.time} is not available`);
   }
+  return { ...input, reference: reference(input.date, input.time) };
 }
 ```
 
-### The token endpoint lives beside its agent
+`book()` does not emit an event. The route that booked, or the tool that
+booked, is the one that tells the world — the rules do not know a bus exists.
+That is what keeps them testable in one hand.
 
-Browser channels (WebRTC, chat) connect **straight** to `voice.pinecall.io`; the
-only thing your backend does is mint a short-lived token. Keep that route in the
-agent folder — `token.mjs` — because it is the one piece of HTTP that must agree
-with this agent's slug and metadata. Putting it in `apps/web/` means every slug
-rename becomes a two-repo change, and the API key ends up in the web app's env
-instead of the agent's.
+### One typed catalogue of events
 
-See [WebRTC in the Browser](/guides/webrtc-browser) and
-[Token Metadata](/guides/token-metadata) — sealed metadata is how the logged-in
-user's identity reaches the agent without the browser being able to forge it.
-
-### `specs/` next to the code it tests
-
-`pinecall test specs/` is the regression suite for a prompt. Prompts drift the
-way code drifts; the specs belong in the same folder and the same commit as the
-prompt they pin. See [Testing Agents](/guides/testing-agents).
-
-### `packages/` for the domain, and no Pinecall import in it
-
-A tool should be five lines:
-
-```js
-// apps/agents/support/tools.mjs
-import { tool } from "@pinecall/sdk";
-import { z } from "zod";
-import { findOrder } from "@my-app/domain";
-
-export const lookupOrder = tool({
-  name: "lookupOrder",
-  description: "Look up an order by its number.",
-  schema: z.object({ orderNumber: z.string() }),
-  execute: ({ orderNumber }) => findOrder(orderNumber),
-});
+```ts
+// src/clinic/events.ts — the only place an event is declared
+export type Events = {
+  "settings":     SettingsRow;
+  "appointment":  AppointmentRow;
+  "call.started": CallRow;
+  "transcript":   { id: string } & Line;
+};
 ```
 
-`findOrder` knows about your database. It does not know it is being called by a
-voice agent, so `apps/web/` can call it too, and you can unit-test it without a
-call in flight. When a tool's `execute` grows a query builder, that query builder
-has landed in the wrong package.
+The bus is typed over it, the SSE route iterates its keys, the browser types
+its payloads. Adding an event is one line in one file, and a typo is a compile
+error instead of a silent listener.
 
-### The web app is a separate deployable
+### Storage: the truth in memory, written atomically
 
-`apps/web/` talks to the agent through the token endpoint and through your own
-API — never by importing the agent module. That is what lets you deploy the site
-without dropping calls in flight.
+Load once at boot, keep the truth in memory, serialise writes through a queue,
+write `tmp` then `rename` (atomic on POSIX), debounce the chatty writes and
+flush on `call.ended` and on `SIGTERM`. A read-modify-write against the file on
+every event is how you lose the last quarter second of a call on shutdown. A
+`Store` interface is what lets `JsonStore` become SQLite in one file when a
+second process needs the data.
 
-## Scaling this shape
+### The agent: wiring receives its collaborators
 
-- **A second agent** — a second folder under `apps/agents/`. Same shape, its own
-  `.env`, its own process.
-- **Many customers, one agent** — do *not* fork the folder per tenant. One agent,
-  per-session identity via sealed token metadata:
-  [Multi-Tenant Dashboards](/guides/multi-tenant).
-- **A single-purpose phone or WhatsApp bot** — you can drop `apps/web/` entirely.
-  That is the *headless* topology, and this layout collapses into it cleanly.
-- **You need SSE dashboards from the agent process** — that is the *embedded*
-  topology: the agent moves into `apps/web/`. It is the one case where merging
-  the two is right, and the tradeoff is in
-  [Deployment Topologies](/concepts/deployment-topologies).
+```ts
+// src/agent/wire.ts — SDK events → the business + the bus
+export function wire(agent: Agent, { bus, log, flush }: Deps) { /* … */ }
+```
+
+`wire()` is passed the bus and the logger; it does not import them. That is the
+difference between "given `bot.finished`, exactly one transcript line is
+written" being a unit test and being a live call.
+
+### `.env` holds `PINECALL_API_KEY`, and nothing else
+
+Everything about the agent — model, voice, STT, greeting, phone number — lives
+in `src/agent/config.ts` and `src/config.ts`, where it is diffable and reviewed.
+The env file exists because a credential cannot be committed. If `.env` grows a
+second row of agent config, that config has escaped code review.
+
+The one legitimate second variable is the **dev slug**: `pc.agent()` hot-reloads
+the live agent, so running the file locally against a production key retargets
+production. `DENTAL_DESK_SLUG=dev-me npm run dev` — and empty `PHONE` with it, or
+your laptop takes the production number. See [Dev Mode](/guides/dev-mode).
+
+### Phone lines live with the agent
+
+A [phone line](/guides/phone-lines) — `pc.line()`, the number that answers with
+code before any agent — is part of the voice layer, not the web layer:
+`src/agent/line.ts` (or `src/lines/` when there are several). It reads the same
+`config.ts` and hands calls to the agent in the same process.
+
+### The token route is a web route
+
+The browser connects straight to `voice.pinecall.io`; the only thing your
+backend does is mint a short-lived token. In one process that is
+`src/web/routes/api/token.ts`, reading `SLUG` from `src/config.ts` so a slug
+rename is one edit. When the agent becomes its own process (below), the token
+route moves with the agent — it is the one piece of HTTP that must agree with
+the agent's slug and hold the API key.
+
+## When one process stops being enough
+
+Start with one process. Split when one of these is true, not before:
+
+| signal | what to do |
+|---|---|
+| The web and the agent deploy on different cadences, and a web deploy dropping calls in flight is a real cost | The agent becomes its own process: `apps/agent/` and `apps/web/`, with `src/clinic` + `src/storage` promoted to `packages/<domain>/` that both import. The token route goes with the agent. |
+| You have several agents with nothing in common but the SDK | One folder per agent under `apps/`, one process each — two agents in one process share a crash, a deploy and a restart. |
+| Another service needs the data | `storage/` swaps `JsonStore` for a real database behind the same `Store` interface. |
+
+Because the folders are already the nouns, this is a move, not a rewrite:
+`clinic/` + `storage/` become the package, `agent/` and `web/` become the apps.
+A monorepo for 47 files is ceremony; a monorepo for two deployables is the
+right tool. See [Deployment Topologies](/concepts/deployment-topologies) for
+the trade-offs of each shape.
 
 ## What's next
 
-- [Quickstart](/quickstart) — the smallest working agent
-- [Deployment Topologies](/concepts/deployment-topologies) — embedded vs standalone vs headless
+- [An agent your customer can configure](/tutorial/configurable-agent) — the
+  reference app, built in this shape
+- [Phone lines](/guides/phone-lines) — the number that answers with code
 - [Dev Mode](/guides/dev-mode) — prod and dev agents on the same number
-- [Testing Agents](/guides/testing-agents) — the specs folder in anger
+- [Deployment Topologies](/concepts/deployment-topologies) — embedded, standalone, headless
