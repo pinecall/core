@@ -9,9 +9,10 @@
  * `agent.resume()` hands it back — with everything the human said already in
  * the context, so the agent does not contradict them.
  *
- * `agent.stream(res)` is the other half: point an SSE response at it and the
- * browser sees every message, pause and resume as it happens. The dashboard in
- * client/ is a single React component reading that stream.
+ * Watching is the other half, and this server does none of it: it mints a
+ * read-only Call Log token (`createToken("stream", { scope: "observe" })`) and
+ * the dashboard in client/ reads the log straight from Pinecall over SSE with
+ * `@pinecall/web/log`. No event fan-out lives here.
  *
  * This is the one example with a second folder, because a takeover UI needs a
  * UI. Everything Pinecall does is in this file.
@@ -97,17 +98,36 @@ agent.on("session.resumed", (event) => console.log(`resumed ${event.sessionId ||
 const app = express();
 app.use(express.json());
 
-// One line: every agent event, as Server-Sent Events, for as long as the
-// browser holds the response open.
-app.get("/api/events", (req, res) => agent.stream(res));
+// Which conversations the operator has taken over. Pausing is a server-side
+// verb with no log entry of its own, so the dashboard hydrates it from here.
+const paused = new Set();
+
+// The only thing the browser needs to watch the agent: a read-only Call Log
+// token. `scope: "observe"` means exactly that — it can read this agent's log
+// and nothing else, and it expires. Mint it per logged-in operator; never ship
+// PINECALL_API_KEY to a browser.
+app.get("/api/token", async (_req, res) => {
+  try {
+    const { token, server, expiresIn } = await agent.createToken("stream", undefined, {
+      scope: "observe",
+    });
+    res.json({ token, server, expiresIn, agent: AGENT });
+  } catch (err) {
+    res.status(502).json({ error: String(err.message || err) });
+  }
+});
+
+app.get("/api/state", (_req, res) => res.json({ paused: [...paused] }));
 
 app.post("/api/pause/:sessionId", (req, res) => {
   agent.pause(req.params.sessionId);
+  paused.add(req.params.sessionId);
   res.json({ ok: true });
 });
 
 app.post("/api/resume/:sessionId", (req, res) => {
   agent.resume(req.params.sessionId);
+  paused.delete(req.params.sessionId);
   res.json({ ok: true });
 });
 

@@ -1,113 +1,53 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useAgentCalls, useCall } from "@pinecall/web/log/react";
 
 /**
  * WhatsApp Dashboard — Human Takeover UI
  *
- * Connects to the backend via SSE to receive live WhatsApp events.
- * Operators can pause the AI, send messages manually, and resume.
+ * The conversations and their messages come from the Call Log, read straight
+ * from Pinecall over SSE with a read-only `observe` token this app's server
+ * mints at /api/token. Nothing is streamed through the Node process:
+ *
+ *   useAgentCalls(agent, { token })  → one row per conversation (the agent log)
+ *   useCall({ call, token })         → that conversation's messages
+ *
+ * Only the three takeover verbs go back to the server (pause / send / resume),
+ * because those change the agent, they do not observe it.
  */
 
-// ── SSE Hook ──────────────────────────────────────────────────────────────
+// ── The observe token ─────────────────────────────────────────────────────
 
-function useSSE(url) {
-  const [sessions, setSessions] = useState({});
+function useObserveToken() {
+  const [auth, setAuth] = useState(null);
+  const [error, setError] = useState(null);
 
-  const upsertSession = useCallback((id, updater) => {
-    setSessions((prev) => {
-      const existing = prev[id] || { id, name: "", phone: "", messages: [], paused: false, status: "active" };
-      return { ...prev, [id]: updater(existing) };
-    });
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/token")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((a) => alive && setAuth(a))
+      .catch((e) => alive && setError(e.message));
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  // Load saved conversations on mount
+  return { auth, error };
+}
+
+// ── Saved conversations (the ones that already ended) ─────────────────────
+
+function useHistory() {
+  const [records, setRecords] = useState([]);
   useEffect(() => {
     fetch("/api/history")
       .then((r) => r.json())
-      .then((records) => {
-        const loaded = {};
-        for (const rec of records) {
-          loaded[rec.callId] = {
-            id: rec.callId,
-            name: rec.metadata?.contactName || "",
-            phone: rec.from || "",
-            status: rec.status || "ended",
-            paused: false,
-            messages: (rec.transcript || []).map((m) => ({
-              role: m.role === "assistant" ? (m.source === "human" ? "human" : "bot") : "user",
-              text: m.content,
-              time: rec.startedAt * 1000,
-            })),
-          };
-        }
-        setSessions((prev) => ({ ...loaded, ...prev }));
-      })
-      .catch(() => { /* no history available */ });
+      .then(setRecords)
+      .catch(() => {
+        /* no history available */
+      });
   }, []);
-
-  useEffect(() => {
-    const es = new EventSource(url);
-
-    es.addEventListener("whatsapp.session_started", (e) => {
-      const d = JSON.parse(e.data);
-      upsertSession(d.sessionId, (s) => ({
-        ...s,
-        name: d.contactName || s.name,
-        phone: d.contactPhone || s.phone,
-        status: "active",
-      }));
-    });
-
-    es.addEventListener("whatsapp.message", (e) => {
-      const d = JSON.parse(e.data);
-      upsertSession(d.sessionId, (s) => ({
-        ...s,
-        name: d.name || s.name,
-        paused: d.paused ?? s.paused,
-        status: "active",
-        messages: [
-          ...s.messages,
-          { role: "user", text: d.text, time: Date.now() },
-        ],
-      }));
-    });
-
-    es.addEventListener("whatsapp.response", (e) => {
-      const d = JSON.parse(e.data);
-      const role = d.source === "human" ? "human" : "bot";
-      upsertSession(d.sessionId, (s) => ({
-        ...s,
-        messages: [
-          ...s.messages,
-          { role, text: d.text, time: Date.now() },
-        ],
-      }));
-    });
-
-    es.addEventListener("session.paused", (e) => {
-      const d = JSON.parse(e.data);
-      if (d.sessionId) {
-        upsertSession(d.sessionId, (s) => ({ ...s, paused: true }));
-      }
-    });
-
-    es.addEventListener("session.resumed", (e) => {
-      const d = JSON.parse(e.data);
-      if (d.sessionId) {
-        upsertSession(d.sessionId, (s) => ({ ...s, paused: false }));
-      }
-    });
-
-    es.addEventListener("whatsapp.session_ended", (e) => {
-      const d = JSON.parse(e.data);
-      if (d.sessionId) {
-        upsertSession(d.sessionId, (s) => ({ ...s, status: "ended", paused: false }));
-      }
-    });
-
-    return () => es.close();
-  }, [url, upsertSession]);
-
-  return sessions;
+  return records;
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────
@@ -131,28 +71,107 @@ async function send(sessionId, text) {
 // ── App ───────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const sessions = useSSE("/api/events");
+  const { auth, error } = useObserveToken();
+
+  if (error) {
+    return (
+      <div className="app">
+        <div className="chat">
+          <div className="empty" style={{ margin: "auto" }}>
+            Could not mint an observe token: {error}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!auth) {
+    return (
+      <div className="app">
+        <div className="chat">
+          <div className="empty" style={{ margin: "auto" }}>
+            Connecting…
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return <Dashboard auth={auth} />;
+}
+
+function Dashboard({ auth }) {
+  const { token, server, agent } = auth;
+  // The agent log is lifecycle-only: it says which conversations exist and
+  // which are live, never what was said. That is per-call, below.
+  const { calls } = useAgentCalls(agent, { token, server });
+  const history = useHistory();
   const [activeId, setActiveId] = useState(null);
+  const [pausedIds, setPausedIds] = useState(() => new Set());
 
-  const sessionList = Object.values(sessions);
-  const active = activeId ? sessions[activeId] : null;
-
-  // Auto-select first session
   useEffect(() => {
-    if (!activeId && sessionList.length > 0) {
-      setActiveId(sessionList[0].id);
+    fetch("/api/state")
+      .then((r) => r.json())
+      .then((s) => setPausedIds(new Set(s.paused || [])))
+      .catch(() => {});
+  }, []);
+
+  // One row per conversation: live ones from the log, older ones from the
+  // saved history, the log winning where both know a conversation.
+  const sessions = useMemo(() => {
+    const byId = new Map();
+    for (const rec of history) {
+      byId.set(rec.callId, {
+        id: rec.callId,
+        name: rec.metadata?.contactName || "",
+        phone: rec.from || "",
+        status: rec.status === "active" ? "active" : "ended",
+        transcript: (rec.transcript || []).map((m) => ({
+          role: m.role === "assistant" ? (m.source === "human" ? "human" : "bot") : "user",
+          text: m.content,
+        })),
+      });
     }
-  }, [sessionList.length, activeId]);
+    for (const c of calls) {
+      const prev = byId.get(c.call) || { id: c.call, name: "", transcript: [] };
+      byId.set(c.call, {
+        ...prev,
+        phone: c.from || prev.phone || "",
+        status: c.live ? "active" : "ended",
+      });
+    }
+    return [...byId.values()];
+  }, [calls, history]);
+
+  const active = activeId ? sessions.find((s) => s.id === activeId) : null;
+
+  useEffect(() => {
+    if (!activeId && sessions.length > 0) setActiveId(sessions[0].id);
+  }, [sessions, activeId]);
+
+  const setPaused = (id, on) =>
+    setPausedIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
 
   return (
     <div className="app">
       <Sidebar
-        sessions={sessionList}
+        sessions={sessions}
+        pausedIds={pausedIds}
         activeId={activeId}
         onSelect={setActiveId}
       />
       {active ? (
-        <Chat session={active} />
+        <Chat
+          key={active.id}
+          session={active}
+          token={token}
+          server={server}
+          paused={pausedIds.has(active.id)}
+          onPaused={setPaused}
+        />
       ) : (
         <div className="chat">
           <div className="empty" style={{ margin: "auto" }}>
@@ -168,7 +187,7 @@ export default function App() {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────
 
-function Sidebar({ sessions, activeId, onSelect }) {
+function Sidebar({ sessions, pausedIds, activeId, onSelect }) {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
@@ -176,12 +195,11 @@ function Sidebar({ sessions, activeId, onSelect }) {
         <h1>WhatsApp Dashboard</h1>
       </div>
       <div className="session-list">
-        {sessions.length === 0 && (
-          <div className="empty">No active sessions</div>
-        )}
+        {sessions.length === 0 && <div className="empty">No active sessions</div>}
         {sessions.map((s) => {
-          const last = s.messages[s.messages.length - 1];
+          const last = s.transcript[s.transcript.length - 1];
           const isEnded = s.status === "ended";
+          const isPaused = pausedIds.has(s.id);
           return (
             <div
               key={s.id}
@@ -191,10 +209,8 @@ function Sidebar({ sessions, activeId, onSelect }) {
               <div className="name">
                 {s.name || s.phone || s.id}
                 {isEnded && <span className="badge ended">Ended</span>}
-                {!isEnded && s.paused && <span className="badge paused">Paused</span>}
-                {!isEnded && !s.paused && s.messages.length > 0 && (
-                  <span className="badge active">AI</span>
-                )}
+                {!isEnded && isPaused && <span className="badge paused">Paused</span>}
+                {!isEnded && !isPaused && <span className="badge active">AI</span>}
               </div>
               {last && <div className="preview">{last.text}</div>}
             </div>
@@ -207,15 +223,26 @@ function Sidebar({ sessions, activeId, onSelect }) {
 
 // ── Chat ──────────────────────────────────────────────────────────────────
 
-function Chat({ session }) {
+function Chat({ session, token, server, paused, onPaused }) {
   const [text, setText] = useState("");
   const messagesRef = useRef(null);
 
-  // Auto-scroll on new messages
+  // One conversation's log. `reconnectOnMount` is on by default, so a page
+  // reload picks the cursor back up instead of replaying the whole thing.
+  const log = useCall({ call: session.id, token, server });
+
+  // Live entries when the log has any; the saved transcript otherwise (an old
+  // conversation whose log has aged out).
+  const messages = log.messages.length
+    ? log.messages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role === "user" ? "user" : "bot", text: m.text }))
+    : session.transcript;
+
   useEffect(() => {
     const el = messagesRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [session.messages.length]);
+  }, [messages.length]);
 
   const handleSend = async () => {
     if (!text.trim()) return;
@@ -238,12 +265,24 @@ function Chat({ session }) {
           <span>{session.phone}</span>
         </div>
         <div className="actions">
-          {session.paused ? (
-            <button className="btn resume" onClick={() => resume(session.id)}>
+          {paused ? (
+            <button
+              className="btn resume"
+              onClick={async () => {
+                await resume(session.id);
+                onPaused(session.id, false);
+              }}
+            >
               ▶ Resume AI
             </button>
           ) : (
-            <button className="btn pause" onClick={() => pause(session.id)}>
+            <button
+              className="btn pause"
+              onClick={async () => {
+                await pause(session.id);
+                onPaused(session.id, true);
+              }}
+            >
               ⏸ Pause AI
             </button>
           )}
@@ -251,7 +290,7 @@ function Chat({ session }) {
       </div>
 
       <div className="messages" ref={messagesRef}>
-        {session.messages.map((msg, i) => (
+        {messages.map((msg, i) => (
           <div key={i} className={`message ${msg.role}`}>
             <div className="sender">
               {msg.role === "user"
@@ -271,13 +310,11 @@ function Chat({ session }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
           placeholder={
-            session.paused
-              ? "Type a message as human operator…"
-              : "Pause AI first to send messages"
+            paused ? "Type a message as human operator…" : "Pause AI first to send messages"
           }
-          disabled={!session.paused}
+          disabled={!paused}
         />
-        <button onClick={handleSend} disabled={!session.paused || !text.trim()}>
+        <button onClick={handleSend} disabled={!paused || !text.trim()}>
           Send
         </button>
       </div>
