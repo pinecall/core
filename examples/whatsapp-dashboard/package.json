@@ -1,13 +1,14 @@
 {
-  "name": "whatsapp-dashboard",
+  "name": "pinecall-whatsapp-dashboard-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "build": "npm --prefix client install && npm --prefix client run build",
+    "dev": "node --env-file=.env --watch server.mjs",
+    "start": "node --env-file=.env server.mjs"
   },
   "dependencies": {
-    "@pinecall/sdk": "latest",
-    "dotenv": "^16.5.0",
+    "@pinecall/sdk": "file:../../",
     "express": "^5.1.0"
   }
 }
