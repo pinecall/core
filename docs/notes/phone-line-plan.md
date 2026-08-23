@@ -372,7 +372,7 @@ const line = pc.line("+12186633772", {
   stt: "soniox/stt-rt-v5",            // the line's own pipeline; same shapes as an agent's
   voice: "elevenlabs/sarah",          // `llm`/`prompt`/`tools` are REJECTED here — a line has no model
   language: "en",
-  extension: { window: 2500 },        // ms of silence after connect to collect post-dial digits; 0 disables
+  extension: { window: 0 },           // DEFAULT: none. A switchboard may opt into 2500 ms to collect post-dial digits — it is dead air for every caller
 });
 
 // Declarative routing table — an agent slug, or code. Runs before `call` for a match;
@@ -441,3 +441,8 @@ that id. Specific to lines:
 - SDK: `pc.line()` landed on master (fb0a82d): `src/domain/line.ts`, guide `docs/guides/phone-lines.md`, `examples/phone-line/` (no `agent()`; `npm run smoke` drives it over a local ws server). Differences vs the draft above, all reflected in §3/§11: `call.extension` is a property; the option is `extension: { window }`; raw keypad is `call.dtmf_received`; `play` not wired; `forward` void; `listen({terminator})` returns `digits` without the terminator and `digit` = the terminator.
 - Server: line registry + extension window landed on the milestone branch (f1da29e); `call.route` in progress.
 - Open: presentations on one number (after the SDK is published), playground snapshot of line ownership.
+
+
+## 13. Corrected — 2026-08-23
+
+The silent extension window is **off by default** (SDK and server). It was on for every line and put 2.5 s of dead air before the first word — a caller who dials a number expects a voice, not a guess that a digit is wanted. It is now opt-in for a switchboard that knowingly wants `+1…,33` dialling.
