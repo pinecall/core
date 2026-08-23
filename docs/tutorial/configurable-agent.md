@@ -16,8 +16,8 @@ clinic operates, and whose call page **moves by itself** — the transcript appe
 by line while somebody is on the phone, and the call drops into the history, with
 everything it said, the moment it hangs up.
 
-One React Router app, one process, one `.env`. The finished code is at
-[**github.com/pinecall/dental-desk-sse**](https://github.com/pinecall/dental-desk-sse)
+One React Router app, one process, one `.env`. The finished code is the
+`dental-desk/` app in [**github.com/pinecall/examples**](https://github.com/pinecall/examples)
 — about 1,400 lines in 39 files, plus 500 more in tests.
 
 ## The line this tutorial is really about
@@ -452,8 +452,8 @@ change what a free slot *is*.
 ## Run it
 
 ```bash
-git clone https://github.com/pinecall/dental-desk-sse
-cd dental-desk-sse && npm install
+git clone https://github.com/pinecall/examples
+cd examples/dental-desk && npm install
 cp .env.example .env          # paste your key
 npm run dev                   # http://localhost:3000
 ```
