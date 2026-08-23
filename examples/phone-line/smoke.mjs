@@ -7,11 +7,10 @@
  * `server.mjs` runs unmodified against it via `PINECALL_URL`.
  *
  * It checks that the example:
- *   1. registers the line (`line.create` with the extension window),
- *   2. routes extension 10 straight to the agent,
- *   3. asks for a language, takes a keypad answer, and speaks the menu,
- *   4. reads opening hours on 1 and hangs up,
- *   5. hands the call over on 0 (`call.route`).
+ *   1. registers the line (`line.create`, no extension window, no model),
+ *   2. greets the instant the call connects and speaks ONE menu,
+ *   3. reads opening hours on 1 and hangs up,
+ *   4. hands the call over on 0 (`call.route`).
  *
  * Usage:  node smoke.mjs        (from this directory)
  */
@@ -107,50 +106,40 @@ try {
     // 1. Registration ────────────────────────────────────────────────────
     const create = await waitFor((f) => f.event === "line.create", "line.create");
     check(create.number === NUMBER, `line.create claims ${NUMBER}`);
-    check(create.config.extension_window_ms === 2500, "line.create carries the extension window");
+    check(create.config.extension_window_ms === 0, "no extension window — the line speaks at once");
     check(create.config.llm === undefined && create.config.prompt === undefined, "no model on the wire");
     check(!sent.some((f) => f.event === "agent.create"), "the example registers NO agent");
     send({ event: "line.created", number: NUMBER });
 
-    // 2. Extension 10 routes straight to the agent ───────────────────────
-    startCall("CA_ext", "10");
-    const direct = await waitFor((f) => f.event === "call.route" && f.call_id === "CA_ext", "call.route (extension)");
-    check(direct.agent === AGENT, `extension 10 routes to ${AGENT} with no menu`);
-    check(!sent.some((f) => f.event === "bot.reply" && f.call_id === "CA_ext"), "extension 10 says nothing first");
-    send({ event: "call.routed", agent_id: `line:${NUMBER}`, call_id: "CA_ext", agent: AGENT });
-    send({ event: "call.ended", agent_id: `line:${NUMBER}`, call_id: "CA_ext", reason: "routed" });
-
-    // 3. No extension → the language question, then the menu ─────────────
+    // 2. Greeting at once, then one menu ─────────────────────────────────
     let mark = sent.length;
     startCall("CA_menu", null);
-    const question = await finishSpeaking("CA_menu", mark);
-    check(/press one or say English/i.test(question.text), "asks for a language on a call with no extension");
-
-    press("CA_menu", "2");                                  // español
+    const greeting = await finishSpeaking("CA_menu", mark);
+    check(/Thanks for calling/.test(greeting.text), "greets the instant the call connects");
     mark = sent.length;
     const menu = await finishSpeaking("CA_menu", mark);
-    check(/Marque uno para el horario/.test(menu.text), "the menu is spoken in the language the caller picked");
+    check(/Press one for opening hours/.test(menu.text), "then ONE menu, no language question first");
 
-    // 4. Press 1 → opening hours, then hang up ───────────────────────────
+    // 3. Press 1 → opening hours, then hang up ───────────────────────────
     press("CA_menu", "1");
     mark = sent.length;
     const hours = await finishSpeaking("CA_menu", mark);
-    check(/lunes a viernes/.test(hours.text), "option 1 reads the opening hours");
+    check(/Monday to Friday/.test(hours.text), "option 1 reads the opening hours");
     const hangup = await waitFor((f) => f.event === "call.hangup" && f.call_id === "CA_menu", "call.hangup", mark);
     check(hangup.reason === "done", "and hangs up with a reason the call log keeps");
     send({ event: "call.ended", agent_id: `line:${NUMBER}`, call_id: "CA_menu", reason: "hangup" });
 
-    // 5. Press 0 → the hand-over ─────────────────────────────────────────
+    // 4. Press 0 DURING the menu → the hand-over, menu cut short ─────────
     mark = sent.length;
     startCall("CA_route", null);
-    await finishSpeaking("CA_route", mark);                 // the language question
-    press("CA_route", "1");                                 // English
+    await finishSpeaking("CA_route", mark);                 // the greeting
     mark = sent.length;
-    await finishSpeaking("CA_route", mark);                 // the menu
-    press("CA_route", "0");
+    await waitFor((f) => f.event === "bot.reply" && f.call_id === "CA_route", "the menu starts", mark);
+    press("CA_route", "0");                                 // pressed while the menu is still playing
     const route = await waitFor((f) => f.event === "call.route" && f.call_id === "CA_route", "call.route (menu)", mark);
-    check(route.agent === AGENT, "option 0 hands the LIVE call to the agent");
-    check(route.language === "en" && route.history === true, "the hand-over carries the language and the transcript");
+    check(route.agent === AGENT, "option 0 hands the LIVE call to the agent, without waiting for the menu to end");
+    check(sent.some((f) => f.event === "bot.cancel" && f.call_id === "CA_route"), "and the menu audio is cut");
+    check(route.history === true, "the hand-over carries the transcript");
     check(route.context?.came_from === "front_line", "and the context the line learned");
     send({ event: "call.routed", agent_id: `line:${NUMBER}`, call_id: "CA_route", agent: AGENT });
     send({ event: "call.ended", agent_id: `line:${NUMBER}`, call_id: "CA_route", reason: "routed" });

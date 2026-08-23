@@ -1,109 +1,62 @@
-# Phone Line — a business front line with no agent
+# Phone line — a front desk with no agent in it
 
-A working phone app built entirely with [`pc.line()`](https://pinecall.io/docs/guides/phone-lines).
-There is **no `pc.agent()` anywhere in this example**: the number answers with
-code, speaks with its own TTS, reads the keypad and the caller's voice off its
-own STT, and only hands the call to an agent when the caller asks for one.
+`pc.line()` claims a phone number and answers it with **code**: a greeting the instant
+the call connects, one menu, and every branch decided by an `if` — no prompt, no model,
+no tokens until the caller asks for the assistant.
 
 ```
-caller ──▶ +1 218 663 3772           the LINE owns the number
-             │
-             ├─ dialled ",10" ──────▶ routeTo(AGENT)          (no menu, no question)
-             │
-             └─ no extension
-                  ├─ "English or español?"     keypad OR voice
-                  └─ menu, in that language
-                       1 → opening hours       a constant, spoken
-                       2 → the address         a constant, spoken
-                       3 → forward(HUMAN)      leaves Pinecall
-                       0 → routeTo(AGENT)      the live call, same stream
+  call connects ──▶ "Thanks for calling Mill Street Dental."
+                    "Press 1 for opening hours, 2 for our address,
+                     3 to speak to somebody, or 0 for our assistant."
+                      ├─ 1 ──▶ say(hours)        ──▶ hangup
+                      ├─ 2 ──▶ say(address)      ──▶ hangup
+                      ├─ 3 ──▶ forward(HUMAN)         (the call LEAVES Pinecall)
+                      └─ 0 ──▶ routeTo(AGENT)         (the LIVE call is handed to an agent)
 ```
+
+A press cuts the menu short. Silence gets one repeat, then a polite goodbye.
 
 ## Run it
 
 ```bash
 npm install
-
-PINECALL_API_KEY=pk_...   \
-LINE_NUMBER=+12186633772  \
-AGENT=my-agent            \
-HUMAN=+15551234567        \
-node server.mjs
+PINECALL_API_KEY=pk_... LINE_NUMBER=+12186633772 AGENT=my-agent HUMAN=+15551234567 node server.mjs
 ```
 
-| Variable | What |
+| env | what |
 |---|---|
-| `PINECALL_API_KEY` | your Pinecall API key |
-| `LINE_NUMBER` | the number this line claims, E.164. It must be on your org |
-| `AGENT` | the agent slug to hand callers to (extension `10`, and menu option `0`) |
-| `HUMAN` | a real phone number for menu option `3` — the call **leaves** Pinecall |
-| `PINECALL_URL` | optional, override the voice server |
+| `PINECALL_API_KEY` | your key |
+| `LINE_NUMBER` | a number in your org this line will own (E.164) — `pinecall phones` lists them |
+| `AGENT` | the agent slug option `0` hands the call to (it must be online to take it) |
+| `HUMAN` | a real phone number option `3` forwards to |
 
-`AGENT` does not have to be running when the line starts: an agent is a
-*destination*, resolved when `routeTo` fires. If it is offline the line says so
-and hangs up — the caller never hears a dead number.
+Then call `LINE_NUMBER`. You hear the greeting right away; press a digit.
 
-## What you will hear
+## What you are looking at
 
-**Dialling `+1 218 663 3772, 10`** — the line reads the extension off the digits
-your phone sent after connect and hands you straight to the agent. Nothing is
-spoken first.
+- **`pc.line(number, { stt, voice, language, extension: { window: 0 } })`** — the line's own
+  STT and TTS, and *no* post-dial extension window: a window lets `+1…,10` skip the menu,
+  but it is 2.5 s of silence for every caller, which is the wrong trade on a front line.
+- **`await call.say(text)`** resolves when the audio has finished playing.
+- **`await call.ask(text, { digits: 1, timeout })`** speaks and waits for the keypad. A
+  press made while the line is still talking resolves at once and cuts the audio.
+- **`call.forward(number)`** leaves Pinecall — a real phone rings, nothing you do reaches
+  the call after that.
+- **`await call.routeTo(agent, { context })`** keeps the call inside Pinecall: same audio
+  stream, no re-dial. The agent receives a normal `call.started` with `routedFrom`,
+  `lineTranscript` and your `context`. `{ ok: false, reason }` if the agent is offline —
+  the line decides what to say.
+- **`call.transcript`** — everything the line and the caller said, printed on `call.ended`.
 
-**Dialling `+1 218 663 3772`** — about 2.5 seconds of silence (the extension
-window, waiting for digits that never come), then:
-
-> For English, press one or say English. Para español, marque dos o diga español.
-
-Answer with the keypad **or out loud** — both come off the same session. Then
-the menu, in your language. Press `1` for the opening hours, `2` for the
-address, `3` to be forwarded to `HUMAN`, `0` to be handed to the agent in the
-language you picked. Whatever the line heard travels with you: the agent gets a
-normal `call.started` carrying `routedFrom`, `extension` and `lineTranscript`.
-
-Press nothing and the line apologises and hangs up.
-
-## Dialling with an extension
-
-**There is no such thing as an extension on the PSTN.** "Extension 10" means
-your phone dials the number, and once the call is *connected* sends `1 0` as
-keypad tones. You cannot type `+12186633772#10` — a dialer sends the whole
-string to the carrier as one number and the carrier drops it.
-
-The forms that actually work:
-
-| Where | What to type | What happens |
-|---|---|---|
-| iPhone keypad | `+1 218 663 3772,10` — hold `*` until it becomes `,` | dials, waits ~2 s after connect, sends `1 0` |
-| iPhone keypad, manual | `+1 218 663 3772;10` — hold `#` until it becomes `;` | dials; tap the "Dial 10" button when the line picks up |
-| Android (Google Phone) | number → ⋮ → *Add 2-sec pause* / *Add wait* → `10` | the same two behaviours |
-| `tel:` link / contact card | `tel:+12186633772,10` (`,,10` for a longer pause) | one tap, pause honoured by iOS and Android |
-| Any phone, by hand | dial, wait for pickup, press `1 0` fast | lands in the window; later presses are a menu answer instead |
-| SIP | `sip:10@…` | the extension is in the URI — no window, no tones |
-
-Append `#` (`,10#`) and the window closes the instant it arrives.
-
-**Print it as `+1 218 663 3772, 10`.** The comma is the one character every
-dialer turns into a pause. Never print `#10` or `ext. 10` — people type it
-verbatim and it fails.
-
-## The trade-off
-
-The extension window costs every extension-less caller ~2.5 s of silence before
-the line speaks. A line that never uses extensions should turn it off:
-
-```javascript
-pc.line(LINE_NUMBER, { extension: { window: 0 } });   // answers instantly
-```
-
-## Prove it without a phone
+## Test it without a phone
 
 ```bash
 npm run smoke
 ```
 
-`smoke.mjs` stands up a WebSocket server on localhost that plays the voice
-server and runs `server.mjs` against it **unmodified** (via `PINECALL_URL`),
-then drives a caller through every branch: registration, extension `10`, the
-language question answered on the keypad, option `1`, and the hand-over on `0`.
-It asserts the line registers with no model on the wire and that no agent is
-ever created.
+Stands up a mocked voice server on localhost and drives `server.mjs` — unmodified —
+through every branch: the greeting, the menu, option 1 (hours + hangup) and option 0
+pressed *during* the menu (hand-over, audio cut). Verified against the real voice server
+on a real number as well; the smoke is what keeps it honest on every change.
+
+Docs: [Phone lines](https://docs.pinecall.io/guides/phone-lines).

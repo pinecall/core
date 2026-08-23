@@ -99,7 +99,6 @@ Runnable examples in [`examples/`](./examples) — clone, `cp .env.example .env`
 | **[`turn-detection/`](./examples/turn-detection)** | Debug turn events: Flux (native) vs Nova-3 (SmartTurn + Silero) |
 | **[`ringing/`](./examples/ringing)** | Accept or reject calls programmatically with `call.ringing` |
 | **[`history/`](./examples/history)** | Conversation persistence — returning callers get context restored |
-| **[`sse/`](./examples/sse)** | Real-time event streaming via Server-Sent Events (SSE) |
 | **[`whatsapp-dashboard/`](./examples/whatsapp-dashboard)** | WhatsApp agent + human takeover dashboard (Express + React + SSE) |
 
 📖 More in the [Examples Guide](https://docs.pinecall.io/examples).
