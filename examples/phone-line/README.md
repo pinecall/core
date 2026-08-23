@@ -20,7 +20,8 @@ A press cuts the menu short. Silence gets one repeat, then a polite goodbye.
 
 ```bash
 npm install
-PINECALL_API_KEY=pk_... LINE_NUMBER=+12186633772 AGENT=my-agent HUMAN=+15551234567 node server.mjs
+cp .env.example .env    # then fill in PINECALL_API_KEY and LINE_NUMBER
+npm start
 ```
 
 | env | what |
@@ -28,7 +29,7 @@ PINECALL_API_KEY=pk_... LINE_NUMBER=+12186633772 AGENT=my-agent HUMAN=+155512345
 | `PINECALL_API_KEY` | your key |
 | `LINE_NUMBER` | a number in your org this line will own (E.164) — `pinecall phones` lists them |
 | `AGENT` | the agent slug option `0` hands the call to (it must be online to take it) |
-| `HUMAN` | a real phone number option `3` forwards to |
+| `HUMAN` | a real phone number option `3` forwards to (optional — empty and option 3 apologises) |
 
 Then call `LINE_NUMBER`. You hear the greeting right away; press a digit.
 

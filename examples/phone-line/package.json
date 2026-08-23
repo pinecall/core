@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch server.mjs",
-    "start": "node server.mjs",
+    "dev": "node --env-file=.env --watch server.mjs",
+    "start": "node --env-file=.env server.mjs",
     "smoke": "node smoke.mjs"
   },
   "dependencies": {

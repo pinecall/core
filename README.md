@@ -90,18 +90,23 @@ All four packages talk to the same Pinecall voice server. The same agent (`pc.ag
 
 ## Examples
 
-Runnable examples in [`examples/`](./examples) — clone, `cp .env.example .env`, and run.
+Runnable examples in [`examples/`](./examples) — `npm install`, `cp .env.example .env`, `npm start`.
+
+> **One feature, one file.** Each folder shows ONE thing, in a single `server.mjs`, against this checkout of the SDK. Whole apps — storage, deploys, two processes — live in [`pinecall/examples`](https://github.com/pinecall/examples).
 
 | Example | What it shows |
 |---|---|
-> **One feature, one file.** Each folder here shows ONE thing, against this checkout of the SDK. Whole apps — storage, deploys, two processes — live in [`pinecall/examples`](https://github.com/pinecall/examples).
-
-| **[`simple/`](./examples/simple)** | Minimal voice agent — phone + history in 30 lines |
-| **[`outbound-dispatch/`](./examples/outbound-dispatch)** | CSV-driven outbound campaign — rate limiting, dedup, result writeback |
-| **[`turn-detection/`](./examples/turn-detection)** | Debug turn events: Flux (native) vs Nova-3 (SmartTurn + Silero) |
-| **[`ringing/`](./examples/ringing)** | Accept or reject calls programmatically with `call.ringing` |
-| **[`history/`](./examples/history)** | Conversation persistence — returning callers get context restored |
-| **[`whatsapp-dashboard/`](./examples/whatsapp-dashboard)** | WhatsApp agent + human takeover dashboard (Express + React + SSE) |
+| **[`simple/`](./examples/simple)** | The smallest agent worth running — prompt, voice, calls saved to a file |
+| **[`ringing/`](./examples/ringing)** | Accept or reject an inbound call before it is ever answered |
+| **[`history/`](./examples/history)** | A returning caller's previous conversation, restored into the live one |
+| **[`turn-detection/`](./examples/turn-detection)** | Turn events as a state machine: Flux (native) vs Nova-3 (SmartTurn + Silero) |
+| **[`tools/`](./examples/tools)** | One `tool()`, and a return value that proves the model actually called it |
+| **[`skills/`](./examples/skills)** | `skill()` — tools that stay latent until the model loads them |
+| **[`reservations/`](./examples/reservations)** | Three tools in a fixed order: check, then confirm, then book |
+| **[`phone-line/`](./examples/phone-line)** | `pc.line()` — a keypad menu decided by `if`, with no model in it |
+| **[`outbound-dispatch/`](./examples/outbound-dispatch)** | `DispatchHub` — a CSV of people to ring, paced, with results written back |
+| **[`whatsapp-dashboard/`](./examples/whatsapp-dashboard)** | WhatsApp with human takeover — pause the agent, answer yourself, resume |
+| **[`agent-tests/`](./examples/agent-tests)** | `pinecall test` specs — chat and real voice |
 
 📖 More in the [Examples Guide](https://docs.pinecall.io/examples).
 
