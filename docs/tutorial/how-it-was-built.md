@@ -97,20 +97,28 @@ held up by a **build convention**, not by the code. And `app/calls/page.tsx` imp
 `Call`, the model, with its disk access, into the same file as the React components,
 for the same reason.
 
-Version 5 moves the business back out: `src/domain` (pure rules), `src/store`
-(persistence behind an interface), `src/agent` (prompt, tools, config, wire), `src/bus`,
-and `app/` reduced to React Router. Same product, same UI, same `db.json`, same prompt —
-the compiled CSS is byte-for-byte identical. What changed is that `src/` imports no
-framework at all, the domain returns what happened instead of emitting on a global bus,
-and one ESLint rule in CI fails the build the moment `src/` reaches into `app/`. The
-first four versions asked nicely. This one does not ask.
+Version 5 moves the business back out, and names each piece after what it is:
+`src/clinic` (pure rules), `src/storage` (persistence behind an interface, plus the
+composition root that binds the rules to it), `src/agent` (prompt, tools, config, wire,
+log), `src/bus`, and `src/web` — the React Router app, reduced to the web app and
+nothing more, mounted as the framework's `appDirectory`. `src/server.ts` is the
+process. Same product, same UI, same `db.json`, same prompt — the compiled CSS is
+byte-for-byte identical. What changed is that the inner three folders import no
+framework at all, the clinic returns what happened instead of emitting on a global bus,
+and `eslint.config.js` fails the build the moment an arrow points the wrong way:
+
+```
+web  ──►  agent  ──►  clinic  ──►  storage
+```
+
+The first four versions asked nicely. This one does not ask.
 
 Four things came out of it that were not on the plan:
 
 - **`db.server.ts` was a `Proxy` that parsed the whole file on every read and did
   `load()` + `writeFileSync` on every write.** `Call.line()` runs on every confirmed
   transcript line, so a three-minute call rewrote `db.json` dozens of times, and a
-  process killed mid-write left it truncated. `src/store` holds the truth in memory,
+  process killed mid-write left it truncated. `src/storage` holds the truth in memory,
   serializes writes through a promise queue, debounces them, and lands each one with
   write-tmp + `rename`, which POSIX makes atomic.
 - **The "lost update" that motivated the rewrite could not actually happen.** The old
@@ -126,7 +134,7 @@ Four things came out of it that were not on the plan:
   `Map<callId, LiveCall>` now, and every handler matches on the id it was handed.
 - **Two `EventSource`s per tab.** The live panel opened one and the history opened
   another — two streams and two sets of bus listeners per tab, for one page. There is
-  one now, refcounted in `app/hooks/useEvents.ts`.
+  one now, refcounted in `src/web/hooks/useEvents.ts`.
 
 1,400 lines in 39 files, plus 500 in tests, `tsc` clean. Sources are listed at the end.
 
@@ -247,38 +255,38 @@ in `build/server/assets/`, so production read a file that did not exist and serv
 defaults — `sarah` while the form said `valentina`. Resolve against `process.cwd()`,
 which is what `src/config.ts` does now, in the one place the path is written down.
 
-**The agent did not start until the first visitor.** The official template loads
-`server/app.ts` lazily, inside the request handler. Fine for a web app; for a phone
+**The agent did not start until the first visitor.** The official template loads the
+server module lazily, inside the request handler. Fine for a web app; for a phone
 agent it means nobody is answering until someone opens the browser. One
-`await vite.ssrLoadModule("./server/app.ts")` at boot fixes it.
+`await vite.ssrLoadModule("./src/server.ts")` at boot fixes it.
 
-**Hot reload registered a second agent.** Vite re-evaluates `server/app.ts` on a change
+**Hot reload registered a second agent.** Vite re-evaluates `src/server.ts` on a change
 to anything it imports, and a second `pc.agent("dental-desk")` in the same process is
-refused by the server. `remember("agent", startAgent)` — four lines in `src/remember.ts`
-that keep one instance on `globalThis`, the pattern Epic Stack ships as
-`@epic-web/remember` — and the same for the event bus and the store, so a reload never
-leaves the agent subscribed to a stale emitter or two stores taking turns overwriting
-the file. (The first cut was a bare `declare global` + `globalThis.__agent ??=` in
-`server/app.ts`; it worked and it read like plumbing. The helper is the same five
-characters of semantics with a name.)
+refused by the server. `remember("agent", startAgent)` — a handful of lines in
+`src/remember.ts` that keep one instance on `globalThis`, the pattern Epic Stack ships
+as `@epic-web/remember` — and the same for the event bus and the store, so a reload
+never leaves the agent subscribed to a stale emitter or two stores taking turns
+overwriting the file. (The first cut was a bare `declare global` +
+`globalThis.__agent ??=` in the server module; it worked and it read like plumbing. The
+helper is the same five characters of semantics with a name.)
 
 ## What it cost
 
 | | |
 |---|---|
-| Repository | 39 files, ~1,400 lines, plus 5 test files and ~500 lines · `tsc` clean, `eslint` clean, 43 tests |
+| Repository | ~40 files, ~1,400 lines, plus 5 test files and ~500 lines · `tsc` clean, `eslint` clean, 45 tests |
 | Processes | 1 |
 | Pinecall surface | `pc.agent()`, `agent.update()`, `tool()`, `createToken()`, `VoiceSession`, fifteen agent events |
 | Lines that make it configurable | `agentConfig()` (12, half of them constants) · `bus.on("settings", …)` (1) · the form's `action` (4) |
-| Lines that make the page live | `events.ts` (40) · `src/domain/events.ts` (the catalogue) · `wire.ts`'s relays · one `EventSource` per tab |
-| The rule that keeps it honest | one `no-restricted-imports` rule: `src/` may not import `app/` |
+| Lines that make the page live | `routes/api/events.ts` (40) · `src/clinic/events.ts` (the catalogue) · `wire.ts`'s relays · one `EventSource` per tab |
+| The rule that keeps it honest | `no-restricted-imports`, one override per folder: `web → agent → clinic → storage`, and nothing imports `src/web` |
 
 Making an agent configurable from a UI is not a framework feature. It is one function
 that decides which settings may move, one `agent.update()` when they do, and a clear
 answer to "where does the agent live" — which, it turned out, the React Router template
 had already half given. The other half took five versions: the template says where
 *framework* code goes, and says nothing about the clinic. The agent belongs with the
-clinic, and neither of them belongs inside `app/`.
+clinic, and neither of them belongs inside the web app.
 
 ## Sources
 

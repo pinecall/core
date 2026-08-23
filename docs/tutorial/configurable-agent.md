@@ -42,56 +42,52 @@ half of the object it returns reads from the settings, the bottom half is consta
 ## The shape
 
 ```
-src/                   the clinic. Nothing in here knows React Router exists.
-├── domain/            the rules, pure: availability · booking · the call log · settings
+src/
+├── clinic/            THE BUSINESS — pure rules: availability · booking · the call log · settings
 │   └── events.ts      the typed catalogue — the ONE place an event is declared
-├── store/             persistence behind an interface: db.json in memory, written atomically
-├── agent/             prompt · tools · config (settings → SDK config) · wire (SDK events → domain)
-├── bus.ts             a typed emitter over domain/events.ts
-├── models.ts          the composition root: the domain, bound to this process's store
-└── config.ts          slug, phone number, db path
+├── storage/           HOW IT PERSISTS — db.json behind an interface, in memory, written atomically
+│   └── index.ts       the composition root: the store, and the clinic bound to it
+├── agent/             THE VOICE AGENT — prompt · tools · config (settings → SDK config) · wire · log
+├── web/               THE REACT ROUTER APP (appDirectory)
+│   ├── routes.ts         the whole surface, URL → file
+│   ├── routes/           settings.tsx · calls.tsx · api/{settings,appointments,availability,events,token}.ts
+│   ├── components/       Bubble · Phase · CallTranscript · PastCall · BrowserCall · AgentLive · …
+│   └── hooks/useEvents.ts   ONE /api/events connection per tab, refcounted
+├── bus.ts             a typed emitter over clinic/events.ts
+├── config.ts          slug · phone number · port · db path
+└── server.ts          THE process: Express, the React Router handler, and startAgent()
 
-app/                   ONLY React Router
-├── routes.ts          the whole surface, URL → file
-├── settings/          page (the form) · api
-├── appointments/      api · availability
-├── calls/             page (live call + history) · events (SSE) · token
-├── components/        Bubble · Phase · CallTranscript · PastCall · BrowserCall · AgentLive
-└── hooks/useEvents.ts ONE /api/events connection per tab, refcounted
-
-server/app.ts          Express + the React Router handler + startAgent()
 server.js              the process entry — Vite in dev, the build in prod. Nothing else.
 ```
 
 Four decisions, each borrowed rather than invented.
 
-**One arrow, and it only points one way: `app/` may import `src/`, `src/` may never
-import `app/`.** The clinic's rules — when it opens, that two people cannot have the
-same slot — are not the website's rules, and the voice agent has nothing to do with
-React Router. So the business, its storage and the agent live in `src/`, which imports
-no framework at all, and `app/` is only the web app. This is not a convention: one
-ESLint rule fails the build if `src/` reaches into `app/`, and CI runs it. The first
-version of this repo asked nicely instead, and within a month the agent was importing
-three models and the event bus out of the framework's folder.
+**Every top-level folder is a noun, and the arrows between them point one way:
+`web → agent → clinic → storage`.** The clinic's rules — when it opens, that two
+people cannot have the same slot — are not the website's rules, and the voice agent has
+nothing to do with React Router. So the business, its storage and the agent are three
+folders that import no framework at all, and `src/web` is only the web app. This is not
+a convention: `eslint.config.js` is one override per folder and it fails the build if
+anything reaches back out into `src/web`, and CI runs it. The first version of this repo
+asked nicely instead, and within a month the agent was importing three models and the
+event bus out of the framework's folder.
 
 **The mount is React Router's own
 [custom-server template](https://github.com/remix-run/react-router-templates/tree/main/node-custom-server).**
-`server.js` boots; `server/app.ts` is Express plus the RR request handler and is
-*bundled by Vite together with the routes*, so the agent, the domain and the pages share
-one module graph — one process, one bus, one store. `server/app.ts` is the only file
-that is neither: it is the mount, and it starts the agent.
+`server.js` boots; `src/server.ts` is Express plus the RR request handler and is
+*bundled by Vite together with the routes*, so the agent, the clinic and the pages share
+one module graph — one process, one bus, one store. `src/server.ts` is the only file
+that is neither business nor page: it is the mount, and it starts the agent.
 
-**Folders are named after what they do, not what they are.** Open `src/domain/
-appointments.ts` and the whole of appointments is in it; open `app/appointments/` and
-so are both of its endpoints. This is the feature-first layout that has replaced
-`models/ controllers/ routes/` in most codebases; the practical effect is that "where
-is X?" always has the same answer.
+**Files are named after the one thing in them.** Open `src/clinic/appointments.ts` and
+the whole of appointments is in it; open `src/web/routes/` and the folder tree is the
+URL tree. The practical effect is that "where is X?" always has the same answer.
 
 **The API is resource routes.** A React Router route file with a `loader` and/or
 `action` and no component *is* a JSON endpoint. There is no second router to learn:
 
 ```ts
-// app/settings/api.ts — GET and PUT /api/settings, the entire file
+// src/web/routes/api/settings.ts — GET and PUT /api/settings, the entire file
 export const loader = () => Response.json(Settings.get());
 
 export const action = async ({ request }: Route.ActionArgs) => {
@@ -101,23 +97,23 @@ export const action = async ({ request }: Route.ActionArgs) => {
 };
 ```
 
-(The domain does not announce anything by itself — `Settings.update()` returns the new
-settings and the caller emits. That is what lets `src/` stay free of the bus, and it is
-why the agent's booking tool emits for itself too.)
+(The clinic does not announce anything by itself — `Settings.update()` returns the new
+settings and the caller emits. That is what lets `src/clinic` stay free of the bus, and
+it is why the agent's booking tool emits for itself too.)
 
 And the map of it all fits on one screen:
 
 ```ts
-// app/routes.ts
+// src/web/routes.ts
 export default [
-  index("settings/page.tsx"),
-  route("call", "calls/page.tsx"),
+  index("routes/settings.tsx"),
+  route("call", "routes/calls.tsx"),
   ...prefix("api", [
-    route("settings", "settings/api.ts"),
-    route("appointments", "appointments/api.ts"),
-    route("availability", "appointments/availability.ts"),
-    route("events", "calls/events.ts"),
-    route("token", "calls/token.ts"),
+    route("settings", "routes/api/settings.ts"),
+    route("appointments", "routes/api/appointments.ts"),
+    route("availability", "routes/api/availability.ts"),
+    route("events", "routes/api/events.ts"),
+    route("token", "routes/api/token.ts"),
   ]),
 ] satisfies RouteConfig;
 ```
@@ -187,17 +183,17 @@ in the MCP); the default is now `elevenlabs/carolina-2` (es-ES) and the form onl
 offers native ones. `language` picks the STT and the TTS model; it does not fix a
 voice's accent.
 
-The agent is started once per process, from `server/app.ts`:
+The agent is started once per process, from `src/server.ts`:
 
 ```ts
-// server/app.ts
-import { startAgent } from "@/agent";
-export const agent = remember("agent", startAgent);
+// src/server.ts
+import { startAgent } from "~/agent";
+remember("agent", startAgent);
 ```
 
-`remember` is four lines in `src/remember.ts`: keep one instance on
+`remember` is a handful of lines in `src/remember.ts`: keep one instance on
 `globalThis`, create it the first time only. It is not decoration. In development Vite
-re-evaluates `server/app.ts` on a hot reload, and an agent registered twice under the
+re-evaluates `src/server.ts` on a hot reload, and an agent registered twice under the
 same slug is refused by the server. The event bus is remembered the same way, so a
 reload never leaves the agent listening to a stale copy. (Epic Stack ships the same
 idea as `@epic-web/remember`.)
@@ -213,11 +209,11 @@ Servicios: {{services}}
 Hoy es {{date}} y son las {{time}}. …`;
 ```
 
-`src/domain/settings.ts` is the model — the defaults, a gate, and `get`/`update` over
+`src/clinic/settings.ts` is the model — the defaults, a gate, and `get`/`update` over
 a `Store`. The gate is the whole of the validation, and it is deliberately small:
 
 ```ts
-// src/domain/settings.ts — only the seven known fields get through, each as a string
+// src/clinic/settings.ts — only the seven known fields get through, each as a string
 export function apply(current: SettingsRow, patch: Record<string, unknown>): SettingsRow {
   const next: SettingsRow = { ...current, updatedAt: Date.now() };
   for (const key of FIELDS) if (key in patch) next[key] = String(patch[key]);
@@ -230,11 +226,12 @@ settings, and the caller announces them. A model that reaches for a global bus c
 run from a test, a CLI or a cron — and this one is the thing the next two steps are
 built on, so it had better be the easiest thing in the repo to run.
 
-`src/models.ts` binds it to the process's store, and is the only impure line of the
-pair:
+`src/storage/index.ts` binds it to the process's store, and is the only impure line of
+the pair — import it and you have touched the disk; import `src/clinic` and you have
+not:
 
 ```ts
-// src/models.ts
+// src/storage/index.ts
 export const Appointment = createAppointments(store);
 export const Call = createCalls(store);
 export const Settings = createSettings(store);
@@ -244,7 +241,7 @@ The form is a React Router page with a `loader`, an `action` and a `<Form>` — 
 `fetch`, no state management, no API call to itself:
 
 ```tsx
-// app/settings/page.tsx
+// src/web/routes/settings.tsx
 export const loader = () => Settings.get();
 export const action = async ({ request }: Route.ActionArgs) => {
   const settings = Settings.update(Object.fromEntries(await request.formData()));
@@ -289,7 +286,7 @@ the console is a separate service:
 This is the part that earns the "SSE" in the repo's name, and it flows the *other* way:
 from the server **to the browser**.
 
-`app/calls/events.ts` is a resource route whose loader returns a stream:
+`src/web/routes/api/events.ts` is a resource route whose loader returns a stream:
 
 ```ts
 export const loader = ({ request }: Route.LoaderArgs) => {
@@ -297,7 +294,7 @@ export const loader = ({ request }: Route.LoaderArgs) => {
     start(controller) {
       const send = (event, data) =>
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      for (const name of EVENTS) bus.on(name, (data) => send(name, data));
+      const unsubscribe = bus.onAny(send);          // every event in the catalogue, verbatim
       request.signal.addEventListener("abort", /* unsubscribe, close */);
     },
   });
@@ -305,13 +302,13 @@ export const loader = ({ request }: Route.LoaderArgs) => {
 };
 ```
 
-That route keeps no list of its own: `EVENTS` is the catalogue in
-`src/domain/events.ts`, which is the single place an event is declared — its name, its
+That route keeps no list of its own: `bus.onAny` iterates the catalogue in
+`src/clinic/events.ts`, which is the single place an event is declared — its name, its
 payload, and a type-level assertion that the runtime list and the type map cannot drift
 apart.
 
 ```ts
-// src/domain/events.ts
+// src/clinic/events.ts
 export type Events = {
   settings: SettingsRow;
   appointment: AppointmentRow;
@@ -340,7 +337,7 @@ them, so "does `bot.finished` write exactly one line?" is a unit test with doubl
 rather than a phone call.
 
 And the call page hangs off **one** `EventSource` per tab, refcounted in
-`app/hooks/useEvents.ts` — the live panel and the history share it instead of opening
+`src/web/hooks/useEvents.ts` — the live panel and the history share it instead of opening
 one each:
 
 ```tsx
@@ -394,9 +391,9 @@ The browser needs a short-lived token. Minting one is an HTTP call carrying the 
 API key, so it is a resource route:
 
 ```ts
-// app/calls/token.ts — POST /api/token
+// src/web/routes/api/token.ts — POST /api/token
 export const action = async () =>
-  Response.json(await createToken({ channel: "webrtc", agentId: SLUG, apiKey: process.env.PINECALL_API_KEY! }));
+  Response.json(await createToken({ channel: "webrtc", agentId: SLUG, apiKey }));
 ```
 
 The page does not use the ready-made widget. It builds its own button over
@@ -406,7 +403,7 @@ carries interim user text, the bot's words as they play, and tool calls as `syst
 messages:
 
 ```tsx
-// app/components/BrowserCall.tsx — `agent` comes from the loader, not a second hardcoded slug
+// src/web/components/BrowserCall.tsx — `agent` comes from the loader, not a second hardcoded slug
 const session = new VoiceSession({ agent, tokenProvider: token });
 const state = useSyncExternalStore(session.subscribe, session.getState);   // status · phase · messages · duration
 <button onClick={() => (state.status === "connected" ? session.disconnect() : session.connect())}>…</button>
@@ -441,13 +438,13 @@ reliable than asking the prompt to be brief. **Say "always call this first" in t
 description** — it is the difference between an agent that checks the book and one that
 invents a plausible time.
 
-The tool calls the domain directly — `appointments.free(date)` — because it is the same
+The tool calls the clinic directly — `appointments.free(date)` — because it is the same
 process. There is no HTTP between the agent and its own data. And `appointments` is a
 parameter of `createTools()`, not an import, which is why the same tools can be pointed
 at an in-memory store in a test.
 
-That is also where the line at the top of this page stops being rhetoric. `src/domain/
-appointments.ts` is the clinic: `availability()` is the opening hours, `book()` is the
+That is also where the line at the top of this page stops being rhetoric.
+`src/clinic/appointments.ts` is the clinic: `availability()` is the opening hours, `book()` is the
 one invariant ("no two appointments in the same slot"), and neither of them can reach a
 disk, a bus or a browser. The form can change every word the agent says. It cannot
 change what a free slot *is*.
