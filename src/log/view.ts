@@ -127,6 +127,23 @@ export interface CallIntent {
     seq: number;
 }
 
+/**
+ * One row of `state.custom`: the latest value per `(name, id)`, in first-seen
+ * order. The wire stays append-only — every `call.log()` is its own entry
+ * with its own seq — the upsert is a projection of this reducer only.
+ */
+export interface CallCustomEntry<V = unknown> {
+    name: string;
+    /** `data.id ?? String(seq)` — the upsert key together with `name`. */
+    id: string;
+    value: V;
+    /** seq of the entry that LAST set this value. */
+    seq: number;
+    ts: number;
+    /** Server-stamped turn id, when the session has turns. */
+    turn?: number;
+}
+
 export interface CallLogState {
     phase: CallPhase;
     messages: CallMessage[];
@@ -158,6 +175,8 @@ export interface CallLogState {
     sources: unknown[];
     /** Things the log asked the transport to do (§ correction #2). */
     intents: CallIntent[];
+    /** Durable `custom` entries, upserted by (name, id). Ephemeral ones never land here. */
+    custom: CallCustomEntry[];
 }
 
 function emptyState(): CallLogState {
@@ -180,6 +199,7 @@ function emptyState(): CallLogState {
         skills: [],
         sources: [],
         intents: [],
+        custom: [],
     };
 }
 
@@ -275,6 +295,8 @@ interface FoldContext {
     turnIndex: Map<number, number>;
     /** message seq → index in `messages` (for `bot.corrected.supersedes`). */
     bySeq: Map<number, number>;
+    /** `name + "/" + id` → index in `custom` (the (name, id) upsert). */
+    customIndex: Map<string, number>;
     /** ts of the first entry / of `call.started`. */
     startTs: number | null;
     lastTs: number | null;
@@ -289,6 +311,7 @@ function emptyContext(): FoldContext {
         toolIndex: new Map(),
         turnIndex: new Map(),
         bySeq: new Map(),
+        customIndex: new Map(),
         startTs: null,
         lastTs: null,
         e2eSum: 0,
@@ -319,7 +342,7 @@ export class CallLogView {
      * Read-only snapshot, safe to retain and to compare by reference.
      *
      * Every state-affecting apply produces a new state object, new
-     * `messages`/`toolCalls`/`turns` arrays, and new objects for exactly the
+     * `messages`/`toolCalls`/`turns`/`custom` arrays, and new objects for exactly the
      * entries that changed — untouched siblings keep their identity. So
      * `prev.messages[3] === next.messages[3]` is a truthful "this line did
      * not change", which is what makes a memoized transcript line correct
@@ -369,6 +392,7 @@ export class CallLogView {
                 messages: [...this.#state.messages],
                 toolCalls: [...this.#state.toolCalls],
                 turns: [...this.#state.turns],
+                custom: [...this.#state.custom],
             };
             this.#step(this.#state, this.#ctx, entry);
             this.#finish(this.#state, this.#ctx);
@@ -391,6 +415,7 @@ export class CallLogView {
                 messages: [...this.#state.messages],
                 toolCalls: [...this.#state.toolCalls],
                 turns: [...this.#state.turns],
+                custom: [...this.#state.custom],
             };
             this.#step(this.#state, this.#ctx, entry);
             this.#finish(this.#state, this.#ctx);
@@ -788,6 +813,35 @@ export class CallLogView {
                 ];
                 state.caughtUp = false;
                 break;
+
+            // ── Custom entries (`call.log()`) ──
+            case "custom": {
+                // Ephemeral: fanned out to listeners, never projected — the
+                // store never has it, so live state must not have it either
+                // (replay === live). Durable: upsert by (name, id) — the row
+                // is REPLACED wholesale (value, seq, ts, turn), never merged,
+                // so the final state never depends on which entries were
+                // skipped. Absent id → the entry's own seq, i.e. append.
+                if (entry.ephemeral) break;
+                const id = entry.data.id ?? String(entry.seq);
+                const key = `${entry.data.name}/${id}`;
+                const row: CallCustomEntry = {
+                    name: entry.data.name,
+                    id,
+                    value: entry.data.value,
+                    seq: entry.seq,
+                    ts: entry.ts,
+                    ...(entry.data.turn !== undefined ? { turn: entry.data.turn } : {}),
+                };
+                const i = ctx.customIndex.get(key);
+                if (i === undefined) {
+                    ctx.customIndex.set(key, state.custom.length);
+                    state.custom.push(row);
+                } else {
+                    state.custom[i] = row;
+                }
+                break;
+            }
 
             default: {
                 // Exhaustiveness: adding a §2 type without a case fails to compile.

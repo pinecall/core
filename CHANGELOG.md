@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`custom` in the call-log vocabulary** (`@pinecall/sdk/log`). A new closed
+  type `custom` with `data: { name, value, id?, turn? }` (`CustomData`) — the
+  one open extension point of the log; the reducer never interprets `value`.
+  `CallLogState` gains `custom: CallCustomEntry[]`: durable entries are
+  projected by `(name, id)` — a later entry with the same key REPLACES the row
+  wholesale (`value`, `seq`, `ts`, `turn`), otherwise it appends; `id`
+  defaults to the entry's own `seq`. Ephemeral `custom` entries reach
+  listeners and never land in `state.custom`, so a replay of a finished call
+  still reduces to the live state. `fixtures/call-log-golden.json` grows five
+  `custom` entries (50 entries now) exercising the upsert, the seq-keyed rows
+  and the ephemeral rule.
+
 ### Changed
 - **A phone line speaks the instant the call connects.** `extension.window`
   now defaults to `0`: the silent post-dial window that collected `+1…,33`

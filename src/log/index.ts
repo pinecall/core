@@ -57,6 +57,7 @@ export type {
     SupervisorData,
     LogGapData,
     LogCaughtUpData,
+    CustomData,
 } from "./types.js";
 
 export { LOG_EVENT_TYPES, isKnownLogEntry, isLogEntry } from "./types.js";
@@ -70,6 +71,7 @@ export type {
     CallTurn,
     CallMetrics,
     CallIntent,
+    CallCustomEntry,
 } from "./view.js";
 
 export { CallLogView, createCallLogView } from "./view.js";

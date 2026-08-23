@@ -45,7 +45,7 @@ function build(input: readonly AnyLogEntry[]): CallLogState {
 
 describe("golden fixture", () => {
     it("is the shape the spec describes", () => {
-        expect(entries.length).toBe(45);
+        expect(entries.length).toBe(50);
         for (const e of entries) {
             expect(Object.keys(e).sort()).toEqual(
                 ["agent", "call", "data", "ephemeral", "seq", "ts", "type"],
@@ -61,8 +61,13 @@ describe("golden fixture", () => {
         const types = new Set(entries.map((e) => e.type));
         for (const t of [
             "tool.call", "tool.result", "bot.corrected", "bot.interrupted",
-            "turn.end", "call.summary", "log.caught_up",
+            "turn.end", "call.summary", "log.caught_up", "custom",
         ]) expect(types).toContain(t);
+        // custom: durable with id (twice, same (name,id) → upsert), durable
+        // without id (twice, same name → two rows), and one ephemeral.
+        const custom = entries.filter((e) => e.type === "custom");
+        expect(custom).toHaveLength(5);
+        expect(custom.filter((e) => e.ephemeral)).toHaveLength(1);
     });
 });
 
@@ -72,7 +77,7 @@ describe("CallLogView — the one reducer", () => {
     it("reduces the call to the state the spec implies", () => {
         expect(inOrder.phase).toBe("ended");
         expect(inOrder.live).toBe(false);
-        expect(inOrder.lastSeq).toBe(45);
+        expect(inOrder.lastSeq).toBe(50);
         expect(inOrder.call).toBe("CA_golden");
         expect(inOrder.agent).toBe("lucia");
         expect(inOrder.endedReason).toBe("caller_hangup");
@@ -145,8 +150,23 @@ describe("CallLogView — the one reducer", () => {
 
     it("surfaces the disconnect as an INTENT, never a transport call", () => {
         expect(inOrder.intents).toEqual([
-            { kind: "disconnect", reason: "caller_hangup", seq: 44 },
+            { kind: "disconnect", reason: "caller_hangup", seq: 49 },
         ]);
+    });
+
+    it("projects durable custom entries upserted by (name, id); ephemeral never lands", () => {
+        expect(inOrder.custom.map((c) => [c.name, c.id])).toEqual([
+            ["crm.lookup", "c_42"],   // two entries, ONE row
+            ["note", "44"],           // no id → seq
+            ["note", "46"],           // same name, no id → its own row
+        ]);
+        const crm = inOrder.custom[0]!;
+        // replaced wholesale by the later entry (value, seq, ts, turn) — no merge
+        expect(crm.value).toEqual({ customer: "c_42", tier: "gold", since: "2021-03" });
+        expect(crm.seq).toBe(43);
+        expect(crm.ts).toBe(1786312215.15);
+        expect(crm.turn).toBe(4);
+        expect(inOrder.custom.some((c) => c.name === "progress")).toBe(false);
     });
 
     it("tracks handoff and skill lifecycles", () => {

@@ -45,7 +45,8 @@ Every entry has the same shape:
   agree on what `seq: 12` is, forever.
 - `type` — a closed vocabulary: `call.ringing`, `call.started`, `user.message`,
   `bot.message`, `tool.call`, `tool.result`, `turn.completed`, `call.ended`,
-  `call.summary`, and the control markers below.
+  `call.summary`, `custom` (the agent's own entries, `data: { name, value,
+  id?, turn }`), and the control markers below.
 - `ephemeral` — interim facts (partial transcripts, word timings) that a late
   reader can skip; the durable entry that supersedes them always follows.
 

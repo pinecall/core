@@ -569,17 +569,94 @@
   },
   {
    "seq": 42,
+   "ts": 1786312215.1,
+   "call": "CA_golden",
+   "agent": "lucia",
+   "type": "custom",
+   "ephemeral": false,
+   "data": {
+    "name": "crm.lookup",
+    "value": {
+     "customer": "c_42",
+     "tier": "silver"
+    },
+    "id": "c_42",
+    "turn": 4
+   }
+  },
+  {
+   "seq": 43,
+   "ts": 1786312215.15,
+   "call": "CA_golden",
+   "agent": "lucia",
+   "type": "custom",
+   "ephemeral": false,
+   "data": {
+    "name": "crm.lookup",
+    "value": {
+     "customer": "c_42",
+     "tier": "gold",
+     "since": "2021-03"
+    },
+    "id": "c_42",
+    "turn": 4
+   }
+  },
+  {
+   "seq": 44,
+   "ts": 1786312215.2,
+   "call": "CA_golden",
+   "agent": "lucia",
+   "type": "custom",
+   "ephemeral": false,
+   "data": {
+    "name": "note",
+    "value": "caller asked to cancel after shipping",
+    "turn": 4
+   }
+  },
+  {
+   "seq": 45,
+   "ts": 1786312215.25,
+   "call": "CA_golden",
+   "agent": "lucia",
+   "type": "custom",
+   "ephemeral": true,
+   "data": {
+    "name": "progress",
+    "value": {
+     "pct": 50,
+     "step": "return_started"
+    },
+    "turn": 4
+   }
+  },
+  {
+   "seq": 46,
+   "ts": 1786312215.3,
+   "call": "CA_golden",
+   "agent": "lucia",
+   "type": "custom",
+   "ephemeral": false,
+   "data": {
+    "name": "note",
+    "value": "supervisor opened a return",
+    "turn": 4
+   }
+  },
+  {
+   "seq": 47,
    "ts": 1786312215.4,
    "call": "CA_golden",
    "agent": "lucia",
    "type": "log.caught_up",
    "ephemeral": false,
    "data": {
-    "seq": 42
+    "seq": 47
    }
   },
   {
-   "seq": 43,
+   "seq": 48,
    "ts": 1786312215.8,
    "call": "CA_golden",
    "agent": "lucia",
@@ -598,7 +675,7 @@
    }
   },
   {
-   "seq": 44,
+   "seq": 49,
    "ts": 1786312216.2,
    "call": "CA_golden",
    "agent": "lucia",
@@ -610,7 +687,7 @@
    }
   },
   {
-   "seq": 45,
+   "seq": 50,
    "ts": 1786312216.6,
    "call": "CA_golden",
    "agent": "lucia",

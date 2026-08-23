@@ -243,6 +243,21 @@ export interface LogCaughtUpData {
     seq: number;
 }
 
+/**
+ * `custom` — the one open extension point: `call.log(name, value)`. The
+ * reducer never interprets `value`; it projects the latest value per
+ * `(name, id)` into `state.custom` (upsert — the wire itself stays
+ * append-only). Ephemeral ones are fanned out live and never stored.
+ */
+export interface CustomData {
+    name: string;
+    value: unknown;
+    /** Upsert key in the projection; absent → the entry's seq. */
+    id?: string;
+    /** Server-stamped turn id, when the session has turns. */
+    turn?: number;
+}
+
 // ── The closed type union ────────────────────────────────────────────────
 
 /**
@@ -276,6 +291,7 @@ export interface LogDataMap {
     "supervisor.whispered": SupervisorData;
     "log.gap": LogGapData;
     "log.caught_up": LogCaughtUpData;
+    "custom": CustomData;
 }
 
 /** Every legal `type` value. Closed — see §2. */
@@ -328,6 +344,7 @@ export const LOG_EVENT_TYPES: readonly LogEventType[] = [
     "supervisor.whispered",
     "log.gap",
     "log.caught_up",
+    "custom",
 ] as const;
 
 const KNOWN = new Set<string>(LOG_EVENT_TYPES);
