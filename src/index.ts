@@ -227,6 +227,19 @@ export type {
     TokenScopeOptions,
 } from "./api/tokens.js";
 
+// Call Log observation — SSE reader of the log (also `pc.observe`)
+export { observe, sseDecoder, observeBackoffDelay } from "./observe.js";
+export type {
+    ObserveOptions,
+    Observation,
+    ObserveFinishInfo,
+    ObserveError,
+    ObserveFetch,
+    ObserveResponseLike,
+    IdleReconnect,
+    SseEvent,
+} from "./observe.js";
+
 export { fetchTwilioBalance } from "./api/balance.js";
 export type {
     TwilioBalance,

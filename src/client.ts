@@ -53,6 +53,10 @@ import type { TokenResponse } from "./api/tokens.js";
 import type { Turn } from "./domain/turn.js";
 import type { Call } from "./domain/call.js";
 
+// Call Log observation
+import { observe as observeLog } from "./observe.js";
+import type { ObserveOptions, Observation } from "./observe.js";
+
 // SSE
 import { createMultiAgentStream } from "./sse/stream.js";
 import type { StreamOptions } from "./sse/stream.js";
@@ -522,6 +526,37 @@ export class Pinecall extends TypedEventBus<PinecallEvents> {
             metadata,
             ...(opts?.scope ? { scope: opts.scope } : {}),
             ...(opts?.callId ? { callId: opts.callId } : {}),
+        });
+    }
+
+    // ── Call Log observation ─────────────────────────────────────────────
+
+    /**
+     * Read the Call Log over SSE — the ONE way to observe a call from Node.
+     *
+     * Opens `GET /v1/calls/{id}/events` (or `/v1/agents/{slug}/calls`) with
+     * `Accept: text/event-stream`, feeds every envelope into the same
+     * `CallLogView` reducer the browser uses, and exposes it three ways: the
+     * reduced `state`, `on("entry" | "custom" | "finish")`, and `for await`.
+     * No WebSocket is opened — observation is read-only by construction.
+     *
+     * The token defaults to one minted with this client's API key
+     * (`createToken({ channel: "stream", scope: "observe" })`), which needs an
+     * agent: `observe({ call })` without a token must also pass `agent`.
+     *
+     * @example
+     * ```ts
+     * const obs = pc.observe({ agent: "lucia", types: ["custom", "call.ended"] });
+     * obs.on("custom", (name, value) => console.log(name, value));
+     * for await (const entry of obs) console.log(entry.seq, entry.type);
+     * ```
+     */
+    observe(opts: ObserveOptions): Observation {
+        return observeLog({
+            ...opts,
+            apiKey: opts.apiKey ?? this.#apiKey,
+            server: opts.server ?? this.#apiUrl,
+            apiUrl: opts.apiUrl ?? this.#apiUrl,
         });
     }
 

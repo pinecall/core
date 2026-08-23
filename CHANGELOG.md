@@ -10,6 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`pc.observe()` / `observe()`** — the Node reader of the Call Log, and the
+  ONE way to observe a call from a server process. Opens
+  `GET /v1/calls/{id}/events` (or `/v1/agents/{slug}/calls`) with
+  `Accept: text/event-stream` over Node 18+ global `fetch`, feeds every
+  envelope into the SAME `CallLogView` reducer the browser uses, and exposes
+  it three ways: the reduced `state` (+ `lastSeq`), `on("entry")` /
+  `on("custom")` / `on("finish")`, and `for await (const entry of obs)`.
+  Never opens a WebSocket — observation is read-only by construction.
+  Options: `{ call | agent, after, types, durable, token, server, signal,
+  idleReconnect, reconnect, queueLimit }`. The token defaults to one minted
+  with the client's API key (`createToken({ channel: "stream", scope:
+  "observe" })`), which needs an agent — so `observe({ call })` without a
+  token must also pass `agent`. Terminators: `204` on a sealed cursor and a
+  body ending after `call.summary` both finish `"summary"`; `close()` /
+  `signal` finish `"closed"`; `401/403/404` (and a drop with
+  `reconnect: false`) finish `"error"` and never retry; anything else
+  reconnects on `min(1000·2^n, 15000) + rand(0, 1000)` ms carrying
+  `after=<lastSeq>` (never `Last-Event-ID`, which is the zero-JS
+  `EventSource` path). An idle watchdog (`"auto"` = dormant until two `: ping`
+  heartbeats, then `clamp(3 × cadence, 6 s, 30 s)`; a number = fixed ms; `0`
+  = off) turns a half-open stream into a reconnect. The async iterator is fed
+  by a bounded queue (`queueLimit`, default 1024): on overflow the OLDEST
+  queued entries are dropped and counted in `obs.dropped` — `state` and
+  `on("entry")` are never lossy, only the iterator is. The SSE decoder, the
+  watchdog, the backoff and the finish reasons are a deliberate,
+  semantically identical port of `@pinecall/web`'s `src/log/transport.ts`
+  (twins, not yet shared — the two packages sit on opposite sides of a
+  publish boundary; the file says why). Also exported standalone:
+  `observe`, `sseDecoder`, `observeBackoffDelay`, and the types
+  `ObserveOptions`, `Observation`, `ObserveFinishInfo`, `ObserveError`,
+  `ObserveFetch`, `ObserveResponseLike`, `IdleReconnect`, `SseEvent`.
 - **`log.gap` hydration** (`@pinecall/sdk/log`). `CallLogView` now merges
   `data.snapshot` into its state when a gap is declared, instead of only
   recording it: `messages` by `seq` (bot bubbles by `id`), `tool_calls` by
